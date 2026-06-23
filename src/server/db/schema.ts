@@ -1,4 +1,5 @@
 import {
+  date,
   integer,
   pgEnum,
   pgTable,
@@ -9,6 +10,17 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const householdRole = pgEnum("household_role", ["parent", "child"]);
+export const choreStatus = pgEnum("chore_status", [
+  "active",
+  "paused",
+  "archived",
+]);
+export const routineFrequency = pgEnum("routine_frequency", ["daily", "weekly"]);
+export const choreSubmissionStatus = pgEnum("chore_submission_status", [
+  "pending",
+  "approved",
+  "needs_work",
+]);
 
 export const households = pgTable("households", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -53,3 +65,46 @@ export const children = pgTable("children", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+export const chores = pgTable("chores", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  childId: uuid("child_id")
+    .notNull()
+    .references(() => children.id),
+  title: text("title").notNull(),
+  pointValue: integer("point_value").notNull(),
+  dueDate: date("due_date").notNull(),
+  routineFrequency: routineFrequency("routine_frequency"),
+  status: choreStatus("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const choreSubmissions = pgTable(
+  "chore_submissions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id),
+    choreId: uuid("chore_id")
+      .notNull()
+      .references(() => chores.id),
+    childId: uuid("child_id")
+      .notNull()
+      .references(() => children.id),
+    occurrenceDate: date("occurrence_date").notNull(),
+    status: choreSubmissionStatus("status").notNull().default("pending"),
+    submittedAt: timestamp("submitted_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    pendingOccurrenceIndex: uniqueIndex(
+      "chore_submissions_pending_occurrence_idx",
+    ).on(table.choreId, table.childId, table.occurrenceDate, table.status),
+  }),
+);

@@ -2,8 +2,17 @@
 
 import Link from "next/link";
 import { FormEvent, useState, useSyncExternalStore } from "react";
-import { KeyRound, LogOut, Sparkles, UserRound } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock3,
+  KeyRound,
+  LogOut,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
 
+import type { ChoreOccurrence } from "@/domain/chores";
+import { getChildChoreBoard, submitChore } from "@/domain/chores";
 import { getChildView, startChildSession } from "@/domain/household";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
@@ -16,6 +25,7 @@ import {
   getHydratedSnapshot,
   getServerHydratedSnapshot,
   getServerSnapshot,
+  saveHousehold,
   saveChildSession,
   subscribeChildSession,
   subscribeHousehold,
@@ -41,6 +51,7 @@ export function ChildViewPage() {
   const [selectedChildId, setSelectedChildId] = useState("");
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
 
   if (!hasLoaded) {
     return (
@@ -74,6 +85,11 @@ export function ChildViewPage() {
 
   if (session) {
     const view = getChildView(household, session.childId);
+    const choreBoard = getChildChoreBoard(
+      household,
+      session.childId,
+      getTodayDateKey(),
+    );
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -102,16 +118,112 @@ export function ChildViewPage() {
               {view.child.pointBalance}
             </p>
           </div>
-          <div className="rounded-md border border-dashed border-border bg-background p-5 sm:col-span-2">
+          <div className="rounded-md border border-border bg-background p-5 shadow-panel sm:col-span-2">
             <h2 className="text-lg font-semibold">Today</h2>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Chores and Goals arrive in the next slices. For now, this verifies
-              that the selected Child can enter their own view.
-            </p>
+            {choreBoard.today.length === 0 && choreBoard.overdue.length === 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No Chores due right now.
+              </p>
+            ) : null}
+            <div className="mt-4 space-y-3">
+              {choreBoard.overdue.map((chore) => (
+                <ChoreCard
+                  chore={chore}
+                  key={`${chore.choreId}-${chore.dueDate}`}
+                  tone="overdue"
+                  onSubmit={() => submitDueChore(chore)}
+                />
+              ))}
+              {choreBoard.today.map((chore) => (
+                <ChoreCard
+                  chore={chore}
+                  key={`${chore.choreId}-${chore.dueDate}`}
+                  tone="today"
+                  onSubmit={() => submitDueChore(chore)}
+                />
+              ))}
+            </div>
           </div>
         </section>
+
+        <section className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-md border border-border bg-background p-5 shadow-panel">
+            <div className="mb-4 flex items-center gap-2">
+              <Clock3 aria-hidden="true" className="h-5 w-5 text-parent" />
+              <h2 className="text-lg font-semibold">Waiting for Parent</h2>
+            </div>
+            {choreBoard.pendingReview.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Submitted Chores will wait here.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {choreBoard.pendingReview.map((chore) => (
+                  <ChoreCard
+                    chore={chore}
+                    key={`${chore.choreId}-${chore.dueDate}`}
+                    tone="pending"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-border bg-background p-5 shadow-panel">
+            <div className="mb-4 flex items-center gap-2">
+              <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-child" />
+              <h2 className="text-lg font-semibold">Upcoming</h2>
+            </div>
+            {choreBoard.upcoming.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Upcoming Chores will appear here.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {choreBoard.upcoming.map((chore) => (
+                  <ChoreCard
+                    chore={chore}
+                    key={`${chore.choreId}-${chore.dueDate}`}
+                    tone="upcoming"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {message ? (
+          <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+            {message}
+          </p>
+        ) : null}
+        {error ? (
+          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error}
+          </p>
+        ) : null}
       </div>
     );
+  }
+
+  function submitDueChore(chore: ChoreOccurrence) {
+    if (!household || !session) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = submitChore(household, {
+        childId: session.childId,
+        choreId: chore.choreId,
+        occurrenceDate: chore.dueDate,
+        today: getTodayDateKey(),
+      });
+      saveHousehold(updated);
+      setMessage(`${chore.title} is waiting for Parent review.`);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not submit Chore.");
+    }
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -190,4 +302,52 @@ export function ChildViewPage() {
       </div>
     </form>
   );
+}
+
+function ChoreCard({
+  chore,
+  tone,
+  onSubmit,
+}: {
+  chore: ChoreOccurrence;
+  tone: "overdue" | "today" | "pending" | "upcoming";
+  onSubmit?: () => void;
+}) {
+  const toneClass =
+    tone === "overdue"
+      ? "border-red-200 bg-red-50"
+      : tone === "pending"
+        ? "border-blue-200 bg-blue-50"
+        : "border-border bg-background";
+
+  return (
+    <div className={`rounded-md border p-3 ${toneClass}`}>
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <p className="font-medium">{chore.title}</p>
+          <p className="text-sm text-muted-foreground">
+            {formatDate(chore.dueDate)} - {chore.pointValue} Points -{" "}
+            {chore.routineLabel}
+          </p>
+        </div>
+        {onSubmit ? (
+          <Button type="button" variant="child" onClick={onSubmit}>
+            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+            Submit
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function getTodayDateKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function formatDate(dateKey: string): string {
+  return new Intl.DateTimeFormat("en", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(`${dateKey}T00:00:00.000Z`));
 }

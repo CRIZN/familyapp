@@ -1,3 +1,5 @@
+import type { Chore, ChoreSubmission } from "./chores";
+
 export type ParentProfile = {
   id: string;
   name: string;
@@ -17,6 +19,8 @@ export type Household = {
   name: string;
   parents: ParentProfile[];
   children: ChildProfile[];
+  chores: Chore[];
+  choreSubmissions: ChoreSubmission[];
   createdAt: string;
   updatedAt: string;
 };
@@ -101,6 +105,8 @@ export async function createHousehold(
         };
       }),
     ),
+    chores: [],
+    choreSubmissions: [],
     createdAt: now,
     updatedAt: now,
   };

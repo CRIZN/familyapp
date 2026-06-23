@@ -4,7 +4,7 @@ These slices break the v1 product brief into independently grabbable tracer bull
 
 ## Proposed Order
 
-### 1. App Shell and Household Setup Tracer
+### 1. App Shell and Household Setup Tracer - Done
 
 **Blocked by**: None
 
@@ -18,13 +18,13 @@ These slices break the v1 product brief into independently grabbable tracer bull
 Create the responsive web app foundation with Parent View and Child View routes, a minimal persistent Household model, equal Parent permissions, Child PIN access, and Household Setup for adding the first Parents and Children.
 
 **Acceptance criteria**:
-- [ ] A Parent can complete Household Setup with at least one Parent and one Child.
-- [ ] A Parent can create or update a Child PIN.
-- [ ] A Child can enter Child View using their PIN.
-- [ ] Parent View and Child View are visually distinct and responsive.
-- [ ] Tests cover Household Setup and Child PIN access behavior.
+- [x] A Parent can complete Household Setup with at least one Parent and one Child.
+- [x] A Parent can create or update a Child PIN.
+- [x] A Child can enter Child View using their PIN.
+- [x] Parent View and Child View are visually distinct and responsive.
+- [x] Tests cover Household Setup and Child PIN access behavior.
 
-### 2. Chore Creation to Child Submission Tracer
+### 2. Chore Creation to Child Submission Tracer - Done
 
 **Blocked by**: Slice 1
 
@@ -37,11 +37,11 @@ Create the responsive web app foundation with Parent View and Child View routes,
 Let Parents create one-time and recurring Chores assigned to exactly one Child, then show those Chores in a today-first Child View where the Child can create a Chore Submission.
 
 **Acceptance criteria**:
-- [ ] A Parent can create a Chore with Child, Point value, due date, and optional Routine.
-- [ ] Child View shows today's Chores first and upcoming Chores separately.
-- [ ] A Child can submit an assigned Chore for review.
-- [ ] Missed due Chores become Overdue.
-- [ ] Tests cover one-time Chores, recurring Chores, Child ownership, submission, and Overdue behavior.
+- [x] A Parent can create a Chore with Child, Point value, due date, and optional Routine.
+- [x] Child View shows today's Chores first and upcoming Chores separately.
+- [x] A Child can submit an assigned Chore for review.
+- [x] Missed due Chores become Overdue.
+- [x] Tests cover one-time Chores, recurring Chores, Child ownership, submission, and Overdue behavior.
 
 ### 3. Approval Queue Awards Points for Chores
 
