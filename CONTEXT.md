@@ -2,7 +2,123 @@
 
 The domain language of the family household app — a private tool for coordinating
 shared household schedules, responsibilities, goals, and rewards. This file is a
-glossary only; it holds no implementation details.
+living context map for the repo and the canonical glossary for product/domain
+terms.
+
+## Context Maintenance
+
+Keep this file current when the repo structure changes. If you add, remove, move,
+or substantially repurpose directories, major entry-point files, or important
+documents, update the tree and document index below in the same change.
+
+## Repo Tree
+
+```txt
+.
+|-- CONTEXT.md
+|-- docs/
+|   |-- PRD_V1.md
+|   |-- IMPLEMENTATION_SLICES.md
+|   |-- TECHNICAL_REVIEW.md
+|   |-- FUTURE_FEATURES.md
+|   `-- adr/
+|       |-- 0001-read-only-apple-calendar.md
+|       |-- 0002-responsive-web-app-first.md
+|       |-- 0003-parent-accounts-and-child-pins.md
+|       |-- 0004-single-points-system.md
+|       |-- 0005-nextjs-supabase-vercel-stack.md
+|       `-- 0006-point-ledger-is-authoritative.md
+|-- drizzle/
+|   |-- 0000_reflective_dracula.sql
+|   `-- meta/
+|       |-- 0000_snapshot.json
+|       `-- _journal.json
+|-- src/
+|   |-- app/
+|   |   |-- page.tsx
+|   |   |-- layout.tsx
+|   |   |-- globals.css
+|   |   |-- child/page.tsx
+|   |   |-- parent/page.tsx
+|   |   `-- setup/page.tsx
+|   |-- components/
+|   |   |-- app-shell.tsx
+|   |   `-- ui/
+|   |       |-- button.tsx
+|   |       |-- input.tsx
+|   |       `-- label.tsx
+|   |-- domain/
+|   |   |-- chores.ts
+|   |   |-- chores.test.ts
+|   |   |-- household.ts
+|   |   `-- household.test.ts
+|   |-- features/
+|   |   |-- child/child-view-page.tsx
+|   |   |-- household/
+|   |   |   |-- household-setup-page.tsx
+|   |   |   `-- local-household-store.ts
+|   |   `-- parent/parent-view-page.tsx
+|   |-- lib/utils.ts
+|   `-- server/db/schema.ts
+|-- package.json
+|-- package-lock.json
+|-- next.config.ts
+|-- drizzle.config.ts
+|-- vitest.config.ts
+|-- tailwind.config.ts
+|-- postcss.config.js
+|-- eslint.config.mjs
+|-- tsconfig.json
+`-- next-env.d.ts
+```
+
+## Important Documents
+
+Read these documents before making product, architectural, or terminology
+changes:
+
+**[docs/PRD_V1.md](docs/PRD_V1.md)**:
+The v1 product brief. Defines purpose, primary users, v1 scope, out-of-scope
+items, durable decisions, and success criteria.
+
+**[docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md)**:
+The delivery plan. Breaks the v1 brief into independently demoable tracer
+bullets with user stories, build notes, dependencies, and acceptance criteria.
+
+**[docs/TECHNICAL_REVIEW.md](docs/TECHNICAL_REVIEW.md)**:
+The technical recommendation and architecture guidance. Captures the Next.js,
+Supabase, Vercel, Drizzle, Tailwind, shadcn/ui, lucide-react, Vitest, and
+Playwright direction.
+
+**[docs/FUTURE_FEATURES.md](docs/FUTURE_FEATURES.md)**:
+Ideas intentionally left out of v1, such as Chore templates and Family Display
+Mode.
+
+## Architecture Decision Records
+
+Read the ADR folder before changing durable product or technical choices:
+
+**[docs/adr/0001-read-only-apple-calendar.md](docs/adr/0001-read-only-apple-calendar.md)**:
+Apple Calendar remains the source of truth for Events; Family App syncs it
+read-only in v1.
+
+**[docs/adr/0002-responsive-web-app-first.md](docs/adr/0002-responsive-web-app-first.md)**:
+V1 starts as a responsive web app for phones, tablets, and computers.
+
+**[docs/adr/0003-parent-accounts-and-child-pins.md](docs/adr/0003-parent-accounts-and-child-pins.md)**:
+Parents use real accounts; Children use Parent-managed Child PINs.
+
+**[docs/adr/0004-single-points-system.md](docs/adr/0004-single-points-system.md)**:
+Each Child has one shared Points system across allowance, experiences,
+privileges, and other Rewards.
+
+**[docs/adr/0005-nextjs-supabase-vercel-stack.md](docs/adr/0005-nextjs-supabase-vercel-stack.md)**:
+The app uses Next.js, TypeScript, Vercel, Supabase Postgres/Auth, Drizzle,
+Tailwind CSS, shadcn/ui, and lucide-react.
+
+**[docs/adr/0006-point-ledger-is-authoritative.md](docs/adr/0006-point-ledger-is-authoritative.md)**:
+Point Ledger entries explain every Point Balance change and must stay in sync
+with any denormalized balance updates.
 
 ## Language
 
