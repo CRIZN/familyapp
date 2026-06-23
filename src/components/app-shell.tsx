@@ -19,21 +19,21 @@ export function AppShell({
       }
     >
       <header className="border-b border-border bg-background/90">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
           <Link className="flex items-center gap-2 font-semibold" href="/">
             <Home aria-hidden="true" className="h-5 w-5" />
             Family App
           </Link>
-          <nav className="flex items-center gap-1" aria-label="Primary">
+          <nav className="flex flex-wrap items-center gap-1" aria-label="Primary">
             <Link
-              className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-muted"
+              className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
               href="/parent"
             >
               <ShieldCheck aria-hidden="true" className="h-4 w-4" />
               Parent View
             </Link>
             <Link
-              className="inline-flex h-9 items-center gap-2 rounded-md px-3 text-sm font-medium hover:bg-muted"
+              className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
               href="/child"
             >
               <UserRound aria-hidden="true" className="h-4 w-4" />

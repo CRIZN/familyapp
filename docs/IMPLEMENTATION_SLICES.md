@@ -184,7 +184,7 @@ Add the Parent Weekly Review for the upcoming week of Events, child Chore and Go
 - [x] Weekly Review links back into the relevant Parent workflows.
 - [x] Tests cover Weekly Review aggregation and empty states.
 
-### 10. V1 Polish, Empty States, and Installable Quality Pass
+### 10. V1 Polish, Empty States, and Installable Quality Pass - Done
 
 **Blocked by**: Slices 1-9
 
@@ -196,9 +196,9 @@ Add the Parent Weekly Review for the upcoming week of Events, child Chore and Go
 Harden responsive layouts, empty states, accessibility, loading/error states, visual distinction in queue items, and copy tone across Parent View and Child View.
 
 **Acceptance criteria**:
-- [ ] Parent View and Child View are usable on common mobile, tablet, and desktop widths.
-- [ ] Empty states guide Parents and Children toward the next useful action.
-- [ ] Approval Queue item types are visually distinct and batch-friendly.
-- [ ] Point Ledger and Wins feel clear and encouraging for Children.
-- [ ] Accessibility checks pass for keyboard navigation, labels, contrast, and focus states.
-- [ ] Smoke tests cover the full v1 happy path.
+- [x] Parent View and Child View are usable on common mobile, tablet, and desktop widths.
+- [x] Empty states guide Parents and Children toward the next useful action.
+- [x] Approval Queue item types are visually distinct and batch-friendly.
+- [x] Point Ledger and Wins feel clear and encouraging for Children.
+- [x] Accessibility checks pass for keyboard navigation, labels, contrast, and focus states.
+- [x] Smoke tests cover the full v1 happy path.

@@ -68,6 +68,7 @@ documents, update the tree and document index below in the same change.
 |   |   |-- points.test.ts
 |   |   |-- rewards.ts
 |   |   |-- rewards.test.ts
+|   |   |-- v1-smoke.test.ts
 |   |   |-- weekly-review.ts
 |   |   `-- weekly-review.test.ts
 |   |-- features/

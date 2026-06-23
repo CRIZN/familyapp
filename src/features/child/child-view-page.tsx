@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, useSyncExternalStore } from "react";
+import { FormEvent, type ReactNode, useState, useSyncExternalStore } from "react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -156,9 +156,13 @@ export function ChildViewPage() {
           <div className="rounded-md border border-border bg-background p-5 shadow-panel sm:col-span-2">
             <h2 className="text-lg font-semibold">Today</h2>
             {choreBoard.today.length === 0 && choreBoard.overdue.length === 0 ? (
-              <p className="mt-2 text-sm text-muted-foreground">
-                No Chores due right now.
-              </p>
+              <div className="mt-4">
+                <EmptyState
+                  icon={<CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
+                  title="No Chores due right now."
+                  detail="New due and Overdue Chores will show here first."
+                />
+              </div>
             ) : null}
             <div className="mt-4 space-y-3">
               {choreBoard.overdue.map((chore) => (
@@ -187,9 +191,11 @@ export function ChildViewPage() {
             <h2 className="text-lg font-semibold">Agenda</h2>
           </div>
           {childAgenda.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Your Apple Calendar Events will appear here.
-            </p>
+            <EmptyState
+              icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+              title="No Events on your Agenda."
+              detail="Events marked for you or all Household will appear here."
+            />
           ) : (
             <div className="space-y-4">
               {childAgenda.map((day) => (
@@ -222,9 +228,11 @@ export function ChildViewPage() {
               <h2 className="text-lg font-semibold">Goals</h2>
             </div>
             {goalBoard.active.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Active Goals will appear here.
-              </p>
+              <EmptyState
+                icon={<Flag aria-hidden="true" className="h-5 w-5" />}
+                title="No active Goals yet."
+                detail="When a Parent creates a Goal, you can send Progress Check-ins here."
+              />
             ) : (
               <div className="space-y-3">
                 {goalBoard.active.map((goal) => (
@@ -244,9 +252,11 @@ export function ChildViewPage() {
               <h2 className="text-lg font-semibold">Rewards</h2>
             </div>
             {rewardBoard.catalog.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Rewards will appear here when a Parent adds them.
-              </p>
+              <EmptyState
+                icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+                title="No Rewards yet."
+                detail="Rewards from the shared catalog will appear here when they are ready."
+              />
             ) : (
               <div className="space-y-3">
                 {rewardBoard.catalog.map((reward) => (
@@ -296,10 +306,11 @@ export function ChildViewPage() {
             {choreBoard.pendingReview.length === 0 &&
             goalBoard.pendingReview.length === 0 &&
             rewardBoard.pendingRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Submitted Chores, Progress Check-ins, and Reward Requests will
-                wait here.
-              </p>
+              <EmptyState
+                icon={<Clock3 aria-hidden="true" className="h-5 w-5" />}
+                title="Nothing is waiting for a Parent."
+                detail="Submitted Chores, Progress Check-ins, and Reward Requests will stay here while pending."
+              />
             ) : (
               <div className="space-y-3">
                 {choreBoard.pendingReview.map((chore) => (
@@ -334,9 +345,11 @@ export function ChildViewPage() {
               <h2 className="text-lg font-semibold">Upcoming</h2>
             </div>
             {choreBoard.upcoming.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Upcoming Chores will appear here.
-              </p>
+              <EmptyState
+                icon={<ListChecks aria-hidden="true" className="h-5 w-5" />}
+                title="No upcoming Chores."
+                detail="Chores coming soon will appear here after today's work."
+              />
             ) : (
               <div className="space-y-3">
                 {choreBoard.upcoming.map((chore) => (
@@ -413,26 +426,34 @@ export function ChildViewPage() {
               <h2 className="text-lg font-semibold">Point Ledger</h2>
             </div>
             {pointLedger.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Approved Chores and Goals will show how your Points changed.
-              </p>
+              <EmptyState
+                icon={<Sparkles aria-hidden="true" className="h-5 w-5" />}
+                title="No Point changes yet."
+                detail="Approved work, Rewards, Bonus Points, and corrections will explain each change."
+              />
             ) : (
               <div className="space-y-3">
                 {pointLedger.map((entry) => {
                   const display = getPointLedgerDisplay(entry);
                   return (
                     <div
-                      className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+                      className="flex flex-col justify-between gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center"
                       key={entry.id}
                     >
                       <div>
-                        <p className="font-medium">{display.label}</p>
+                        <span className="inline-flex rounded-md bg-muted px-2 py-1 text-xs font-semibold">
+                          {display.label}
+                        </span>
+                        <p className="mt-2 font-medium">
+                          {display.explanation}
+                        </p>
                         <p className="text-sm text-muted-foreground">
-                          {display.explanation} -{" "}
                           {formatDate(entry.createdAt.slice(0, 10))}
                         </p>
                       </div>
-                      <span className="rounded-md bg-child px-2 py-1 text-sm font-semibold text-child-foreground">
+                      <span
+                        className={`self-start rounded-md px-2 py-1 text-sm font-semibold sm:self-center ${getDeltaClass(entry.delta)}`}
+                      >
                         {formatPointDelta(entry.delta)}
                       </span>
                     </div>
@@ -448,9 +469,11 @@ export function ChildViewPage() {
               <h2 className="text-lg font-semibold">Wins</h2>
             </div>
             {wins.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Approved Chores and Goals will become Wins here.
-              </p>
+              <EmptyState
+                icon={<Trophy aria-hidden="true" className="h-5 w-5" />}
+                title="No Wins yet."
+                detail="Approved Chores, progress, completed Goals, and fulfilled Rewards will become Wins."
+              />
             ) : (
               <div className="space-y-3">
                 {wins.map((win) => (
@@ -458,10 +481,19 @@ export function ChildViewPage() {
                     className="rounded-md border border-emerald-200 bg-emerald-50 p-3"
                     key={win.id}
                   >
-                    <p className="font-medium">{win.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {win.description} - {formatDate(win.earnedAt.slice(0, 10))}
-                    </p>
+                    <div className="flex items-start gap-3">
+                      <Trophy
+                        aria-hidden="true"
+                        className="mt-0.5 h-5 w-5 text-emerald-700"
+                      />
+                      <div>
+                        <p className="font-medium">{win.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {win.description} -{" "}
+                          {formatDate(win.earnedAt.slice(0, 10))}
+                        </p>
+                      </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -780,7 +812,7 @@ function RewardCard({
   onRequest: () => void;
 }) {
   return (
-    <div className="rounded-md border border-purple-200 bg-purple-50 p-3">
+    <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
       <div className="grid gap-3 lg:grid-cols-[1fr_8rem_auto_auto] lg:items-end">
         <div>
           <p className="font-medium">{reward.title}</p>
@@ -788,6 +820,26 @@ function RewardCard({
             {reward.contributedPoints} of {reward.pointCost} Points saved -{" "}
             {reward.remainingPoints} remaining
           </p>
+          <div
+            aria-label={`${reward.contributedPoints} of ${reward.pointCost} Points saved`}
+            aria-valuemax={reward.pointCost}
+            aria-valuemin={0}
+            aria-valuenow={reward.contributedPoints}
+            className="mt-3 h-2 overflow-hidden rounded-full bg-background"
+            role="progressbar"
+          >
+            <div
+              className="h-full rounded-full bg-child"
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.round(
+                    (reward.contributedPoints / reward.pointCost) * 100,
+                  ),
+                )}%`,
+              }}
+            />
+          </div>
         </div>
         <div>
           <Label htmlFor={`${reward.rewardId}-contribution`}>Points</Label>
@@ -821,7 +873,7 @@ function RewardContributionCard({
   onReturn: () => void;
 }) {
   return (
-    <div className="rounded-md border border-purple-200 bg-purple-50 p-3">
+    <div className="rounded-md border border-violet-200 bg-violet-50 p-3">
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div>
           <p className="font-medium">{contribution.title}</p>
@@ -849,7 +901,7 @@ function RewardRequestCard({
   const toneClass =
     tone === "approved" || tone === "fulfilled"
       ? "border-emerald-200 bg-emerald-50"
-      : "border-purple-200 bg-purple-50";
+      : "border-violet-200 bg-violet-50";
 
   return (
     <div className={`rounded-md border p-3 ${toneClass}`}>
@@ -924,4 +976,36 @@ function formatTime(value: string): string {
 
 function formatPointDelta(delta: number): string {
   return delta > 0 ? `+${delta}` : String(delta);
+}
+
+function getDeltaClass(delta: number): string {
+  if (delta > 0) {
+    return "bg-emerald-100 text-emerald-800";
+  }
+  if (delta < 0) {
+    return "bg-amber-100 text-amber-900";
+  }
+  return "bg-muted text-foreground";
+}
+
+function EmptyState({
+  detail,
+  icon,
+  title,
+}: {
+  detail: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="rounded-md border border-dashed border-border bg-muted/35 p-4">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 text-muted-foreground">{icon}</div>
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+        </div>
+      </div>
+    </div>
+  );
 }

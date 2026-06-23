@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState, useSyncExternalStore } from "react";
+import { FormEvent, type ReactNode, useState, useSyncExternalStore } from "react";
 import {
   Archive,
   ArrowRight,
@@ -750,6 +750,9 @@ export function ParentViewPage() {
       }
       return [{ ...request, rewardTitle: reward.title, childName: child.name }];
     });
+  const allQueueItemsSelected =
+    approvalQueue.length > 0 &&
+    approvalQueue.every((item) => selectedApprovalIds.includes(item.id));
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -809,9 +812,13 @@ export function ParentViewPage() {
               <h3 className="font-semibold">Important Events</h3>
             </div>
             {parentBriefing.eventDays.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No Events today or tomorrow.
-              </p>
+              <EmptyState
+                icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+                title="No Events today or tomorrow."
+                detail="Connected Apple Calendar Events will show up here when they are near."
+                href="#household-agenda"
+                action="Check the Agenda"
+              />
             ) : (
               <div className="space-y-3">
                 {parentBriefing.eventDays.map((day) => (
@@ -902,9 +909,11 @@ export function ParentViewPage() {
                 <h3 className="font-semibold">Suggested Actions</h3>
               </div>
               {parentBriefing.suggestedActions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  No Suggested Actions right now.
-                </p>
+                <EmptyState
+                  icon={<CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
+                  title="No Suggested Actions right now."
+                  detail="The Briefing will call out overdue Chores, pending approvals, and fulfillment work."
+                />
               ) : (
                 <div className="space-y-2">
                   {parentBriefing.suggestedActions.map((action) => (
@@ -971,9 +980,13 @@ export function ParentViewPage() {
               <h3 className="font-semibold">Upcoming Week Events</h3>
             </div>
             {parentWeeklyReview.eventDays.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No synced Events in the upcoming week.
-              </p>
+              <EmptyState
+                icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+                title="No synced Events in the upcoming week."
+                detail="Save the Apple Calendar connection and sync Events to fill the week."
+                href="#household-agenda"
+                action="Open Agenda"
+              />
             ) : (
               <div className="space-y-3">
                 {parentWeeklyReview.eventDays.map((day) => (
@@ -1067,9 +1080,13 @@ export function ParentViewPage() {
               <h3 className="font-semibold">Pending Reward Requests</h3>
             </div>
             {parentWeeklyReview.pendingRewardRequests.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No Reward Requests waiting for approval.
-              </p>
+              <EmptyState
+                icon={<ListChecks aria-hidden="true" className="h-5 w-5" />}
+                title="No Reward Requests waiting."
+                detail="When a Child requests a Reward, it will be linked here and added to the Approval Queue."
+                href="#approval-queue"
+                action="Open Approval Queue"
+              />
             ) : (
               <div className="space-y-2">
                 {parentWeeklyReview.pendingRewardRequests.map((request) => (
@@ -1090,9 +1107,13 @@ export function ParentViewPage() {
               <h3 className="font-semibold">Unfulfilled Rewards</h3>
             </div>
             {parentWeeklyReview.unfulfilledRewards.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No approved Rewards waiting for fulfillment.
-              </p>
+              <EmptyState
+                icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+                title="No Rewards need fulfillment."
+                detail="Approved Reward Requests will stay visible until a Parent marks them fulfilled."
+                href="#reward-fulfillment"
+                action="Open Fulfillment"
+              />
             ) : (
               <div className="space-y-2">
                 {parentWeeklyReview.unfulfilledRewards.map((reward) => (
@@ -1294,15 +1315,20 @@ export function ParentViewPage() {
           </Button>
         </form>
 
-        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+        <div
+          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
+          id="household-agenda"
+        >
           <div className="mb-4 flex items-center gap-3">
             <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
             <h2 className="text-xl font-semibold">Household Agenda</h2>
           </div>
           {parentAgenda.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Synced Apple Calendar Events will appear here.
-            </p>
+            <EmptyState
+              icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+              title="No synced Events yet."
+              detail="Save the Apple Calendar connection, then sync a read-only Event for the Household Agenda."
+            />
           ) : (
             <div className="space-y-4">
               {parentAgenda.map((day) => (
@@ -1419,9 +1445,32 @@ export function ParentViewPage() {
           <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
               <ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />
-              <h2 className="text-xl font-semibold">Approval Queue</h2>
+              <div>
+                <h2 className="text-xl font-semibold">Approval Queue</h2>
+                <p className="text-sm text-muted-foreground">
+                  {approvalQueue.length} waiting, {selectedApprovalIds.length}{" "}
+                  selected
+                </p>
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
+              {approvalQueue.length > 0 ? (
+                <label className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium">
+                  <input
+                    className="h-4 w-4 rounded border-border"
+                    type="checkbox"
+                    checked={allQueueItemsSelected}
+                    onChange={(event) =>
+                      setSelectedApprovalIds(
+                        event.target.checked
+                          ? approvalQueue.map((item) => item.id)
+                          : [],
+                      )
+                    }
+                  />
+                  Select all
+                </label>
+              ) : null}
               <Button
                 type="button"
                 variant="parent"
@@ -1443,22 +1492,26 @@ export function ParentViewPage() {
             </div>
           </div>
           {approvalQueue.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Chore Submissions and Progress Check-ins waiting for review will
-              appear here.
-            </p>
+            <EmptyState
+              icon={<CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
+              title="Nothing is waiting for approval."
+              detail="Submitted Chores, Progress Check-ins, and Reward Requests will collect here."
+              href="#due-chores"
+              action="Review due Chores"
+            />
           ) : (
             <div className="space-y-3">
               {approvalQueue.map((item) => {
                 const selected = selectedApprovalIds.includes(item.id);
                 return (
                   <div
-                    className={`rounded-md border p-3 ${getApprovalQueueItemClass(item)}`}
+                    className={`rounded-md border border-l-4 p-3 ${getApprovalQueueItemClass(item)}`}
                     key={item.id}
                   >
                     <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
                       <label className="flex items-start gap-3">
                         <input
+                          aria-label={`Select ${getApprovalQueueItemLabel(item)} for ${item.childName}`}
                           className="mt-1 h-4 w-4 rounded border-border"
                           type="checkbox"
                           checked={selected}
@@ -1473,9 +1526,7 @@ export function ParentViewPage() {
                           }}
                         />
                         <span>
-                          <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-parent">
-                            {getApprovalQueueItemLabel(item)}
-                          </span>
+                          <QueueTypeBadge item={item} />
                           <span className="block font-medium">{item.title}</span>
                           <span className="block text-sm text-muted-foreground">
                             {getApprovalQueueItemDetail(item)}
@@ -1535,9 +1586,11 @@ export function ParentViewPage() {
             <h2 className="text-xl font-semibold">Due Chore Occurrences</h2>
           </div>
           {dueOccurrences.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Chores due today or Overdue will appear here.
-            </p>
+            <EmptyState
+              icon={<SkipForward aria-hidden="true" className="h-5 w-5" />}
+              title="No Chores need Parent handling."
+              detail="Due and Overdue Chores will appear here so a Parent can Skip them when needed."
+            />
           ) : (
             <div className="space-y-3">
               {dueOccurrences.map((chore) => (
@@ -1652,9 +1705,13 @@ export function ParentViewPage() {
             <h2 className="text-xl font-semibold">Chores</h2>
           </div>
           {household.chores.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Create the first Chore to make it visible in Child View.
-            </p>
+            <EmptyState
+              icon={<ClipboardList aria-hidden="true" className="h-5 w-5" />}
+              title="No Chores yet."
+              detail="Create a Chore with a Child, due date, Points, and optional Routine."
+              href="#chore-title"
+              action="Create a Chore"
+            />
           ) : (
             <div className="space-y-3">
               {household.chores.map((chore) => {
@@ -1781,9 +1838,13 @@ export function ParentViewPage() {
             <h2 className="text-xl font-semibold">Goals</h2>
           </div>
           {household.goals.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Create the first Goal to make it visible in Child View.
-            </p>
+            <EmptyState
+              icon={<Flag aria-hidden="true" className="h-5 w-5" />}
+              title="No Goals yet."
+              detail="Create a Child-owned Goal so Progress Check-ins can start."
+              href="#goal-title"
+              action="Create a Goal"
+            />
           ) : (
             <div className="space-y-3">
               {household.goals.map((goal) => {
@@ -2001,9 +2062,13 @@ export function ParentViewPage() {
             <h2 className="text-xl font-semibold">Reward Catalog</h2>
           </div>
           {household.rewards.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Create shared Rewards for Children to request.
-            </p>
+            <EmptyState
+              icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+              title="No Rewards yet."
+              detail="Create shared Rewards with one Point cost for all Children."
+              href="#reward-title"
+              action="Create a Reward"
+            />
           ) : (
             <div className="space-y-3">
               {household.rewards.map((reward) => {
@@ -2126,14 +2191,16 @@ export function ParentViewPage() {
             <h2 className="text-xl font-semibold">Reward Fulfillment</h2>
           </div>
           {approvedRewardRequests.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              Approved Reward Requests waiting for delivery will appear here.
-            </p>
+            <EmptyState
+              icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+              title="No Rewards are waiting for fulfillment."
+              detail="After approval, Reward Requests stay here until a Parent fulfills them."
+            />
           ) : (
             <div className="space-y-3">
               {approvedRewardRequests.map((request) => (
                 <div
-                  className="flex flex-col justify-between gap-3 rounded-md border border-purple-200 bg-purple-50 p-3 sm:flex-row sm:items-center"
+                  className="flex flex-col justify-between gap-3 rounded-md border border-violet-200 bg-violet-50 p-3 sm:flex-row sm:items-center"
                   key={request.id}
                 >
                   <div>
@@ -2240,10 +2307,62 @@ function getApprovalQueueItemDetail(item: ApprovalQueueItem): string {
 
 function getApprovalQueueItemClass(item: ApprovalQueueItem): string {
   return item.type === "chore_submission"
-    ? "border-blue-200 bg-blue-50"
+    ? "border-blue-200 border-l-blue-600 bg-blue-50"
     : item.type === "progress_check_in"
-      ? "border-emerald-200 bg-emerald-50"
-      : "border-purple-200 bg-purple-50";
+      ? "border-emerald-200 border-l-emerald-600 bg-emerald-50"
+      : "border-violet-200 border-l-violet-600 bg-violet-50";
+}
+
+function QueueTypeBadge({ item }: { item: ApprovalQueueItem }) {
+  const className =
+    item.type === "chore_submission"
+      ? "bg-blue-100 text-blue-800"
+      : item.type === "progress_check_in"
+        ? "bg-emerald-100 text-emerald-800"
+        : "bg-violet-100 text-violet-800";
+
+  return (
+    <span
+      className={`mb-1 inline-flex rounded-md px-2 py-1 text-xs font-semibold uppercase tracking-normal ${className}`}
+    >
+      {getApprovalQueueItemLabel(item)}
+    </span>
+  );
+}
+
+function EmptyState({
+  action,
+  detail,
+  href,
+  icon,
+  title,
+}: {
+  action?: string;
+  detail: string;
+  href?: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="rounded-md border border-dashed border-border bg-muted/35 p-4">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 text-muted-foreground">{icon}</div>
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+          {href && action ? (
+            <a
+              className="mt-3 inline-flex items-center gap-2 rounded-md text-sm font-medium text-parent hover:underline"
+              href={href}
+            >
+              {action}
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </a>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function BriefingMetric({
