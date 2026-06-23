@@ -31,19 +31,17 @@ V1 is intentionally motivating and transparent rather than punitive. Points are 
 
 ### Parent View
 
-Parent View is currently a broad all-in-one command surface. It includes:
+Parent View is now an agenda-first daily command surface labeled `Today`, with
+focused Parent workflow routes for durable management. It includes:
 
-- Briefing metrics for agenda items, Approval Queue volume, Overdue Chores, and unfulfilled Rewards.
-- Weekly Review summary for upcoming Events, child progress, Point Balances, pending Reward Requests, and unfulfilled Rewards.
-- Parent and Child profile management.
-- Child PIN management.
-- Demo Apple Calendar configuration and read-only Event sync entry.
-- Household Agenda with Participant enrichment.
-- Approval Queue with type-distinct items and batch-friendly approval.
-- Chore creation, Skip, Pause, and Archive actions.
-- Goal creation, Completion, and Archive actions.
-- Bonus Points and Point Adjustments.
-- Reward Catalog creation, editing, archiving, approval, rejection, and fulfillment.
+- Today/Tomorrow Agenda as the first primary Parent surface.
+- Needs Attention metrics for Approval Queue volume, Overdue Chores, and unfulfilled Rewards.
+- Capped Approval Queue preview with quick actions and a full Approvals workflow.
+- Chores Needing Parent Handling and Reward Fulfillment attention modules.
+- Compact Child status summaries with one contextual workflow link per Child.
+- Focused workflows for Approvals, Chores, Goals, Rewards, Calendar, Points, Household, and Weekly Review.
+- Calendar workflow ownership of demo Apple Calendar configuration, read-only Event sync entry, Household Agenda, and Participant enrichment.
+- Chore, Goal, Reward, Point, Household, and Weekly Review management outside the Today screen.
 - Demo reset and Child View entry helpers.
 
 ### Child View
@@ -63,7 +61,7 @@ Child View is PIN-gated and focused on the selected Child. It includes:
 
 ## Current Implementation Status
 
-The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md) mark V1 slices 1-10 as done:
+The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md) mark V1 slices 1-11 as done:
 
 - App shell and Household setup.
 - Chore creation through Child submission.
@@ -75,8 +73,7 @@ The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION
 - Parent Briefing and Suggested Actions.
 - Weekly Review.
 - V1 polish, empty states, and responsive quality pass.
-
-Slice 11, Parent View IA Simplification, is still planned. That work will split the current all-in-one Parent View into focused Parent workflow routes such as `/parent/approvals`, `/parent/chores`, `/parent/goals`, `/parent/rewards`, `/parent/calendar`, `/parent/points`, `/parent/household`, and `/parent/weekly-review`.
+- Parent View IA Simplification, including focused Parent workflow routes such as `/parent/approvals`, `/parent/chores`, `/parent/goals`, `/parent/rewards`, `/parent/calendar`, `/parent/points`, `/parent/household`, and `/parent/weekly-review`.
 
 ## Tech Stack
 

@@ -46,7 +46,16 @@ documents, update the tree and document index below in the same change.
 |   |   |-- layout.tsx
 |   |   |-- globals.css
 |   |   |-- child/page.tsx
-|   |   |-- parent/page.tsx
+|   |   |-- parent/
+|   |   |   |-- page.tsx
+|   |   |   |-- approvals/page.tsx
+|   |   |   |-- calendar/page.tsx
+|   |   |   |-- chores/page.tsx
+|   |   |   |-- goals/page.tsx
+|   |   |   |-- household/page.tsx
+|   |   |   |-- points/page.tsx
+|   |   |   |-- rewards/page.tsx
+|   |   |   `-- weekly-review/page.tsx
 |   |   `-- setup/page.tsx
 |   |-- components/
 |   |   |-- app-shell.tsx
@@ -77,7 +86,9 @@ documents, update the tree and document index below in the same change.
 |   |   |-- household/
 |   |   |   |-- household-setup-page.tsx
 |   |   |   `-- local-household-store.ts
-|   |   `-- parent/parent-view-page.tsx
+|   |   `-- parent/
+|   |       |-- parent-view-page.tsx
+|   |       `-- parent-workflows.test.ts
 |   |-- lib/utils.ts
 |   `-- server/db/schema.ts
 |-- package.json

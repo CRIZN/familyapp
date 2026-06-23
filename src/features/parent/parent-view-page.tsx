@@ -19,6 +19,7 @@ import {
   SkipForward,
   Sparkles,
   UserRound,
+  WalletCards,
   XCircle,
 } from "lucide-react";
 
@@ -48,20 +49,21 @@ import {
   archiveGoal,
   completeGoal,
   createGoal,
+  getChildGoalBoard,
   markProgressCheckInNeedsWork,
 } from "@/domain/goals";
+import { updateChildPin } from "@/domain/household";
+import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
 import {
   approveRewardRequest,
   archiveReward,
   createReward,
   fulfillRewardRequest,
+  getChildRewardBoard,
   rejectRewardRequest,
   updateReward,
 } from "@/domain/rewards";
-import { updateChildPin } from "@/domain/household";
-import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
-import { Button } from "@/components/ui/button";
-import { buttonVariants } from "@/components/ui/button";
+import { buttonVariants, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -75,12 +77,47 @@ import {
   subscribeHydration,
 } from "@/features/household/local-household-store";
 
+export type ParentWorkflow =
+  | "today"
+  | "approvals"
+  | "chores"
+  | "goals"
+  | "rewards"
+  | "calendar"
+  | "points"
+  | "household"
+  | "weekly-review";
+
+export const parentWorkflowNavItems: Array<{
+  href: string;
+  label: string;
+  workflow: ParentWorkflow;
+}> = [
+  { href: "/parent", label: "Today", workflow: "today" },
+  { href: "/parent/approvals", label: "Approvals", workflow: "approvals" },
+  { href: "/parent/chores", label: "Chores", workflow: "chores" },
+  { href: "/parent/goals", label: "Goals", workflow: "goals" },
+  { href: "/parent/rewards", label: "Rewards", workflow: "rewards" },
+  { href: "/parent/calendar", label: "Calendar", workflow: "calendar" },
+  { href: "/parent/points", label: "Points", workflow: "points" },
+  { href: "/parent/household", label: "Household", workflow: "household" },
+  {
+    href: "/parent/weekly-review",
+    label: "Weekly Review",
+    workflow: "weekly-review",
+  },
+];
+
 type EventParticipantDraft = {
   isAllHousehold: boolean;
   participantChildIds: string[];
 };
 
-export function ParentViewPage() {
+type ParentViewPageProps = {
+  workflow?: ParentWorkflow;
+};
+
+export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   const hasLoaded = useSyncExternalStore(
     subscribeHydration,
     getHydratedSnapshot,
@@ -127,39 +164,15 @@ export function ParentViewPage() {
   const [error, setError] = useState<string | null>(null);
 
   if (!hasLoaded) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="rounded-md border border-border bg-background p-6 shadow-panel">
-          <p className="text-sm text-muted-foreground">Loading Parent View...</p>
-        </div>
-      </div>
-    );
+    return <ParentLoadingState />;
   }
 
   if (!household) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="rounded-md border border-border bg-background p-6 shadow-panel">
-          <ShieldCheck aria-hidden="true" className="mb-4 h-9 w-9 text-parent" />
-          <h1 className="text-2xl font-semibold">Parent View</h1>
-          <p className="mt-2 text-muted-foreground">
-            Create the Household before managing Parents, Children, and PINs.
-          </p>
-          <Link
-            className={buttonVariants({ className: "mt-5", variant: "parent" })}
-            href="/setup"
-          >
-            Start Household Setup
-          </Link>
-        </div>
-      </div>
-    );
+    return <ParentSetupState />;
   }
 
   async function savePin(childId: string) {
-    if (!household) {
-      return;
-    }
+    if (!household) return;
     setError(null);
     setMessage(null);
     try {
@@ -176,18 +189,20 @@ export function ParentViewPage() {
     }
   }
 
-  function resetDemoState() {
-    clearHousehold();
+  function withParentAction(action: () => void, fallback: string) {
+    setError(null);
+    setMessage(null);
+    try {
+      action();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : fallback);
+    }
   }
 
   function onCreateChore(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       const updated = createChore(household, {
         title: choreTitle,
         childId: choreChildId || household.children[0]?.id || "",
@@ -204,19 +219,14 @@ export function ParentViewPage() {
       setChoreDueDate(getTodayDateKey());
       setChoreRoutine("none");
       setMessage("Chore created.");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not create Chore.");
-    }
+    }, "Could not create Chore.");
   }
 
   function approveSelectedSubmissions() {
-    if (!household || selectedApprovalIds.length === 0) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household || selectedApprovalIds.length === 0) return;
+    withParentAction(() => {
       const selectedItems = getSelectedQueueItems(household, selectedApprovalIds);
+      let updated = household;
       const choreSubmissionIds = selectedItems
         .filter((item) => item.type === "chore_submission")
         .map((item) => item.id);
@@ -226,7 +236,6 @@ export function ParentViewPage() {
       const rewardRequestIds = selectedItems
         .filter((item) => item.type === "reward_request")
         .map((item) => item.id);
-      let updated = household;
       if (choreSubmissionIds.length > 0) {
         updated = approveChoreSubmissions(updated, choreSubmissionIds);
       }
@@ -239,26 +248,13 @@ export function ParentViewPage() {
       saveHousehold(updated);
       setSelectedApprovalIds([]);
       setMessage("Selected Approval Queue items approved.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not approve selected items.",
-      );
-    }
+    }, "Could not approve selected items.");
   }
 
   function rejectSelectedRewardRequests() {
-    if (!household || selectedApprovalIds.length === 0) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const rewardRequestIds = getSelectedQueueItems(
-        household,
-        selectedApprovalIds,
-      )
+    if (!household || selectedApprovalIds.length === 0) return;
+    withParentAction(() => {
+      const rewardRequestIds = getSelectedQueueItems(household, selectedApprovalIds)
         .filter((item) => item.type === "reward_request")
         .map((item) => item.id);
       let updated = household;
@@ -270,22 +266,12 @@ export function ParentViewPage() {
         current.filter((candidate) => !rewardRequestIds.includes(candidate)),
       );
       setMessage("Selected Reward Requests rejected.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not reject selected Reward Requests.",
-      );
-    }
+    }, "Could not reject selected Reward Requests.");
   }
 
   function approveQueueItem(item: ApprovalQueueItem) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       const updated =
         item.type === "chore_submission"
           ? approveChoreSubmissions(household, [item.id])
@@ -296,27 +282,13 @@ export function ParentViewPage() {
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== item.id),
       );
-      setMessage(
-        item.type === "chore_submission"
-          ? "Chore Submission approved."
-          : item.type === "progress_check_in"
-            ? "Progress Check-in approved."
-            : "Reward Request approved.",
-      );
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not approve item.",
-      );
-    }
+      setMessage(`${getApprovalQueueItemLabel(item)} approved.`);
+    }, "Could not approve item.");
   }
 
   function markNeedsWork(item: ApprovalQueueItem) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       const updated =
         item.type === "chore_submission"
           ? markChoreSubmissionNeedsWork(household, item.id)
@@ -328,383 +300,244 @@ export function ParentViewPage() {
         current.filter((candidate) => candidate !== item.id),
       );
       setMessage(
-        item.type === "chore_submission"
-          ? "Chore Submission marked Needs Work."
-          : item.type === "progress_check_in"
-            ? "Progress Check-in marked Needs Work."
-            : "Reward Request rejected.",
+        item.type === "reward_request"
+          ? "Reward Request rejected."
+          : `${getApprovalQueueItemLabel(item)} marked Needs Work.`,
       );
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not mark item Needs Work.",
-      );
-    }
+    }, "Could not update Approval Queue item.");
   }
 
   function skipOccurrence(chore: ChoreOccurrence) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = skipChoreOccurrence(household, {
-        childId: chore.childId,
-        choreId: chore.choreId,
-        occurrenceDate: chore.dueDate,
-      });
-      saveHousehold(updated);
-      setMessage("Chore occurrence skipped.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not skip Chore.",
+    if (!household) return;
+    withParentAction(() => {
+      saveHousehold(
+        skipChoreOccurrence(household, {
+          childId: chore.childId,
+          choreId: chore.choreId,
+          occurrenceDate: chore.dueDate,
+        }),
       );
-    }
+      setMessage("Chore occurrence skipped.");
+    }, "Could not skip Chore.");
   }
 
   function skipSubmissionOccurrence(submissionId: string) {
-    if (!household) {
-      return;
-    }
+    if (!household) return;
     const item = getApprovalQueue(household).find(
       (candidate) => candidate.id === submissionId,
     );
-    if (!item || item.type !== "chore_submission") {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = skipChoreOccurrence(household, {
-        childId: item.childId,
-        choreId: item.choreId,
-        occurrenceDate: item.occurrenceDate,
-      });
-      saveHousehold(updated);
+    if (!item || item.type !== "chore_submission") return;
+    withParentAction(() => {
+      saveHousehold(
+        skipChoreOccurrence(household, {
+          childId: item.childId,
+          choreId: item.choreId,
+          occurrenceDate: item.occurrenceDate,
+        }),
+      );
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== submissionId),
       );
       setMessage("Chore occurrence skipped.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not skip Chore.",
-      );
-    }
+    }, "Could not skip Chore.");
   }
 
   function pauseExistingChore(choreId: string) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       saveHousehold(pauseChore(household, choreId));
       setMessage("Chore paused.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not pause Chore.",
-      );
-    }
+    }, "Could not pause Chore.");
   }
 
   function archiveExistingChore(choreId: string) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       saveHousehold(archiveChore(household, choreId));
       setMessage("Chore archived.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not archive Chore.",
-      );
-    }
+    }, "Could not archive Chore.");
   }
 
   function onCreateGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = createGoal(household, {
-        title: goalTitle,
-        childId: goalChildId || household.children[0]?.id || "",
-        pointValue: Number(goalPointValue),
-      });
-      saveHousehold(updated);
+    if (!household) return;
+    withParentAction(() => {
+      saveHousehold(
+        createGoal(household, {
+          title: goalTitle,
+          childId: goalChildId || household.children[0]?.id || "",
+          pointValue: Number(goalPointValue),
+        }),
+      );
       setGoalTitle("");
       setGoalPointValue("5");
       setMessage("Goal created.");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not create Goal.");
-    }
+    }, "Could not create Goal.");
   }
 
   function completeExistingGoal(goalId: string) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       saveHousehold(completeGoal(household, goalId));
       setMessage("Goal completed.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not complete Goal.",
-      );
-    }
+    }, "Could not complete Goal.");
   }
 
   function archiveExistingGoal(goalId: string) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       saveHousehold(archiveGoal(household, goalId));
       setMessage("Goal archived.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not archive Goal.",
-      );
-    }
+    }, "Could not archive Goal.");
   }
 
   function onAwardBonusPoints(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = awardBonusPoints(household, {
-        childId: bonusChildId || household.children[0]?.id || "",
-        points: Number(bonusPoints),
-        reason: bonusReason,
-      });
-      saveHousehold(updated);
+    if (!household) return;
+    withParentAction(() => {
+      saveHousehold(
+        awardBonusPoints(household, {
+          childId: bonusChildId || household.children[0]?.id || "",
+          points: Number(bonusPoints),
+          reason: bonusReason,
+        }),
+      );
       setBonusPoints("1");
       setBonusReason("");
       setMessage("Bonus Points awarded.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not award Bonus Points.",
-      );
-    }
+    }, "Could not award Bonus Points.");
   }
 
   function onCreatePointAdjustment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = createPointAdjustment(household, {
-        childId: adjustmentChildId || household.children[0]?.id || "",
-        points: Number(adjustmentPoints),
-        reason: adjustmentReason,
-      });
-      saveHousehold(updated);
+    if (!household) return;
+    withParentAction(() => {
+      saveHousehold(
+        createPointAdjustment(household, {
+          childId: adjustmentChildId || household.children[0]?.id || "",
+          points: Number(adjustmentPoints),
+          reason: adjustmentReason,
+        }),
+      );
       setAdjustmentPoints("1");
       setAdjustmentReason("");
       setMessage("Point Adjustment recorded.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not record Point Adjustment.",
-      );
-    }
+    }, "Could not record Point Adjustment.");
   }
 
   function onCreateReward(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = createReward(household, {
-        title: rewardTitle,
-        pointCost: Number(rewardPointCost),
-        type: toRewardType(rewardType),
-      });
-      saveHousehold(updated);
+    if (!household) return;
+    withParentAction(() => {
+      saveHousehold(
+        createReward(household, {
+          title: rewardTitle,
+          pointCost: Number(rewardPointCost),
+          type: toRewardType(rewardType),
+        }),
+      );
       setRewardTitle("");
       setRewardPointCost("10");
       setRewardType("custom");
       setMessage("Reward created.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not create Reward.",
-      );
-    }
+    }, "Could not create Reward.");
   }
 
   function saveRewardDraft(rewardId: string) {
-    if (!household) {
-      return;
-    }
+    if (!household) return;
     const existing = household.rewards.find((reward) => reward.id === rewardId);
     const draft = rewardDrafts[rewardId];
-    if (!existing) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = updateReward(household, rewardId, {
-        title: draft?.title ?? existing.title,
-        pointCost: Number(draft?.pointCost ?? existing.pointCost),
-        type: toRewardType(draft?.type ?? existing.type),
-      });
-      saveHousehold(updated);
+    if (!existing) return;
+    withParentAction(() => {
+      saveHousehold(
+        updateReward(household, rewardId, {
+          title: draft?.title ?? existing.title,
+          pointCost: Number(draft?.pointCost ?? existing.pointCost),
+          type: toRewardType(draft?.type ?? existing.type),
+        }),
+      );
       setRewardDrafts((current) => {
         const next = { ...current };
         delete next[rewardId];
         return next;
       });
       setMessage("Reward updated.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not update Reward.",
-      );
-    }
+    }, "Could not update Reward.");
   }
 
   function archiveExistingReward(rewardId: string) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       saveHousehold(archiveReward(household, rewardId));
       setMessage("Reward archived.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not archive Reward.",
-      );
-    }
+    }, "Could not archive Reward.");
   }
 
   function fulfillApprovedRewardRequest(requestId: string) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       saveHousehold(fulfillRewardRequest(household, requestId));
       setMessage("Reward fulfilled.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not fulfill Reward.",
-      );
-    }
+    }, "Could not fulfill Reward.");
   }
 
   function onConfigureCalendar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    const name =
-      calendarName || household.calendarConnection?.calendarName || "";
-    const sourceUrl =
-      calendarSourceUrl || household.calendarConnection?.sourceUrl || "";
-    try {
+    if (!household) return;
+    withParentAction(() => {
       const updated = configureAppleCalendar(household, {
-        calendarName: name,
-        sourceUrl,
+        calendarName:
+          calendarName || household.calendarConnection?.calendarName || "",
+        sourceUrl:
+          calendarSourceUrl || household.calendarConnection?.sourceUrl || "",
       });
       saveHousehold(updated);
       setCalendarName(updated.calendarConnection?.calendarName ?? "");
       setCalendarSourceUrl(updated.calendarConnection?.sourceUrl ?? "");
       setMessage("Apple Family Calendar connected.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not configure Apple Calendar.",
-      );
-    }
+    }, "Could not configure Apple Calendar.");
   }
 
   function onSyncCalendarEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
-      const updated = syncAppleCalendarEvents(household, [
-        {
-          appleEventId: createAppleEventId(
-            eventTitle,
-            eventDate,
-            eventStartTime,
-          ),
-          title: eventTitle,
-          startsAt: toAppleDateTime(eventDate, eventStartTime),
-          endsAt: toAppleDateTime(eventDate, eventEndTime),
-          location: eventLocation,
-        },
-      ]);
-      saveHousehold(updated);
+    if (!household) return;
+    withParentAction(() => {
+      saveHousehold(
+        syncAppleCalendarEvents(household, [
+          {
+            appleEventId: createAppleEventId(
+              eventTitle,
+              eventDate,
+              eventStartTime,
+            ),
+            title: eventTitle,
+            startsAt: toAppleDateTime(eventDate, eventStartTime),
+            endsAt: toAppleDateTime(eventDate, eventEndTime),
+            location: eventLocation,
+          },
+        ]),
+      );
       setEventTitle("");
       setEventStartTime("09:00");
       setEventEndTime("10:00");
       setEventLocation("");
       setMessage("Apple Calendar Event synced.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not sync Event.",
-      );
-    }
+    }, "Could not sync Event.");
   }
 
   function saveEventParticipants(event: AgendaEvent) {
-    if (!household) {
-      return;
-    }
-    setError(null);
-    setMessage(null);
-    try {
+    if (!household) return;
+    withParentAction(() => {
       const draft = getEventParticipantDraft(event);
-      const updated = updateEventParticipants(household, {
-        eventId: event.eventId,
-        participantChildIds: draft.participantChildIds,
-        isAllHousehold: draft.isAllHousehold,
-      });
-      saveHousehold(updated);
-      setMessage("Event Participants updated.");
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not update Participants.",
+      saveHousehold(
+        updateEventParticipants(household, {
+          eventId: event.eventId,
+          participantChildIds: draft.participantChildIds,
+          isAllHousehold: draft.isAllHousehold,
+        }),
       );
-    }
+      setMessage("Event Participants updated.");
+    }, "Could not update Participants.");
   }
 
   function getEventParticipantDraft(event: AgendaEvent): EventParticipantDraft {
@@ -716,441 +549,1742 @@ export function ParentViewPage() {
     );
   }
 
+  const todayDateKey = getTodayDateKey();
   const approvalQueue = getApprovalQueue(household);
   const parentAgenda = getParentAgenda(household);
-  const todayDateKey = getTodayDateKey();
   const parentBriefing = getParentBriefing(household, todayDateKey);
   const parentWeeklyReview = getParentWeeklyReview(household, todayDateKey);
-  const calendarNameValue =
-    calendarName || household.calendarConnection?.calendarName || "";
-  const calendarSourceUrlValue =
-    calendarSourceUrl || household.calendarConnection?.sourceUrl || "";
+  const choresNeedingParentHandling = household.children.flatMap((child) =>
+    getChildChoreBoard(household, child.id, todayDateKey).overdue.map(
+      (chore) => ({
+        ...chore,
+        childName: child.name,
+      }),
+    ),
+  );
+  const approvedRewardRequests = getRewardRequestsByStatus(household, "approved");
+  const fulfilledRewardRequests = getRewardRequestsByStatus(
+    household,
+    "fulfilled",
+  );
   const hasSelectedRewardRequest = getSelectedQueueItems(
     household,
     selectedApprovalIds,
   ).some((item) => item.type === "reward_request");
-  const dueOccurrences = household.children.flatMap((child) => {
-    const board = getChildChoreBoard(household, child.id, todayDateKey);
-    return [...board.overdue, ...board.today].map((chore) => ({
-      ...chore,
-      childName: child.name,
-    }));
-  });
-  const approvedRewardRequests = household.rewardRequests
-    .filter((request) => request.status === "approved")
-    .flatMap((request) => {
-      const reward = household.rewards.find(
-        (candidate) => candidate.id === request.rewardId,
-      );
-      const child = household.children.find(
-        (candidate) => candidate.id === request.childId,
-      );
-      if (!reward || !child) {
-        return [];
-      }
-      return [{ ...request, rewardTitle: reward.title, childName: child.name }];
-    });
   const allQueueItemsSelected =
     approvalQueue.length > 0 &&
     approvalQueue.every((item) => selectedApprovalIds.includes(item.id));
+  const calendarNameValue =
+    calendarName || household.calendarConnection?.calendarName || "";
+  const calendarSourceUrlValue =
+    calendarSourceUrl || household.calendarConnection?.sourceUrl || "";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
-      <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
+      <ParentWorkflowHeader
+        activeWorkflow={workflow}
+        householdName={household.name}
+        onResetDemo={clearHousehold}
+      />
+      <StatusMessages error={error} message={message} />
+
+      {workflow === "today" ? (
+        <div className="space-y-4">
+          <TodayAgendaSection eventDays={parentBriefing.eventDays} />
+          <NeedsAttentionSection briefing={parentBriefing} />
+          <ApprovalQueueSection
+            approvalQueue={approvalQueue}
+            allQueueItemsSelected={allQueueItemsSelected}
+            hasSelectedRewardRequest={hasSelectedRewardRequest}
+            isPreview
+            selectedApprovalIds={selectedApprovalIds}
+            onApproveItem={approveQueueItem}
+            onApproveSelected={approveSelectedSubmissions}
+            onMarkNeedsWork={markNeedsWork}
+            onRejectSelectedRewards={rejectSelectedRewardRequests}
+            onSelectAll={(checked) =>
+              setSelectedApprovalIds(
+                checked ? approvalQueue.map((item) => item.id) : [],
+              )
+            }
+            onSelectItem={(itemId, checked) =>
+              setSelectedApprovalIds((current) =>
+                checked
+                  ? [...current, itemId]
+                  : current.filter((candidate) => candidate !== itemId),
+              )
+            }
+            onSkipSubmission={skipSubmissionOccurrence}
+          />
+          <ChoresNeedingParentHandlingSection
+            chores={choresNeedingParentHandling.slice(0, 4)}
+            isPreview
+            onSkipOccurrence={skipOccurrence}
+          />
+          <RewardFulfillmentSection
+            requests={approvedRewardRequests.slice(0, 4)}
+            isPreview
+            onFulfill={fulfillApprovedRewardRequest}
+          />
+          <ChildStatusSection household={household} todayDateKey={todayDateKey} />
+          <WorkflowShortcuts />
+        </div>
+      ) : null}
+
+      {workflow === "approvals" ? (
+        <ApprovalQueueSection
+          approvalQueue={approvalQueue}
+          allQueueItemsSelected={allQueueItemsSelected}
+          hasSelectedRewardRequest={hasSelectedRewardRequest}
+          selectedApprovalIds={selectedApprovalIds}
+          onApproveItem={approveQueueItem}
+          onApproveSelected={approveSelectedSubmissions}
+          onMarkNeedsWork={markNeedsWork}
+          onRejectSelectedRewards={rejectSelectedRewardRequests}
+          onSelectAll={(checked) =>
+            setSelectedApprovalIds(
+              checked ? approvalQueue.map((item) => item.id) : [],
+            )
+          }
+          onSelectItem={(itemId, checked) =>
+            setSelectedApprovalIds((current) =>
+              checked
+                ? [...current, itemId]
+                : current.filter((candidate) => candidate !== itemId),
+            )
+          }
+          onSkipSubmission={skipSubmissionOccurrence}
+        />
+      ) : null}
+
+      {workflow === "chores" ? (
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <CreateChoreForm
+            childId={choreChildId || household.children[0]?.id || ""}
+            childOptions={household.children}
+            dueDate={choreDueDate}
+            pointValue={chorePointValue}
+            routine={choreRoutine}
+            title={choreTitle}
+            onChildIdChange={setChoreChildId}
+            onDueDateChange={setChoreDueDate}
+            onPointValueChange={setChorePointValue}
+            onRoutineChange={setChoreRoutine}
+            onSubmit={onCreateChore}
+            onTitleChange={setChoreTitle}
+          />
+          <ChoreListSection
+            household={household}
+            onArchive={archiveExistingChore}
+            onPause={pauseExistingChore}
+          />
+          <div className="lg:col-span-2">
+            <ChoresNeedingParentHandlingSection
+              chores={choresNeedingParentHandling}
+              onSkipOccurrence={skipOccurrence}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {workflow === "goals" ? (
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <CreateGoalForm
+            childId={goalChildId || household.children[0]?.id || ""}
+            childOptions={household.children}
+            pointValue={goalPointValue}
+            title={goalTitle}
+            onChildIdChange={setGoalChildId}
+            onPointValueChange={setGoalPointValue}
+            onSubmit={onCreateGoal}
+            onTitleChange={setGoalTitle}
+          />
+          <GoalListSection
+            household={household}
+            onArchive={archiveExistingGoal}
+            onComplete={completeExistingGoal}
+          />
+        </div>
+      ) : null}
+
+      {workflow === "rewards" ? (
+        <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+          <CreateRewardForm
+            pointCost={rewardPointCost}
+            rewardType={rewardType}
+            title={rewardTitle}
+            onPointCostChange={setRewardPointCost}
+            onRewardTypeChange={setRewardType}
+            onSubmit={onCreateReward}
+            onTitleChange={setRewardTitle}
+          />
+          <RewardCatalogSection
+            household={household}
+            rewardDrafts={rewardDrafts}
+            onArchive={archiveExistingReward}
+            onDraftChange={(rewardId, draft) =>
+              setRewardDrafts({ ...rewardDrafts, [rewardId]: draft })
+            }
+            onSave={saveRewardDraft}
+          />
+          <div className="lg:col-span-2">
+            <RewardFulfillmentSection
+              requests={approvedRewardRequests}
+              onFulfill={fulfillApprovedRewardRequest}
+            />
+          </div>
+          <div className="lg:col-span-2">
+            <RewardFulfillmentHistorySection requests={fulfilledRewardRequests} />
+          </div>
+        </div>
+      ) : null}
+
+      {workflow === "calendar" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <CalendarConnectionForm
+            calendarName={calendarNameValue}
+            sourceUrl={calendarSourceUrlValue}
+            onCalendarNameChange={setCalendarName}
+            onSourceUrlChange={setCalendarSourceUrl}
+            onSubmit={onConfigureCalendar}
+          />
+          <SyncEventForm
+            canSync={Boolean(household.calendarConnection)}
+            date={eventDate}
+            endTime={eventEndTime}
+            location={eventLocation}
+            startTime={eventStartTime}
+            title={eventTitle}
+            onDateChange={setEventDate}
+            onEndTimeChange={setEventEndTime}
+            onLocationChange={setEventLocation}
+            onStartTimeChange={setEventStartTime}
+            onSubmit={onSyncCalendarEvent}
+            onTitleChange={setEventTitle}
+          />
+          <div className="lg:col-span-2">
+            <HouseholdAgendaSection
+              agenda={parentAgenda}
+              childProfiles={household.children}
+              getEventParticipantDraft={getEventParticipantDraft}
+              onDraftChange={(eventId, draft) =>
+                setEventParticipantDrafts({
+                  ...eventParticipantDrafts,
+                  [eventId]: draft,
+                })
+              }
+              onSaveParticipants={saveEventParticipants}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {workflow === "points" ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <BonusPointsForm
+            childId={bonusChildId || household.children[0]?.id || ""}
+            childOptions={household.children}
+            points={bonusPoints}
+            reason={bonusReason}
+            onChildIdChange={setBonusChildId}
+            onPointsChange={setBonusPoints}
+            onReasonChange={setBonusReason}
+            onSubmit={onAwardBonusPoints}
+          />
+          <PointAdjustmentForm
+            childId={adjustmentChildId || household.children[0]?.id || ""}
+            childOptions={household.children}
+            points={adjustmentPoints}
+            reason={adjustmentReason}
+            onChildIdChange={setAdjustmentChildId}
+            onPointsChange={setAdjustmentPoints}
+            onReasonChange={setAdjustmentReason}
+            onSubmit={onCreatePointAdjustment}
+          />
+          <PointLedgerSection household={household} />
+        </div>
+      ) : null}
+
+      {workflow === "household" ? (
+        <HouseholdWorkflowSection
+          household={household}
+          pinDrafts={pinDrafts}
+          onPinDraftChange={(childId, pin) =>
+            setPinDrafts({ ...pinDrafts, [childId]: pin })
+          }
+          onSavePin={savePin}
+        />
+      ) : null}
+
+      {workflow === "weekly-review" ? (
+        <WeeklyReviewSection review={parentWeeklyReview} />
+      ) : null}
+    </div>
+  );
+}
+
+function ParentWorkflowHeader({
+  activeWorkflow,
+  householdName,
+  onResetDemo,
+}: {
+  activeWorkflow: ParentWorkflow;
+  householdName: string;
+  onResetDemo: () => void;
+}) {
+  return (
+    <div className="mb-6 space-y-4">
+      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-parent">
-            Parent View
+            Parent Workflow
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-normal text-foreground sm:text-4xl">
-            {household.name}
+            {householdName}
           </h1>
         </div>
-        <Button type="button" variant="outline" onClick={resetDemoState}>
+        <Button type="button" variant="outline" onClick={onResetDemo}>
           <RotateCcw aria-hidden="true" className="h-4 w-4" />
           Reset demo state
         </Button>
       </div>
+      <nav
+        aria-label="Parent workflows"
+        className="flex gap-2 overflow-x-auto rounded-md border border-border bg-background p-2 shadow-panel"
+      >
+        {parentWorkflowNavItems.map((item) => (
+          <Link
+            className={`inline-flex min-h-10 shrink-0 items-center rounded-md px-3 text-sm font-medium transition-colors ${
+              item.workflow === activeWorkflow
+                ? "bg-parent text-parent-foreground"
+                : "hover:bg-muted"
+            }`}
+            href={item.href}
+            key={item.workflow}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+    </div>
+  );
+}
 
-      <section className="mb-4 rounded-md border border-border bg-background p-5 shadow-panel">
-        <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-          <div>
-            <div className="flex items-center gap-3">
-              <Sparkles aria-hidden="true" className="h-6 w-6 text-parent" />
-              <h2 className="text-xl font-semibold">Briefing</h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatDate(todayDateKey)} and {formatDate(getTomorrowDateKey(todayDateKey))}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <BriefingMetric
-              label="Approval Queue"
-              value={parentBriefing.approvalSummary.total}
-            />
-            <BriefingMetric
-              label="Overdue Chores"
-              value={parentBriefing.overdueChores.length}
-            />
-            <BriefingMetric
-              label="Rewards"
-              value={parentBriefing.unfulfilledRewards.length}
-            />
-            <BriefingMetric
-              label="Events"
-              value={parentBriefing.eventDays.reduce(
-                (total, day) => total + day.events.length,
-                0,
-              )}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div className="rounded-md border border-border p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <CalendarDays aria-hidden="true" className="h-5 w-5 text-parent" />
-              <h3 className="font-semibold">Important Events</h3>
-            </div>
-            {parentBriefing.eventDays.length === 0 ? (
-              <EmptyState
-                icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
-                title="No Events today or tomorrow."
-                detail="Connected Apple Calendar Events will show up here when they are near."
-                href="#household-agenda"
-                action="Check the Agenda"
-              />
-            ) : (
-              <div className="space-y-3">
-                {parentBriefing.eventDays.map((day) => (
-                  <div className="space-y-2" key={day.date}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      {formatDate(day.date)}
-                    </p>
-                    {day.events.map((event) => (
-                      <div
-                        className="rounded-md border border-blue-200 bg-blue-50 p-3"
-                        key={event.eventId}
-                      >
-                        <p className="font-medium">{event.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
-                          {event.location ? ` - ${event.location}` : ""}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {event.participantNames.join(", ")}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="space-y-4">
-            <div className="rounded-md border border-border p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <ListChecks aria-hidden="true" className="h-5 w-5 text-parent" />
-                <h3 className="font-semibold">Needs Attention</h3>
-              </div>
-              <div className="grid gap-2 text-sm">
-                <BriefingLine
-                  label="Chore Submissions"
-                  value={parentBriefing.approvalSummary.choreSubmissions}
-                />
-                <BriefingLine
-                  label="Progress Check-ins"
-                  value={parentBriefing.approvalSummary.progressCheckIns}
-                />
-                <BriefingLine
-                  label="Reward Requests"
-                  value={parentBriefing.approvalSummary.rewardRequests}
-                />
-              </div>
-              {parentBriefing.overdueChores.length > 0 ? (
-                <div className="mt-4 border-t border-border pt-3">
-                  <p className="text-sm font-medium">Overdue Chores</p>
-                  <div className="mt-2 space-y-2">
-                    {parentBriefing.overdueChores.slice(0, 3).map((chore) => (
-                      <p
-                        className="text-sm text-muted-foreground"
-                        key={`${chore.choreId}-${chore.dueDate}`}
-                      >
-                        {chore.childName} - {chore.title} -{" "}
-                        {formatDate(chore.dueDate)}
-                      </p>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {parentBriefing.unfulfilledRewards.length > 0 ? (
-                <div className="mt-4 border-t border-border pt-3">
-                  <p className="text-sm font-medium">Unfulfilled Rewards</p>
-                  <div className="mt-2 space-y-2">
-                    {parentBriefing.unfulfilledRewards
-                      .slice(0, 3)
-                      .map((reward) => (
-                        <p
-                          className="text-sm text-muted-foreground"
-                          key={reward.requestId}
-                        >
-                          {reward.childName} - {reward.title} - {reward.points}{" "}
-                          Points
-                        </p>
-                      ))}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="rounded-md border border-border p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-parent" />
-                <h3 className="font-semibold">Suggested Actions</h3>
-              </div>
-              {parentBriefing.suggestedActions.length === 0 ? (
-                <EmptyState
-                  icon={<CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
-                  title="No Suggested Actions right now."
-                  detail="The Briefing will call out overdue Chores, pending approvals, and fulfillment work."
-                />
-              ) : (
-                <div className="space-y-2">
-                  {parentBriefing.suggestedActions.map((action) => (
-                    <a
-                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
-                      href={action.href}
-                      key={action.id}
-                    >
-                      <span>
-                        <span className="block font-medium">{action.label}</span>
-                        <span className="block text-muted-foreground">
-                          {action.detail}
-                        </span>
-                      </span>
-                      <ArrowRight aria-hidden="true" className="h-4 w-4" />
-                    </a>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="mb-4 rounded-md border border-border bg-background p-5 shadow-panel">
-        <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-          <div>
-            <div className="flex items-center gap-3">
-              <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
-              <h2 className="text-xl font-semibold">Weekly Review</h2>
-            </div>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {formatDate(parentWeeklyReview.startsOn)} through{" "}
-              {formatDate(parentWeeklyReview.endsOn)}
-            </p>
-          </div>
-          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
-            <BriefingMetric
-              label="Week Events"
-              value={parentWeeklyReview.eventDays.reduce(
-                (total, day) => total + day.events.length,
-                0,
-              )}
-            />
-            <BriefingMetric
-              label="Pending Requests"
-              value={parentWeeklyReview.pendingRewardRequests.length}
-            />
-            <BriefingMetric
-              label="Unfulfilled"
-              value={parentWeeklyReview.unfulfilledRewards.length}
-            />
-            <BriefingMetric
-              label="Children"
-              value={parentWeeklyReview.childSummaries.length}
-            />
-          </div>
-        </div>
-
-        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
-          <div className="rounded-md border border-border p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <CalendarDays aria-hidden="true" className="h-5 w-5 text-parent" />
-              <h3 className="font-semibold">Upcoming Week Events</h3>
-            </div>
-            {parentWeeklyReview.eventDays.length === 0 ? (
-              <EmptyState
-                icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
-                title="No synced Events in the upcoming week."
-                detail="Save the Apple Calendar connection and sync Events to fill the week."
-                href="#household-agenda"
-                action="Open Agenda"
-              />
-            ) : (
-              <div className="space-y-3">
-                {parentWeeklyReview.eventDays.map((day) => (
-                  <div className="space-y-2" key={day.date}>
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                      {formatDate(day.date)}
-                    </p>
-                    {day.events.map((event) => (
-                      <div
-                        className="rounded-md border border-blue-200 bg-blue-50 p-3"
-                        key={event.eventId}
-                      >
-                        <p className="font-medium">{event.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
-                          {event.location ? ` - ${event.location}` : ""}
-                        </p>
-                        <p className="mt-1 text-sm text-muted-foreground">
-                          {event.participantNames.join(", ")}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-md border border-border p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <UserRound aria-hidden="true" className="h-5 w-5 text-child" />
-              <h3 className="font-semibold">Child Progress</h3>
-            </div>
-            <div className="space-y-3">
-              {parentWeeklyReview.childSummaries.map((summary) => (
-                <div
-                  className="rounded-md border border-border p-3"
-                  key={summary.childId}
-                >
-                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
-                    <div>
-                      <p className="font-medium">{summary.childName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {summary.pointBalance} Points
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2 text-xs font-medium">
-                      <a
-                        className="rounded-md bg-muted px-2 py-1 transition-colors hover:bg-muted/70"
-                        href="#due-chores"
-                      >
-                        {summary.chores.dueThisWeek} due
-                      </a>
-                      <a
-                        className="rounded-md bg-muted px-2 py-1 transition-colors hover:bg-muted/70"
-                        href="#goals"
-                      >
-                        {summary.goals.active} Goals
-                      </a>
-                    </div>
-                  </div>
-                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-                    <BriefingLine
-                      label="Overdue Chores"
-                      value={summary.chores.overdue}
-                    />
-                    <BriefingLine
-                      label="Pending Review"
-                      value={
-                        summary.chores.pendingReview +
-                        summary.goals.pendingCheckIns
-                      }
-                    />
-                    <BriefingLine
-                      label="Completed Goals"
-                      value={summary.goals.completed}
-                    />
-                    <BriefingLine
-                      label="Reward Requests"
-                      value={summary.rewardRequests.pending}
-                    />
-                  </div>
-                </div>
+function TodayAgendaSection({ eventDays }: { eventDays: ReturnType<typeof getParentBriefing>["eventDays"] }) {
+  return (
+    <Section
+      icon={<CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Today and Tomorrow Agenda"
+      meta={`${formatDate(getTodayDateKey())} and ${formatDate(
+        getTomorrowDateKey(getTodayDateKey()),
+      )}`}
+    >
+      {eventDays.length === 0 ? (
+        <EmptyState
+          icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+          title="No Events today or tomorrow."
+          detail="Connected Apple Calendar Events will show up here when they are near."
+          href="/parent/calendar"
+          action="Open Calendar"
+        />
+      ) : (
+        <div className="space-y-4">
+          {eventDays.map((day) => (
+            <div className="space-y-2" key={day.date}>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                {formatDate(day.date)}
+              </p>
+              {day.events.map((event) => (
+                <AgendaEventCard event={event} key={event.eventId} />
               ))}
             </div>
-          </div>
-
-          <div className="rounded-md border border-border p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <ListChecks aria-hidden="true" className="h-5 w-5 text-parent" />
-              <h3 className="font-semibold">Pending Reward Requests</h3>
-            </div>
-            {parentWeeklyReview.pendingRewardRequests.length === 0 ? (
-              <EmptyState
-                icon={<ListChecks aria-hidden="true" className="h-5 w-5" />}
-                title="No Reward Requests waiting."
-                detail="When a Child requests a Reward, it will be linked here and added to the Approval Queue."
-                href="#approval-queue"
-                action="Open Approval Queue"
-              />
-            ) : (
-              <div className="space-y-2">
-                {parentWeeklyReview.pendingRewardRequests.map((request) => (
-                  <WeeklyReviewLink
-                    detail={`${request.childName} - ${request.points} Points`}
-                    href="#approval-queue"
-                    key={request.requestId}
-                    label={request.title}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          <div className="rounded-md border border-border p-4">
-            <div className="mb-3 flex items-center gap-2">
-              <Gift aria-hidden="true" className="h-5 w-5 text-parent" />
-              <h3 className="font-semibold">Unfulfilled Rewards</h3>
-            </div>
-            {parentWeeklyReview.unfulfilledRewards.length === 0 ? (
-              <EmptyState
-                icon={<Gift aria-hidden="true" className="h-5 w-5" />}
-                title="No Rewards need fulfillment."
-                detail="Approved Reward Requests will stay visible until a Parent marks them fulfilled."
-                href="#reward-fulfillment"
-                action="Open Fulfillment"
-              />
-            ) : (
-              <div className="space-y-2">
-                {parentWeeklyReview.unfulfilledRewards.map((reward) => (
-                  <WeeklyReviewLink
-                    detail={`${reward.childName} - ${reward.points} Points`}
-                    href="#reward-fulfillment"
-                    key={reward.requestId}
-                    label={reward.title}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
+          ))}
         </div>
-      </section>
+      )}
+    </Section>
+  );
+}
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <section className="rounded-md border border-border bg-background p-5 shadow-panel">
-          <div className="mb-4 flex items-center gap-3">
-            <ShieldCheck aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Parents</h2>
-          </div>
-          <div className="space-y-3">
-            {household.parents.map((parent) => (
-              <div className="rounded-md border border-border p-3" key={parent.id}>
-                <p className="font-medium">{parent.name}</p>
-                <p className="text-sm text-muted-foreground">{parent.email}</p>
+function NeedsAttentionSection({
+  briefing,
+}: {
+  briefing: ReturnType<typeof getParentBriefing>;
+}) {
+  return (
+    <Section
+      icon={<Sparkles aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Needs Attention"
+    >
+      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
+        <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4 lg:grid-cols-2">
+          <BriefingMetric label="Approvals" value={briefing.approvalSummary.total} />
+          <BriefingMetric label="Overdue Chores" value={briefing.overdueChores.length} />
+          <BriefingMetric label="Rewards" value={briefing.unfulfilledRewards.length} />
+          <BriefingMetric label="Actions" value={briefing.suggestedActions.length} />
+        </div>
+        <div className="space-y-2">
+          {briefing.suggestedActions.length === 0 ? (
+            <EmptyState
+              icon={<CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
+              title="No Suggested Actions right now."
+              detail="Pending approvals, Overdue Chores, and Reward fulfillment will appear here."
+            />
+          ) : (
+            briefing.suggestedActions.map((action) => (
+              <Link
+                className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
+                href={toWorkflowHref(action.href)}
+                key={action.id}
+              >
+                <span>
+                  <span className="block font-medium">{action.label}</span>
+                  <span className="block text-muted-foreground">
+                    {action.detail}
+                  </span>
+                </span>
+                <ArrowRight aria-hidden="true" className="h-4 w-4" />
+              </Link>
+            ))
+          )}
+        </div>
+      </div>
+    </Section>
+  );
+}
+
+function ApprovalQueueSection({
+  allQueueItemsSelected,
+  approvalQueue,
+  hasSelectedRewardRequest,
+  isPreview = false,
+  onApproveItem,
+  onApproveSelected,
+  onMarkNeedsWork,
+  onRejectSelectedRewards,
+  onSelectAll,
+  onSelectItem,
+  onSkipSubmission,
+  selectedApprovalIds,
+}: {
+  allQueueItemsSelected: boolean;
+  approvalQueue: ApprovalQueueItem[];
+  hasSelectedRewardRequest: boolean;
+  isPreview?: boolean;
+  selectedApprovalIds: string[];
+  onApproveItem: (item: ApprovalQueueItem) => void;
+  onApproveSelected: () => void;
+  onMarkNeedsWork: (item: ApprovalQueueItem) => void;
+  onRejectSelectedRewards: () => void;
+  onSelectAll: (checked: boolean) => void;
+  onSelectItem: (itemId: string, checked: boolean) => void;
+  onSkipSubmission: (submissionId: string) => void;
+}) {
+  const visibleQueue = isPreview ? approvalQueue.slice(0, 3) : approvalQueue;
+  return (
+    <Section
+      action={
+        isPreview ? (
+          <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/parent/approvals">
+            Open full queue
+          </Link>
+        ) : null
+      }
+      icon={<ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />}
+      meta={`${approvalQueue.length} waiting, ${selectedApprovalIds.length} selected`}
+      title={isPreview ? "Approval Queue Preview" : "Approval Queue"}
+    >
+      {!isPreview ? (
+        <div className="mb-4 flex flex-wrap gap-2">
+          {approvalQueue.length > 0 ? (
+            <label className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium">
+              <input
+                className="h-4 w-4 rounded border-border"
+                type="checkbox"
+                checked={allQueueItemsSelected}
+                onChange={(event) => onSelectAll(event.target.checked)}
+              />
+              Select all
+            </label>
+          ) : null}
+          <Button
+            type="button"
+            variant="parent"
+            onClick={onApproveSelected}
+            disabled={selectedApprovalIds.length === 0}
+          >
+            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+            Approve selected
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onRejectSelectedRewards}
+            disabled={!hasSelectedRewardRequest}
+          >
+            <XCircle aria-hidden="true" className="h-4 w-4" />
+            Reject selected Rewards
+          </Button>
+        </div>
+      ) : null}
+
+      {approvalQueue.length === 0 ? (
+        <EmptyState
+          icon={<CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
+          title="Nothing is waiting for approval."
+          detail="Submitted Chores, Progress Check-ins, and Reward Requests will collect here."
+          href="/parent/chores"
+          action="Open Chores"
+        />
+      ) : (
+        <div className="space-y-3">
+          {visibleQueue.map((item) => {
+            const selected = selectedApprovalIds.includes(item.id);
+            return (
+              <div
+                className={`rounded-md border border-l-4 p-3 ${getApprovalQueueItemClass(item)}`}
+                key={item.id}
+              >
+                <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                  <label className="flex items-start gap-3">
+                    {!isPreview ? (
+                      <input
+                        aria-label={`Select ${getApprovalQueueItemLabel(item)} for ${item.childName}`}
+                        className="mt-1 h-4 w-4 rounded border-border"
+                        type="checkbox"
+                        checked={selected}
+                        onChange={(event) =>
+                          onSelectItem(item.id, event.target.checked)
+                        }
+                      />
+                    ) : null}
+                    <span>
+                      <QueueTypeBadge item={item} />
+                      <span className="block font-medium">{item.title}</span>
+                      <span className="block text-sm text-muted-foreground">
+                        {getApprovalQueueItemDetail(item)}
+                      </span>
+                    </span>
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="parent"
+                      size="sm"
+                      onClick={() => onApproveItem(item)}
+                    >
+                      <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                      Approve
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onMarkNeedsWork(item)}
+                    >
+                      <XCircle aria-hidden="true" className="h-4 w-4" />
+                      {item.type === "reward_request" ? "Reject" : "Needs Work"}
+                    </Button>
+                    {item.type === "chore_submission" ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onSkipSubmission(item.id)}
+                      >
+                        <SkipForward aria-hidden="true" className="h-4 w-4" />
+                        Skip
+                      </Button>
+                    ) : null}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
-        </section>
+            );
+          })}
+          {isPreview && approvalQueue.length > visibleQueue.length ? (
+            <Link
+              className="inline-flex items-center gap-2 text-sm font-medium text-parent hover:underline"
+              href="/parent/approvals"
+            >
+              {approvalQueue.length - visibleQueue.length} more waiting
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          ) : null}
+        </div>
+      )}
+    </Section>
+  );
+}
 
-        <section className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
-          <div className="mb-4 flex items-center gap-3">
-            <UserRound aria-hidden="true" className="h-6 w-6 text-child" />
-            <h2 className="text-xl font-semibold">Children and PINs</h2>
-          </div>
+function ChoresNeedingParentHandlingSection({
+  chores,
+  isPreview = false,
+  onSkipOccurrence,
+}: {
+  chores: Array<ChoreOccurrence & { childName: string }>;
+  isPreview?: boolean;
+  onSkipOccurrence: (chore: ChoreOccurrence) => void;
+}) {
+  return (
+    <Section
+      action={
+        isPreview ? (
+          <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/parent/chores">
+            Open Chores
+          </Link>
+        ) : null
+      }
+      icon={<SkipForward aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Chores Needing Parent Handling"
+    >
+      {chores.length === 0 ? (
+        <EmptyState
+          icon={<SkipForward aria-hidden="true" className="h-5 w-5" />}
+          title="No Chores need Parent handling."
+          detail="Overdue Chores appear here when a Parent decision is useful."
+        />
+      ) : (
+        <div className="space-y-3">
+          {chores.map((chore) => (
+            <div
+              className="flex flex-col justify-between gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center"
+              key={`${chore.choreId}-${chore.childId}-${chore.dueDate}`}
+            >
+              <div>
+                <p className="font-medium">{chore.title}</p>
+                <p className="text-sm text-muted-foreground">
+                  {chore.childName} - {formatDate(chore.dueDate)} -{" "}
+                  {chore.pointValue} Points
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onSkipOccurrence(chore)}
+              >
+                <SkipForward aria-hidden="true" className="h-4 w-4" />
+                Skip
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function RewardFulfillmentSection({
+  isPreview = false,
+  onFulfill,
+  requests,
+}: {
+  isPreview?: boolean;
+  onFulfill: (requestId: string) => void;
+  requests: Array<{
+    id: string;
+    childName: string;
+    contributionPoints: number;
+    reservedPoints: number;
+    rewardTitle: string;
+  }>;
+}) {
+  return (
+    <Section
+      action={
+        isPreview ? (
+          <Link className={buttonVariants({ variant: "outline", size: "sm" })} href="/parent/rewards">
+            Open Rewards
+          </Link>
+        ) : null
+      }
+      icon={<Gift aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title={isPreview ? "Reward Fulfillment Preview" : "Reward Fulfillment"}
+    >
+      {requests.length === 0 ? (
+        <EmptyState
+          icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+          title="No Rewards are waiting for fulfillment."
+          detail="Approved Reward Requests stay visible until a Parent fulfills them."
+        />
+      ) : (
+        <div className="space-y-3">
+          {requests.map((request) => (
+            <div
+              className="flex flex-col justify-between gap-3 rounded-md border border-violet-200 bg-violet-50 p-3 sm:flex-row sm:items-center"
+              key={request.id}
+            >
+              <div>
+                <p className="font-medium">{request.rewardTitle}</p>
+                <p className="text-sm text-muted-foreground">
+                  {request.childName} -{" "}
+                  {request.contributionPoints + request.reservedPoints} Points
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="parent"
+                size="sm"
+                onClick={() => onFulfill(request.id)}
+              >
+                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                Fulfill
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function RewardFulfillmentHistorySection({
+  requests,
+}: {
+  requests: Array<{
+    id: string;
+    childName: string;
+    contributionPoints: number;
+    fulfilledAt?: string;
+    reservedPoints: number;
+    rewardTitle: string;
+  }>;
+}) {
+  return (
+    <Section
+      icon={<Gift aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Fulfillment History"
+    >
+      {requests.length === 0 ? (
+        <EmptyState
+          icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+          title="No fulfilled Rewards yet."
+          detail="Fulfilled Reward Requests will stay here for Parent reference."
+        />
+      ) : (
+        <div className="space-y-3">
+          {requests.map((request) => (
+            <div
+              className="rounded-md border border-border p-3"
+              key={request.id}
+            >
+              <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                <div>
+                  <p className="font-medium">{request.rewardTitle}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {request.childName} -{" "}
+                    {request.contributionPoints + request.reservedPoints} Points
+                  </p>
+                </div>
+                <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">
+                  Fulfilled
+                  {request.fulfilledAt
+                    ? ` ${formatDate(request.fulfilledAt.slice(0, 10))}`
+                    : ""}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function ChildStatusSection({
+  household,
+  todayDateKey,
+}: {
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  todayDateKey: string;
+}) {
+  return (
+    <Section
+      icon={<UserRound aria-hidden="true" className="h-6 w-6 text-child" />}
+      title="Child Status"
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        {household.children.map((child) => {
+          const choreBoard = getChildChoreBoard(household, child.id, todayDateKey);
+          const goalBoard = getChildGoalBoard(household, child.id);
+          const rewardBoard = getChildRewardBoard(household, child.id);
+          const childStatusLink = getChildStatusWorkflowLink({
+            activeGoals: goalBoard.active.length,
+            overdueChores: choreBoard.overdue.length,
+            pendingGoalCheckIns: goalBoard.pendingReview.length,
+            pendingRewards: rewardBoard.pendingRequests.length,
+            todayChores: choreBoard.today.length,
+          });
+          return (
+            <div className="rounded-md border border-border p-3" key={child.id}>
+              <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                <div>
+                  <p className="font-medium">{child.name}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {child.pointBalance} Points
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex items-center gap-2 text-sm font-medium text-parent hover:underline"
+                  href={childStatusLink.href}
+                >
+                  {childStatusLink.label}
+                  <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                <BriefingLine label="Today Chores" value={choreBoard.today.length} />
+                <BriefingLine label="Overdue Chores" value={choreBoard.overdue.length} />
+                <BriefingLine label="Active Goals" value={goalBoard.active.length} />
+                <BriefingLine
+                  label="Pending Rewards"
+                  value={rewardBoard.pendingRequests.length}
+                />
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+function WorkflowShortcuts() {
+  return (
+    <section className="grid gap-3 md:grid-cols-3">
+      {parentWorkflowNavItems
+        .filter((item) => item.workflow !== "today")
+        .map((item) => (
+          <Link
+            className="rounded-md border border-border bg-background p-4 shadow-panel transition-colors hover:bg-muted"
+            href={item.href}
+            key={item.workflow}
+          >
+            <span className="font-medium">{item.label}</span>
+            <span className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+              Open workflow <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </span>
+          </Link>
+        ))}
+    </section>
+  );
+}
+
+function CreateChoreForm({
+  childId,
+  childOptions,
+  dueDate,
+  onChildIdChange,
+  onDueDateChange,
+  onPointValueChange,
+  onRoutineChange,
+  onSubmit,
+  onTitleChange,
+  pointValue,
+  routine,
+  title,
+}: {
+  childId: string;
+  childOptions: Array<{ id: string; name: string }>;
+  dueDate: string;
+  pointValue: string;
+  routine: string;
+  title: string;
+  onChildIdChange: (value: string) => void;
+  onDueDateChange: (value: string) => void;
+  onPointValueChange: (value: string) => void;
+  onRoutineChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onTitleChange: (value: string) => void;
+}) {
+  return (
+    <FormSection
+      icon={<ClipboardList aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Create Chore"
+      onSubmit={onSubmit}
+    >
+      <Field label="Chore" id="chore-title">
+        <Input
+          className="mt-2"
+          id="chore-title"
+          value={title}
+          onChange={(event) => onTitleChange(event.target.value)}
+          placeholder="Unload dishwasher"
+        />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SelectField
+          id="chore-child"
+          label="Child"
+          value={childId}
+          onChange={onChildIdChange}
+          options={childOptions.map((child) => ({
+            label: child.name,
+            value: child.id,
+          }))}
+        />
+        <Field label="Points" id="chore-points">
+          <Input
+            className="mt-2"
+            id="chore-points"
+            min={1}
+            type="number"
+            value={pointValue}
+            onChange={(event) => onPointValueChange(event.target.value)}
+          />
+        </Field>
+      </div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Due date" id="chore-due-date">
+          <Input
+            className="mt-2"
+            id="chore-due-date"
+            type="date"
+            value={dueDate}
+            onChange={(event) => onDueDateChange(event.target.value)}
+          />
+        </Field>
+        <SelectField
+          id="chore-routine"
+          label="Routine"
+          value={routine}
+          onChange={onRoutineChange}
+          options={[
+            { label: "One-time", value: "none" },
+            { label: "Daily", value: "daily" },
+            { label: "Weekly", value: "weekly" },
+          ]}
+        />
+      </div>
+      <Button className="mt-4" type="submit" variant="parent">
+        <Plus aria-hidden="true" className="h-4 w-4" />
+        Add Chore
+      </Button>
+    </FormSection>
+  );
+}
+
+function ChoreListSection({
+  household,
+  onArchive,
+  onPause,
+}: {
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  onArchive: (choreId: string) => void;
+  onPause: (choreId: string) => void;
+}) {
+  return (
+    <Section
+      icon={<ClipboardList aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Chores"
+    >
+      {household.chores.length === 0 ? (
+        <EmptyState
+          icon={<ClipboardList aria-hidden="true" className="h-5 w-5" />}
+          title="No Chores yet."
+          detail="Create a Chore with a Child, due date, Points, and optional Routine."
+        />
+      ) : (
+        <div className="space-y-3">
+          {household.chores.map((chore) => {
+            const child = household.children.find(
+              (candidate) => candidate.id === chore.childId,
+            );
+            return (
+              <div className="rounded-md border border-border p-3" key={chore.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{chore.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {child?.name} - {chore.pointValue} Points
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">
+                      {getRoutineLabel(chore.routine)}
+                    </span>
+                    <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
+                      {chore.status}
+                    </span>
+                  </div>
+                </div>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Due {formatDate(chore.dueDate)}
+                </p>
+                {chore.status === "active" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onPause(chore.id)}
+                    >
+                      <PauseCircle aria-hidden="true" className="h-4 w-4" />
+                      Pause
+                    </Button>
+                  </div>
+                ) : null}
+                {chore.status === "paused" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onArchive(chore.id)}
+                    >
+                      <Archive aria-hidden="true" className="h-4 w-4" />
+                      Archive
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function CreateGoalForm({
+  childId,
+  childOptions,
+  onChildIdChange,
+  onPointValueChange,
+  onSubmit,
+  onTitleChange,
+  pointValue,
+  title,
+}: {
+  childId: string;
+  childOptions: Array<{ id: string; name: string }>;
+  pointValue: string;
+  title: string;
+  onChildIdChange: (value: string) => void;
+  onPointValueChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onTitleChange: (value: string) => void;
+}) {
+  return (
+    <FormSection
+      icon={<Flag aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Create Goal"
+      onSubmit={onSubmit}
+    >
+      <Field label="Goal" id="goal-title">
+        <Input
+          className="mt-2"
+          id="goal-title"
+          value={title}
+          onChange={(event) => onTitleChange(event.target.value)}
+          placeholder="Read three books"
+        />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SelectField
+          id="goal-child"
+          label="Child"
+          value={childId}
+          onChange={onChildIdChange}
+          options={childOptions.map((child) => ({
+            label: child.name,
+            value: child.id,
+          }))}
+        />
+        <Field label="Points" id="goal-points">
+          <Input
+            className="mt-2"
+            id="goal-points"
+            min={1}
+            type="number"
+            value={pointValue}
+            onChange={(event) => onPointValueChange(event.target.value)}
+          />
+        </Field>
+      </div>
+      <Button className="mt-4" type="submit" variant="parent">
+        <Plus aria-hidden="true" className="h-4 w-4" />
+        Add Goal
+      </Button>
+    </FormSection>
+  );
+}
+
+function GoalListSection({
+  household,
+  onArchive,
+  onComplete,
+}: {
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  onArchive: (goalId: string) => void;
+  onComplete: (goalId: string) => void;
+}) {
+  return (
+    <Section
+      icon={<Flag aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Goals"
+    >
+      {household.goals.length === 0 ? (
+        <EmptyState
+          icon={<Flag aria-hidden="true" className="h-5 w-5" />}
+          title="No Goals yet."
+          detail="Create a Child-owned Goal so Progress Check-ins can start."
+        />
+      ) : (
+        <div className="space-y-3">
+          {household.goals.map((goal) => {
+            const child = household.children.find(
+              (candidate) => candidate.id === goal.childId,
+            );
+            return (
+              <div className="rounded-md border border-border p-3" key={goal.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="font-medium">{goal.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {child?.name} - {goal.pointValue} Points
+                    </p>
+                  </div>
+                  <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
+                    {goal.status}
+                  </span>
+                </div>
+                {goal.status === "active" ? (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="parent"
+                      size="sm"
+                      onClick={() => onComplete(goal.id)}
+                    >
+                      <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                      Complete
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => onArchive(goal.id)}
+                    >
+                      <Archive aria-hidden="true" className="h-4 w-4" />
+                      Archive
+                    </Button>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function CreateRewardForm({
+  onPointCostChange,
+  onRewardTypeChange,
+  onSubmit,
+  onTitleChange,
+  pointCost,
+  rewardType,
+  title,
+}: {
+  pointCost: string;
+  rewardType: string;
+  title: string;
+  onPointCostChange: (value: string) => void;
+  onRewardTypeChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onTitleChange: (value: string) => void;
+}) {
+  return (
+    <FormSection
+      icon={<Gift aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Create Reward"
+      onSubmit={onSubmit}
+    >
+      <Field label="Reward" id="reward-title">
+        <Input
+          className="mt-2"
+          id="reward-title"
+          value={title}
+          onChange={(event) => onTitleChange(event.target.value)}
+          placeholder="Allowance payout"
+        />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="Point cost" id="reward-cost">
+          <Input
+            className="mt-2"
+            id="reward-cost"
+            min={1}
+            type="number"
+            value={pointCost}
+            onChange={(event) => onPointCostChange(event.target.value)}
+          />
+        </Field>
+        <SelectField
+          id="reward-type"
+          label="Type"
+          value={rewardType}
+          onChange={onRewardTypeChange}
+          options={rewardTypeOptions}
+        />
+      </div>
+      <Button className="mt-4" type="submit" variant="parent">
+        <Plus aria-hidden="true" className="h-4 w-4" />
+        Add Reward
+      </Button>
+    </FormSection>
+  );
+}
+
+function RewardCatalogSection({
+  household,
+  onArchive,
+  onDraftChange,
+  onSave,
+  rewardDrafts,
+}: {
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  rewardDrafts: Record<string, { title: string; pointCost: string; type: string }>;
+  onArchive: (rewardId: string) => void;
+  onDraftChange: (
+    rewardId: string,
+    draft: { title: string; pointCost: string; type: string },
+  ) => void;
+  onSave: (rewardId: string) => void;
+}) {
+  return (
+    <Section
+      icon={<Gift aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Reward Catalog"
+    >
+      {household.rewards.length === 0 ? (
+        <EmptyState
+          icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+          title="No Rewards yet."
+          detail="Create shared Rewards with one Point cost for all Children."
+        />
+      ) : (
+        <div className="space-y-3">
+          {household.rewards.map((reward) => {
+            const draft = rewardDrafts[reward.id] ?? {
+              title: reward.title,
+              pointCost: String(reward.pointCost),
+              type: reward.type,
+            };
+            return (
+              <div className="rounded-md border border-border p-3" key={reward.id}>
+                <div className="grid gap-3 sm:grid-cols-[1fr_7rem_9rem]">
+                  <Field label="Reward" id={`${reward.id}-title`}>
+                    <Input
+                      className="mt-2"
+                      id={`${reward.id}-title`}
+                      value={draft.title}
+                      disabled={reward.status !== "active"}
+                      onChange={(event) =>
+                        onDraftChange(reward.id, {
+                          ...draft,
+                          title: event.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                  <Field label="Points" id={`${reward.id}-cost`}>
+                    <Input
+                      className="mt-2"
+                      id={`${reward.id}-cost`}
+                      min={1}
+                      type="number"
+                      value={draft.pointCost}
+                      disabled={reward.status !== "active"}
+                      onChange={(event) =>
+                        onDraftChange(reward.id, {
+                          ...draft,
+                          pointCost: event.target.value,
+                        })
+                      }
+                    />
+                  </Field>
+                  <SelectField
+                    id={`${reward.id}-type`}
+                    label="Type"
+                    value={draft.type}
+                    disabled={reward.status !== "active"}
+                    onChange={(type) => onDraftChange(reward.id, { ...draft, type })}
+                    options={rewardTypeOptions}
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                  <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
+                    {reward.status}
+                  </span>
+                  {reward.status === "active" ? (
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        type="button"
+                        variant="parent"
+                        size="sm"
+                        onClick={() => onSave(reward.id)}
+                      >
+                        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => onArchive(reward.id)}
+                      >
+                        <Archive aria-hidden="true" className="h-4 w-4" />
+                        Archive
+                      </Button>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function CalendarConnectionForm({
+  calendarName,
+  onCalendarNameChange,
+  onSourceUrlChange,
+  onSubmit,
+  sourceUrl,
+}: {
+  calendarName: string;
+  sourceUrl: string;
+  onCalendarNameChange: (value: string) => void;
+  onSourceUrlChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <FormSection
+      icon={<CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Apple Calendar"
+      onSubmit={onSubmit}
+    >
+      <Field label="Calendar name" id="calendar-name">
+        <Input
+          className="mt-2"
+          id="calendar-name"
+          value={calendarName}
+          onChange={(event) => onCalendarNameChange(event.target.value)}
+          placeholder="Family"
+        />
+      </Field>
+      <Field label="Apple source" id="calendar-source">
+        <Input
+          className="mt-2"
+          id="calendar-source"
+          value={sourceUrl}
+          onChange={(event) => onSourceUrlChange(event.target.value)}
+          placeholder="webcal://..."
+        />
+      </Field>
+      <Button className="mt-4" type="submit" variant="parent">
+        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+        Save Calendar
+      </Button>
+    </FormSection>
+  );
+}
+
+function SyncEventForm({
+  canSync,
+  date,
+  endTime,
+  location,
+  onDateChange,
+  onEndTimeChange,
+  onLocationChange,
+  onStartTimeChange,
+  onSubmit,
+  onTitleChange,
+  startTime,
+  title,
+}: {
+  canSync: boolean;
+  date: string;
+  endTime: string;
+  location: string;
+  startTime: string;
+  title: string;
+  onDateChange: (value: string) => void;
+  onEndTimeChange: (value: string) => void;
+  onLocationChange: (value: string) => void;
+  onStartTimeChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onTitleChange: (value: string) => void;
+}) {
+  return (
+    <FormSection
+      icon={<CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Sync Apple Event"
+      onSubmit={onSubmit}
+    >
+      <Field label="Event" id="event-title">
+        <Input
+          className="mt-2"
+          id="event-title"
+          value={title}
+          onChange={(event) => onTitleChange(event.target.value)}
+          placeholder="Soccer practice"
+        />
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <Field label="Date" id="event-date">
+          <Input
+            className="mt-2"
+            id="event-date"
+            type="date"
+            value={date}
+            onChange={(event) => onDateChange(event.target.value)}
+          />
+        </Field>
+        <Field label="Starts" id="event-start">
+          <Input
+            className="mt-2"
+            id="event-start"
+            type="time"
+            value={startTime}
+            onChange={(event) => onStartTimeChange(event.target.value)}
+          />
+        </Field>
+        <Field label="Ends" id="event-end">
+          <Input
+            className="mt-2"
+            id="event-end"
+            type="time"
+            value={endTime}
+            onChange={(event) => onEndTimeChange(event.target.value)}
+          />
+        </Field>
+      </div>
+      <Field label="Location" id="event-location">
+        <Input
+          className="mt-2"
+          id="event-location"
+          value={location}
+          onChange={(event) => onLocationChange(event.target.value)}
+          placeholder="Field 2"
+        />
+      </Field>
+      <Button className="mt-4" type="submit" variant="parent" disabled={!canSync}>
+        <Plus aria-hidden="true" className="h-4 w-4" />
+        Sync Event
+      </Button>
+    </FormSection>
+  );
+}
+
+function HouseholdAgendaSection({
+  agenda,
+  childProfiles,
+  getEventParticipantDraft,
+  onDraftChange,
+  onSaveParticipants,
+}: {
+  agenda: ReturnType<typeof getParentAgenda>;
+  childProfiles: Array<{ id: string; name: string }>;
+  getEventParticipantDraft: (event: AgendaEvent) => EventParticipantDraft;
+  onDraftChange: (eventId: string, draft: EventParticipantDraft) => void;
+  onSaveParticipants: (event: AgendaEvent) => void;
+}) {
+  return (
+    <Section
+      icon={<CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Household Agenda"
+    >
+      {agenda.length === 0 ? (
+        <EmptyState
+          icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+          title="No synced Events yet."
+          detail="Save the Apple Calendar connection, then sync a read-only Event for the Household Agenda."
+        />
+      ) : (
+        <div className="space-y-4">
+          {agenda.map((day) => (
+            <div className="space-y-3" key={day.date}>
+              <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                {formatDate(day.date)}
+              </h3>
+              {day.events.map((event) => {
+                const draft = getEventParticipantDraft(event);
+                return (
+                  <div className="rounded-md border border-border p-3" key={event.eventId}>
+                    <AgendaEventCard event={event} />
+                    <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <label className="flex items-center gap-2 text-sm">
+                          <input
+                            className="h-4 w-4 rounded border-border"
+                            type="checkbox"
+                            checked={draft.isAllHousehold}
+                            onChange={(changeEvent) =>
+                              onDraftChange(event.eventId, {
+                                isAllHousehold: changeEvent.target.checked,
+                                participantChildIds: [],
+                              })
+                            }
+                          />
+                          All Household
+                        </label>
+                        <div className="flex flex-wrap gap-3">
+                          {childProfiles.map((child) => (
+                            <label className="flex items-center gap-2 text-sm" key={child.id}>
+                              <input
+                                className="h-4 w-4 rounded border-border"
+                                type="checkbox"
+                                disabled={draft.isAllHousehold}
+                                checked={draft.participantChildIds.includes(child.id)}
+                                onChange={(changeEvent) =>
+                                  onDraftChange(event.eventId, {
+                                    isAllHousehold: false,
+                                    participantChildIds: changeEvent.target.checked
+                                      ? [...draft.participantChildIds, child.id]
+                                      : draft.participantChildIds.filter(
+                                          (candidate) => candidate !== child.id,
+                                        ),
+                                  })
+                                }
+                              />
+                              {child.name}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="parent"
+                        size="sm"
+                        onClick={() => onSaveParticipants(event)}
+                      >
+                        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                        Save Participants
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </Section>
+  );
+}
+
+function BonusPointsForm({
+  childId,
+  childOptions,
+  onChildIdChange,
+  onPointsChange,
+  onReasonChange,
+  onSubmit,
+  points,
+  reason,
+}: {
+  childId: string;
+  childOptions: Array<{ id: string; name: string }>;
+  points: string;
+  reason: string;
+  onChildIdChange: (value: string) => void;
+  onPointsChange: (value: string) => void;
+  onReasonChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <FormSection
+      icon={<Sparkles aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Bonus Points"
+      onSubmit={onSubmit}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SelectField
+          id="bonus-child"
+          label="Child"
+          value={childId}
+          onChange={onChildIdChange}
+          options={childOptions.map((child) => ({
+            label: child.name,
+            value: child.id,
+          }))}
+        />
+        <Field label="Points" id="bonus-points">
+          <Input
+            className="mt-2"
+            id="bonus-points"
+            min={1}
+            type="number"
+            value={points}
+            onChange={(event) => onPointsChange(event.target.value)}
+          />
+        </Field>
+      </div>
+      <Field label="Reason" id="bonus-reason">
+        <Input
+          className="mt-2"
+          id="bonus-reason"
+          value={reason}
+          onChange={(event) => onReasonChange(event.target.value)}
+          placeholder="Helped without being asked"
+        />
+      </Field>
+      <Button className="mt-4" type="submit" variant="parent">
+        <Sparkles aria-hidden="true" className="h-4 w-4" />
+        Award Bonus
+      </Button>
+    </FormSection>
+  );
+}
+
+function PointAdjustmentForm({
+  childId,
+  childOptions,
+  onChildIdChange,
+  onPointsChange,
+  onReasonChange,
+  onSubmit,
+  points,
+  reason,
+}: {
+  childId: string;
+  childOptions: Array<{ id: string; name: string }>;
+  points: string;
+  reason: string;
+  onChildIdChange: (value: string) => void;
+  onPointsChange: (value: string) => void;
+  onReasonChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <FormSection
+      icon={<WalletCards aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Point Adjustment"
+      onSubmit={onSubmit}
+    >
+      <div className="grid gap-4 sm:grid-cols-2">
+        <SelectField
+          id="adjustment-child"
+          label="Child"
+          value={childId}
+          onChange={onChildIdChange}
+          options={childOptions.map((child) => ({
+            label: child.name,
+            value: child.id,
+          }))}
+        />
+        <Field label="Point change" id="adjustment-points">
+          <Input
+            className="mt-2"
+            id="adjustment-points"
+            type="number"
+            value={points}
+            onChange={(event) => onPointsChange(event.target.value)}
+          />
+        </Field>
+      </div>
+      <Field label="Reason" id="adjustment-reason">
+        <Input
+          className="mt-2"
+          id="adjustment-reason"
+          value={reason}
+          onChange={(event) => onReasonChange(event.target.value)}
+          placeholder="Corrected duplicate entry"
+        />
+      </Field>
+      <Button className="mt-4" type="submit" variant="parent">
+        <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+        Record Adjustment
+      </Button>
+    </FormSection>
+  );
+}
+
+function PointLedgerSection({
+  household,
+}: {
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+}) {
+  return (
+    <Section
+      icon={<WalletCards aria-hidden="true" className="h-6 w-6 text-parent" />}
+      title="Point Balances"
+    >
+      <div className="space-y-3">
+        {household.children.map((child) => {
+          const entries = household.pointLedger
+            .filter((entry) => entry.childId === child.id)
+            .slice(-5)
+            .reverse();
+          return (
+            <div className="rounded-md border border-border p-3" key={child.id}>
+              <p className="font-medium">{child.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {child.pointBalance} Points
+              </p>
+              {entries.length > 0 ? (
+                <div className="mt-3 space-y-2">
+                  {entries.map((entry) => (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2 text-sm"
+                      key={entry.id}
+                    >
+                      <span>{entry.description}</span>
+                      <span className="font-semibold">
+                        {entry.delta > 0 ? "+" : ""}
+                        {entry.delta}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+    </Section>
+  );
+}
+
+function HouseholdWorkflowSection({
+  household,
+  onPinDraftChange,
+  onSavePin,
+  pinDrafts,
+}: {
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  pinDrafts: Record<string, string>;
+  onPinDraftChange: (childId: string, pin: string) => void;
+  onSavePin: (childId: string) => void;
+}) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-3">
+      <Section
+        icon={<ShieldCheck aria-hidden="true" className="h-6 w-6 text-parent" />}
+        title="Parents"
+      >
+        <div className="space-y-3">
+          {household.parents.map((parent) => (
+            <div className="rounded-md border border-border p-3" key={parent.id}>
+              <p className="font-medium">{parent.name}</p>
+              <p className="text-sm text-muted-foreground">{parent.email}</p>
+            </div>
+          ))}
+        </div>
+      </Section>
+      <div className="lg:col-span-2">
+        <Section
+          icon={<UserRound aria-hidden="true" className="h-6 w-6 text-child" />}
+          title="Children and PINs"
+        >
           <div className="space-y-4">
             {household.children.map((child) => (
               <div
@@ -1163,8 +2297,7 @@ export function ParentViewPage() {
                     {child.pointBalance} Points
                   </p>
                 </div>
-                <div>
-                  <Label htmlFor={`${child.id}-pin`}>New Child PIN</Label>
+                <Field label="New Child PIN" id={`${child.id}-pin`}>
                   <Input
                     className="mt-2"
                     id={`${child.id}-pin`}
@@ -1172,18 +2305,15 @@ export function ParentViewPage() {
                     maxLength={8}
                     value={pinDrafts[child.id] ?? ""}
                     onChange={(event) =>
-                      setPinDrafts({
-                        ...pinDrafts,
-                        [child.id]: event.target.value,
-                      })
+                      onPinDraftChange(child.id, event.target.value)
                     }
                   />
-                </div>
+                </Field>
                 <Button
                   className="self-end"
                   type="button"
                   variant="parent"
-                  onClick={() => savePin(child.id)}
+                  onClick={() => onSavePin(child.id)}
                 >
                   <KeyRound aria-hidden="true" className="h-4 w-4" />
                   Update PIN
@@ -1191,1051 +2321,450 @@ export function ParentViewPage() {
               </div>
             ))}
           </div>
-
-          {message ? (
-            <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              {message}
-            </p>
-          ) : null}
-          {error ? (
-            <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-              {error}
-            </p>
-          ) : null}
-        </section>
+        </Section>
       </div>
+      <Link
+        className="rounded-md border border-border bg-child p-5 text-child-foreground shadow-panel transition-colors hover:bg-child/90 lg:col-span-3"
+        href="/child"
+      >
+        <h2 className="text-lg font-semibold">Open Child View</h2>
+        <p className="mt-2 text-sm text-child-foreground/80">
+          Select a Child profile and enter the Child PIN.
+        </p>
+      </Link>
+    </div>
+  );
+}
 
-      <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
-        <form
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          onSubmit={onConfigureCalendar}
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Apple Calendar</h2>
-          </div>
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="calendar-name">Calendar name</Label>
-              <Input
-                className="mt-2"
-                id="calendar-name"
-                value={calendarNameValue}
-                onChange={(event) => setCalendarName(event.target.value)}
-                placeholder="Family"
-              />
-            </div>
-            <div>
-              <Label htmlFor="calendar-source">Apple source</Label>
-              <Input
-                className="mt-2"
-                id="calendar-source"
-                value={calendarSourceUrlValue}
-                onChange={(event) => setCalendarSourceUrl(event.target.value)}
-                placeholder="webcal://..."
-              />
-            </div>
-          </div>
-          <Button className="mt-4" type="submit" variant="parent">
-            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-            Save Calendar
-          </Button>
-        </form>
+function WeeklyReviewSection({
+  review,
+}: {
+  review: ReturnType<typeof getParentWeeklyReview>;
+}) {
+  return (
+    <Section
+      icon={<CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />}
+      meta={`${formatDate(review.startsOn)} through ${formatDate(review.endsOn)}`}
+      title="Weekly Review"
+    >
+      <div className="mb-4 grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+        <BriefingMetric
+          label="Week Events"
+          value={review.eventDays.reduce(
+            (total, day) => total + day.events.length,
+            0,
+          )}
+        />
+        <BriefingMetric label="Pending Requests" value={review.pendingRewardRequests.length} />
+        <BriefingMetric label="Unfulfilled" value={review.unfulfilledRewards.length} />
+        <BriefingMetric label="Children" value={review.childSummaries.length} />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <WeeklyEventsPanel review={review} />
+        <WeeklyChildProgressPanel review={review} />
+        <WeeklyRewardPanel
+          emptyActionHref="/parent/approvals"
+          emptyActionLabel="Open Approval Queue"
+          emptyDetail="When a Child requests a Reward, it will be linked here and added to the Approval Queue."
+          emptyTitle="No Reward Requests waiting."
+          rewards={review.pendingRewardRequests}
+          title="Pending Reward Requests"
+        />
+        <WeeklyRewardPanel
+          emptyActionHref="/parent/rewards"
+          emptyActionLabel="Open Fulfillment"
+          emptyDetail="Approved Reward Requests stay visible until a Parent marks them fulfilled."
+          emptyTitle="No Rewards need fulfillment."
+          rewards={review.unfulfilledRewards}
+          title="Unfulfilled Rewards"
+        />
+      </div>
+    </Section>
+  );
+}
 
-        <form
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          onSubmit={onSyncCalendarEvent}
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Sync Apple Event</h2>
-          </div>
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="event-title">Event</Label>
-              <Input
-                className="mt-2"
-                id="event-title"
-                value={eventTitle}
-                onChange={(event) => setEventTitle(event.target.value)}
-                placeholder="Soccer practice"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-3">
-              <div>
-                <Label htmlFor="event-date">Date</Label>
-                <Input
-                  className="mt-2"
-                  id="event-date"
-                  type="date"
-                  value={eventDate}
-                  onChange={(event) => setEventDate(event.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="event-start">Starts</Label>
-                <Input
-                  className="mt-2"
-                  id="event-start"
-                  type="time"
-                  value={eventStartTime}
-                  onChange={(event) => setEventStartTime(event.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="event-end">Ends</Label>
-                <Input
-                  className="mt-2"
-                  id="event-end"
-                  type="time"
-                  value={eventEndTime}
-                  onChange={(event) => setEventEndTime(event.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="event-location">Location</Label>
-              <Input
-                className="mt-2"
-                id="event-location"
-                value={eventLocation}
-                onChange={(event) => setEventLocation(event.target.value)}
-                placeholder="Field 2"
-              />
-            </div>
-          </div>
-          <Button
-            className="mt-4"
-            type="submit"
-            variant="parent"
-            disabled={!household.calendarConnection}
-          >
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Sync Event
-          </Button>
-        </form>
-
-        <div
-          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
-          id="household-agenda"
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Household Agenda</h2>
-          </div>
-          {parentAgenda.length === 0 ? (
-            <EmptyState
-              icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
-              title="No synced Events yet."
-              detail="Save the Apple Calendar connection, then sync a read-only Event for the Household Agenda."
-            />
-          ) : (
-            <div className="space-y-4">
-              {parentAgenda.map((day) => (
-                <div className="space-y-3" key={day.date}>
-                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
-                    {formatDate(day.date)}
-                  </h3>
-                  {day.events.map((event) => {
-                    const draft = getEventParticipantDraft(event);
-                    return (
-                      <div
-                        className="rounded-md border border-border p-3"
-                        key={event.eventId}
-                      >
-                        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
-                          <div>
-                            <p className="font-medium">{event.title}</p>
-                            <p className="text-sm text-muted-foreground">
-                              {formatTime(event.startsAt)} -{" "}
-                              {formatTime(event.endsAt)}
-                              {event.location ? ` - ${event.location}` : ""}
-                            </p>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                              {event.participantNames.join(", ")}
-                            </p>
-                          </div>
-                          <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">
-                            Read-only
-                          </span>
-                        </div>
-                        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-                          <div className="space-y-2">
-                            <label className="flex items-center gap-2 text-sm">
-                              <input
-                                className="h-4 w-4 rounded border-border"
-                                type="checkbox"
-                                checked={draft.isAllHousehold}
-                                onChange={(changeEvent) =>
-                                  setEventParticipantDrafts({
-                                    ...eventParticipantDrafts,
-                                    [event.eventId]: {
-                                      isAllHousehold:
-                                        changeEvent.target.checked,
-                                      participantChildIds: [],
-                                    },
-                                  })
-                                }
-                              />
-                              All Household
-                            </label>
-                            <div className="flex flex-wrap gap-3">
-                              {household.children.map((child) => (
-                                <label
-                                  className="flex items-center gap-2 text-sm"
-                                  key={child.id}
-                                >
-                                  <input
-                                    className="h-4 w-4 rounded border-border"
-                                    type="checkbox"
-                                    disabled={draft.isAllHousehold}
-                                    checked={draft.participantChildIds.includes(
-                                      child.id,
-                                    )}
-                                    onChange={(changeEvent) =>
-                                      setEventParticipantDrafts({
-                                        ...eventParticipantDrafts,
-                                        [event.eventId]: {
-                                          isAllHousehold: false,
-                                          participantChildIds:
-                                            changeEvent.target.checked
-                                              ? [
-                                                  ...draft.participantChildIds,
-                                                  child.id,
-                                                ]
-                                              : draft.participantChildIds.filter(
-                                                  (candidate) =>
-                                                    candidate !== child.id,
-                                                ),
-                                        },
-                                      })
-                                    }
-                                  />
-                                  {child.name}
-                                </label>
-                              ))}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="parent"
-                            size="sm"
-                            onClick={() => saveEventParticipants(event)}
-                          >
-                            <CheckCircle2
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                            />
-                            Save Participants
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+function WeeklyEventsPanel({
+  review,
+}: {
+  review: ReturnType<typeof getParentWeeklyReview>;
+}) {
+  return (
+    <div className="rounded-md border border-border p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <CalendarDays aria-hidden="true" className="h-5 w-5 text-parent" />
+        <h3 className="font-semibold">Upcoming Week Events</h3>
+      </div>
+      {review.eventDays.length === 0 ? (
+        <EmptyState
+          icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+          title="No synced Events in the upcoming week."
+          detail="Save the Apple Calendar connection and sync Events to fill the week."
+          href="/parent/calendar"
+          action="Open Calendar"
+        />
+      ) : (
+        <div className="space-y-3">
+          {review.eventDays.map((day) => (
+            <div className="space-y-2" key={day.date}>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                {formatDate(day.date)}
+              </p>
+              {day.events.map((event) => (
+                <AgendaEventCard event={event} key={event.eventId} />
               ))}
             </div>
-          )}
+          ))}
         </div>
+      )}
+    </div>
+  );
+}
 
-        <div
-          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
-          id="approval-queue"
-        >
-          <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-3">
-              <ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />
+function WeeklyChildProgressPanel({
+  review,
+}: {
+  review: ReturnType<typeof getParentWeeklyReview>;
+}) {
+  return (
+    <div className="rounded-md border border-border p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <UserRound aria-hidden="true" className="h-5 w-5 text-child" />
+        <h3 className="font-semibold">Child Progress</h3>
+      </div>
+      <div className="space-y-3">
+        {review.childSummaries.map((summary) => (
+          <div className="rounded-md border border-border p-3" key={summary.childId}>
+            <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
               <div>
-                <h2 className="text-xl font-semibold">Approval Queue</h2>
+                <p className="font-medium">{summary.childName}</p>
                 <p className="text-sm text-muted-foreground">
-                  {approvalQueue.length} waiting, {selectedApprovalIds.length}{" "}
-                  selected
+                  {summary.pointBalance} Points
                 </p>
               </div>
+              <div className="flex flex-wrap gap-2 text-xs font-medium">
+                <Link className="rounded-md bg-muted px-2 py-1 transition-colors hover:bg-muted/70" href="/parent/chores">
+                  {summary.chores.dueThisWeek} due
+                </Link>
+                <Link className="rounded-md bg-muted px-2 py-1 transition-colors hover:bg-muted/70" href="/parent/goals">
+                  {summary.goals.active} Goals
+                </Link>
+              </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {approvalQueue.length > 0 ? (
-                <label className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border bg-background px-3 text-sm font-medium">
-                  <input
-                    className="h-4 w-4 rounded border-border"
-                    type="checkbox"
-                    checked={allQueueItemsSelected}
-                    onChange={(event) =>
-                      setSelectedApprovalIds(
-                        event.target.checked
-                          ? approvalQueue.map((item) => item.id)
-                          : [],
-                      )
-                    }
-                  />
-                  Select all
-                </label>
-              ) : null}
-              <Button
-                type="button"
-                variant="parent"
-                onClick={approveSelectedSubmissions}
-                disabled={selectedApprovalIds.length === 0}
-              >
-                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-                Approve selected
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={rejectSelectedRewardRequests}
-                disabled={!hasSelectedRewardRequest}
-              >
-                <XCircle aria-hidden="true" className="h-4 w-4" />
-                Reject selected Rewards
-              </Button>
-            </div>
-          </div>
-          {approvalQueue.length === 0 ? (
-            <EmptyState
-              icon={<CheckCircle2 aria-hidden="true" className="h-5 w-5" />}
-              title="Nothing is waiting for approval."
-              detail="Submitted Chores, Progress Check-ins, and Reward Requests will collect here."
-              href="#due-chores"
-              action="Review due Chores"
-            />
-          ) : (
-            <div className="space-y-3">
-              {approvalQueue.map((item) => {
-                const selected = selectedApprovalIds.includes(item.id);
-                return (
-                  <div
-                    className={`rounded-md border border-l-4 p-3 ${getApprovalQueueItemClass(item)}`}
-                    key={item.id}
-                  >
-                    <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-                      <label className="flex items-start gap-3">
-                        <input
-                          aria-label={`Select ${getApprovalQueueItemLabel(item)} for ${item.childName}`}
-                          className="mt-1 h-4 w-4 rounded border-border"
-                          type="checkbox"
-                          checked={selected}
-                          onChange={(event) => {
-                            setSelectedApprovalIds((current) =>
-                              event.target.checked
-                                ? [...current, item.id]
-                                : current.filter(
-                                    (candidate) => candidate !== item.id,
-                                  ),
-                            );
-                          }}
-                        />
-                        <span>
-                          <QueueTypeBadge item={item} />
-                          <span className="block font-medium">{item.title}</span>
-                          <span className="block text-sm text-muted-foreground">
-                            {getApprovalQueueItemDetail(item)}
-                          </span>
-                        </span>
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="parent"
-                          size="sm"
-                          onClick={() => approveQueueItem(item)}
-                        >
-                          <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-                          Approve
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => markNeedsWork(item)}
-                        >
-                          <XCircle aria-hidden="true" className="h-4 w-4" />
-                          {item.type === "reward_request"
-                            ? "Reject"
-                            : "Needs Work"}
-                        </Button>
-                        {item.type === "chore_submission" ? (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => skipSubmissionOccurrence(item.id)}
-                          >
-                            <SkipForward
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                            />
-                            Skip
-                          </Button>
-                        ) : null}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <div
-          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
-          id="due-chores"
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <SkipForward aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Due Chore Occurrences</h2>
-          </div>
-          {dueOccurrences.length === 0 ? (
-            <EmptyState
-              icon={<SkipForward aria-hidden="true" className="h-5 w-5" />}
-              title="No Chores need Parent handling."
-              detail="Due and Overdue Chores will appear here so a Parent can Skip them when needed."
-            />
-          ) : (
-            <div className="space-y-3">
-              {dueOccurrences.map((chore) => (
-                <div
-                  className="flex flex-col justify-between gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center"
-                  key={`${chore.choreId}-${chore.dueDate}`}
-                >
-                  <div>
-                    <p className="font-medium">{chore.title}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {chore.childName} - {formatDate(chore.dueDate)} -{" "}
-                      {chore.pointValue} Points
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => skipOccurrence(chore)}
-                  >
-                    <SkipForward aria-hidden="true" className="h-4 w-4" />
-                    Skip
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <form
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          onSubmit={onCreateChore}
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <ClipboardList aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Create Chore</h2>
-          </div>
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="chore-title">Chore</Label>
-              <Input
-                className="mt-2"
-                id="chore-title"
-                value={choreTitle}
-                onChange={(event) => setChoreTitle(event.target.value)}
-                placeholder="Unload dishwasher"
+            <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+              <BriefingLine label="Overdue Chores" value={summary.chores.overdue} />
+              <BriefingLine
+                label="Pending Review"
+                value={summary.chores.pendingReview + summary.goals.pendingCheckIns}
               />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="chore-child">Child</Label>
-                <select
-                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  id="chore-child"
-                  value={choreChildId || household.children[0]?.id || ""}
-                  onChange={(event) => setChoreChildId(event.target.value)}
-                >
-                  {household.children.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      {child.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="chore-points">Points</Label>
-                <Input
-                  className="mt-2"
-                  id="chore-points"
-                  min={1}
-                  type="number"
-                  value={chorePointValue}
-                  onChange={(event) => setChorePointValue(event.target.value)}
-                />
-              </div>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="chore-due-date">Due date</Label>
-                <Input
-                  className="mt-2"
-                  id="chore-due-date"
-                  type="date"
-                  value={choreDueDate}
-                  onChange={(event) => setChoreDueDate(event.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="chore-routine">Routine</Label>
-                <select
-                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  id="chore-routine"
-                  value={choreRoutine}
-                  onChange={(event) => setChoreRoutine(event.target.value)}
-                >
-                  <option value="none">One-time</option>
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <Button className="mt-4" type="submit" variant="parent">
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Add Chore
-          </Button>
-        </form>
-
-        <div className="rounded-md border border-border bg-background p-5 shadow-panel">
-          <div className="mb-4 flex items-center gap-3">
-            <ClipboardList aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Chores</h2>
-          </div>
-          {household.chores.length === 0 ? (
-            <EmptyState
-              icon={<ClipboardList aria-hidden="true" className="h-5 w-5" />}
-              title="No Chores yet."
-              detail="Create a Chore with a Child, due date, Points, and optional Routine."
-              href="#chore-title"
-              action="Create a Chore"
-            />
-          ) : (
-            <div className="space-y-3">
-              {household.chores.map((chore) => {
-                const child = household.children.find(
-                  (candidate) => candidate.id === chore.childId,
-                );
-                return (
-                  <div
-                    className="rounded-md border border-border p-3"
-                    key={chore.id}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{chore.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {child?.name} - {chore.pointValue} Points
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">
-                          {getRoutineLabel(chore.routine)}
-                        </span>
-                        <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
-                          {chore.status}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Due {formatDate(chore.dueDate)}
-                    </p>
-                    {chore.status === "active" ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => pauseExistingChore(chore.id)}
-                        >
-                          <PauseCircle aria-hidden="true" className="h-4 w-4" />
-                          Pause
-                        </Button>
-                      </div>
-                    ) : null}
-                    {chore.status === "paused" ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => archiveExistingChore(chore.id)}
-                        >
-                          <Archive aria-hidden="true" className="h-4 w-4" />
-                          Archive
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <form
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          onSubmit={onCreateGoal}
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <Flag aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Create Goal</h2>
-          </div>
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="goal-title">Goal</Label>
-              <Input
-                className="mt-2"
-                id="goal-title"
-                value={goalTitle}
-                onChange={(event) => setGoalTitle(event.target.value)}
-                placeholder="Read three books"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="goal-child">Child</Label>
-                <select
-                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  id="goal-child"
-                  value={goalChildId || household.children[0]?.id || ""}
-                  onChange={(event) => setGoalChildId(event.target.value)}
-                >
-                  {household.children.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      {child.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="goal-points">Points</Label>
-                <Input
-                  className="mt-2"
-                  id="goal-points"
-                  min={1}
-                  type="number"
-                  value={goalPointValue}
-                  onChange={(event) => setGoalPointValue(event.target.value)}
-                />
-              </div>
-            </div>
-          </div>
-          <Button className="mt-4" type="submit" variant="parent">
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Add Goal
-          </Button>
-        </form>
-
-        <div
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          id="goals"
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <Flag aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Goals</h2>
-          </div>
-          {household.goals.length === 0 ? (
-            <EmptyState
-              icon={<Flag aria-hidden="true" className="h-5 w-5" />}
-              title="No Goals yet."
-              detail="Create a Child-owned Goal so Progress Check-ins can start."
-              href="#goal-title"
-              action="Create a Goal"
-            />
-          ) : (
-            <div className="space-y-3">
-              {household.goals.map((goal) => {
-                const child = household.children.find(
-                  (candidate) => candidate.id === goal.childId,
-                );
-                return (
-                  <div
-                    className="rounded-md border border-border p-3"
-                    key={goal.id}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <p className="font-medium">{goal.title}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {child?.name} - {goal.pointValue} Points
-                        </p>
-                      </div>
-                      <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
-                        {goal.status}
-                      </span>
-                    </div>
-                    {goal.status === "active" ? (
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button
-                          type="button"
-                          variant="parent"
-                          size="sm"
-                          onClick={() => completeExistingGoal(goal.id)}
-                        >
-                          <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-                          Complete
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => archiveExistingGoal(goal.id)}
-                        >
-                          <Archive aria-hidden="true" className="h-4 w-4" />
-                          Archive
-                        </Button>
-                      </div>
-                    ) : null}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        <form
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          onSubmit={onAwardBonusPoints}
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <Sparkles aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Bonus Points</h2>
-          </div>
-          <div className="grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="bonus-child">Child</Label>
-                <select
-                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  id="bonus-child"
-                  value={bonusChildId || household.children[0]?.id || ""}
-                  onChange={(event) => setBonusChildId(event.target.value)}
-                >
-                  {household.children.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      {child.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="bonus-points">Points</Label>
-                <Input
-                  className="mt-2"
-                  id="bonus-points"
-                  min={1}
-                  type="number"
-                  value={bonusPoints}
-                  onChange={(event) => setBonusPoints(event.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="bonus-reason">Reason</Label>
-              <Input
-                className="mt-2"
-                id="bonus-reason"
-                value={bonusReason}
-                onChange={(event) => setBonusReason(event.target.value)}
-                placeholder="Helped without being asked"
+              <BriefingLine label="Completed Goals" value={summary.goals.completed} />
+              <BriefingLine
+                label="Reward Requests"
+                value={summary.rewardRequests.pending}
               />
             </div>
           </div>
-          <Button className="mt-4" type="submit" variant="parent">
-            <Sparkles aria-hidden="true" className="h-4 w-4" />
-            Award Bonus
-          </Button>
-        </form>
+        ))}
+      </div>
+    </div>
+  );
+}
 
-        <form
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          onSubmit={onCreatePointAdjustment}
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Point Adjustment</h2>
-          </div>
-          <div className="grid gap-4">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="adjustment-child">Child</Label>
-                <select
-                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  id="adjustment-child"
-                  value={adjustmentChildId || household.children[0]?.id || ""}
-                  onChange={(event) => setAdjustmentChildId(event.target.value)}
-                >
-                  {household.children.map((child) => (
-                    <option key={child.id} value={child.id}>
-                      {child.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <Label htmlFor="adjustment-points">Point change</Label>
-                <Input
-                  className="mt-2"
-                  id="adjustment-points"
-                  type="number"
-                  value={adjustmentPoints}
-                  onChange={(event) => setAdjustmentPoints(event.target.value)}
-                />
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="adjustment-reason">Reason</Label>
-              <Input
-                className="mt-2"
-                id="adjustment-reason"
-                value={adjustmentReason}
-                onChange={(event) => setAdjustmentReason(event.target.value)}
-                placeholder="Corrected duplicate entry"
-              />
-            </div>
-          </div>
-          <Button className="mt-4" type="submit" variant="parent">
-            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-            Record Adjustment
-          </Button>
-        </form>
-
-        <form
-          className="rounded-md border border-border bg-background p-5 shadow-panel"
-          onSubmit={onCreateReward}
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <Gift aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Create Reward</h2>
-          </div>
-          <div className="grid gap-4">
-            <div>
-              <Label htmlFor="reward-title">Reward</Label>
-              <Input
-                className="mt-2"
-                id="reward-title"
-                value={rewardTitle}
-                onChange={(event) => setRewardTitle(event.target.value)}
-                placeholder="Allowance payout"
-              />
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <Label htmlFor="reward-cost">Point cost</Label>
-                <Input
-                  className="mt-2"
-                  id="reward-cost"
-                  min={1}
-                  type="number"
-                  value={rewardPointCost}
-                  onChange={(event) => setRewardPointCost(event.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="reward-type">Type</Label>
-                <select
-                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  id="reward-type"
-                  value={rewardType}
-                  onChange={(event) => setRewardType(event.target.value)}
-                >
-                  <option value="allowance">Allowance</option>
-                  <option value="experience">Experience</option>
-                  <option value="privilege">Privilege</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <Button className="mt-4" type="submit" variant="parent">
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Add Reward
-          </Button>
-        </form>
-
-        <div className="rounded-md border border-border bg-background p-5 shadow-panel">
-          <div className="mb-4 flex items-center gap-3">
-            <Gift aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Reward Catalog</h2>
-          </div>
-          {household.rewards.length === 0 ? (
-            <EmptyState
-              icon={<Gift aria-hidden="true" className="h-5 w-5" />}
-              title="No Rewards yet."
-              detail="Create shared Rewards with one Point cost for all Children."
-              href="#reward-title"
-              action="Create a Reward"
-            />
-          ) : (
-            <div className="space-y-3">
-              {household.rewards.map((reward) => {
-                const draft = rewardDrafts[reward.id] ?? {
-                  title: reward.title,
-                  pointCost: String(reward.pointCost),
-                  type: reward.type,
-                };
-                return (
-                  <div
-                    className="rounded-md border border-border p-3"
-                    key={reward.id}
-                  >
-                    <div className="grid gap-3 sm:grid-cols-[1fr_7rem_9rem]">
-                      <div>
-                        <Label htmlFor={`${reward.id}-title`}>Reward</Label>
-                        <Input
-                          className="mt-2"
-                          id={`${reward.id}-title`}
-                          value={draft.title}
-                          disabled={reward.status !== "active"}
-                          onChange={(event) =>
-                            setRewardDrafts({
-                              ...rewardDrafts,
-                              [reward.id]: {
-                                ...draft,
-                                title: event.target.value,
-                              },
-                            })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`${reward.id}-cost`}>Points</Label>
-                        <Input
-                          className="mt-2"
-                          id={`${reward.id}-cost`}
-                          min={1}
-                          type="number"
-                          value={draft.pointCost}
-                          disabled={reward.status !== "active"}
-                          onChange={(event) =>
-                            setRewardDrafts({
-                              ...rewardDrafts,
-                              [reward.id]: {
-                                ...draft,
-                                pointCost: event.target.value,
-                              },
-                            })
-                          }
-                        />
-                      </div>
-                      <div>
-                        <Label htmlFor={`${reward.id}-type`}>Type</Label>
-                        <select
-                          className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-                          id={`${reward.id}-type`}
-                          value={draft.type}
-                          disabled={reward.status !== "active"}
-                          onChange={(event) =>
-                            setRewardDrafts({
-                              ...rewardDrafts,
-                              [reward.id]: {
-                                ...draft,
-                                type: event.target.value,
-                              },
-                            })
-                          }
-                        >
-                          <option value="allowance">Allowance</option>
-                          <option value="experience">Experience</option>
-                          <option value="privilege">Privilege</option>
-                          <option value="custom">Custom</option>
-                        </select>
-                      </div>
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                      <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
-                        {reward.status}
-                      </span>
-                      {reward.status === "active" ? (
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            variant="parent"
-                            size="sm"
-                            onClick={() => saveRewardDraft(reward.id)}
-                          >
-                            <CheckCircle2
-                              aria-hidden="true"
-                              className="h-4 w-4"
-                            />
-                            Save
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => archiveExistingReward(reward.id)}
-                          >
-                            <Archive aria-hidden="true" className="h-4 w-4" />
-                            Archive
-                          </Button>
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+function WeeklyRewardPanel({
+  emptyActionHref,
+  emptyActionLabel,
+  emptyDetail,
+  emptyTitle,
+  rewards,
+  title,
+}: {
+  emptyActionHref: string;
+  emptyActionLabel: string;
+  emptyDetail: string;
+  emptyTitle: string;
+  rewards: ReturnType<typeof getParentWeeklyReview>["pendingRewardRequests"];
+  title: string;
+}) {
+  return (
+    <div className="rounded-md border border-border p-4">
+      <div className="mb-3 flex items-center gap-2">
+        <Gift aria-hidden="true" className="h-5 w-5 text-parent" />
+        <h3 className="font-semibold">{title}</h3>
+      </div>
+      {rewards.length === 0 ? (
+        <EmptyState
+          icon={<Gift aria-hidden="true" className="h-5 w-5" />}
+          title={emptyTitle}
+          detail={emptyDetail}
+          href={emptyActionHref}
+          action={emptyActionLabel}
+        />
+      ) : (
+        <div className="space-y-2">
+          {rewards.map((reward) => (
+            <Link
+              className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
+              href="/parent/rewards"
+              key={reward.requestId}
+            >
+              <span>
+                <span className="block font-medium">{reward.title}</span>
+                <span className="block text-muted-foreground">
+                  {reward.childName} - {reward.points} Points
+                </span>
+              </span>
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          ))}
         </div>
+      )}
+    </div>
+  );
+}
 
-        <div
-          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
-          id="reward-fulfillment"
-        >
-          <div className="mb-4 flex items-center gap-3">
-            <Gift aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Reward Fulfillment</h2>
-          </div>
-          {approvedRewardRequests.length === 0 ? (
-            <EmptyState
-              icon={<Gift aria-hidden="true" className="h-5 w-5" />}
-              title="No Rewards are waiting for fulfillment."
-              detail="After approval, Reward Requests stay here until a Parent fulfills them."
-            />
-          ) : (
-            <div className="space-y-3">
-              {approvedRewardRequests.map((request) => (
-                <div
-                  className="flex flex-col justify-between gap-3 rounded-md border border-violet-200 bg-violet-50 p-3 sm:flex-row sm:items-center"
-                  key={request.id}
-                >
-                  <div>
-                    <p className="font-medium">{request.rewardTitle}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {request.childName} -{" "}
-                      {request.contributionPoints + request.reservedPoints}{" "}
-                      Points
-                    </p>
-                  </div>
-                  <Button
-                    type="button"
-                    variant="parent"
-                    size="sm"
-                    onClick={() => fulfillApprovedRewardRequest(request.id)}
-                  >
-                    <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-                    Fulfill
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+function ParentLoadingState() {
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-10">
+      <div className="rounded-md border border-border bg-background p-6 shadow-panel">
+        <p className="text-sm text-muted-foreground">Loading Parent View...</p>
+      </div>
+    </div>
+  );
+}
 
+function ParentSetupState() {
+  return (
+    <div className="mx-auto max-w-4xl px-4 py-10">
+      <div className="rounded-md border border-border bg-background p-6 shadow-panel">
+        <ShieldCheck aria-hidden="true" className="mb-4 h-9 w-9 text-parent" />
+        <h1 className="text-2xl font-semibold">Parent View</h1>
+        <p className="mt-2 text-muted-foreground">
+          Create the Household before managing Parents, Children, and PINs.
+        </p>
         <Link
-          className="rounded-md border border-border bg-child p-5 text-child-foreground shadow-panel transition-colors hover:bg-child/90"
-          href="/child"
+          className={buttonVariants({ className: "mt-5", variant: "parent" })}
+          href="/setup"
         >
-          <h2 className="text-lg font-semibold">Open Child View</h2>
-          <p className="mt-2 text-sm text-child-foreground/80">
-            Select a Child profile and enter the Child PIN.
-          </p>
+          Start Household Setup
         </Link>
-      </section>
+      </div>
+    </div>
+  );
+}
+
+function Section({
+  action,
+  children,
+  icon,
+  meta,
+  title,
+}: {
+  action?: ReactNode;
+  children: ReactNode;
+  icon: ReactNode;
+  meta?: string;
+  title: string;
+}) {
+  return (
+    <section className="rounded-md border border-border bg-background p-5 shadow-panel">
+      <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div className="flex items-start gap-3">
+          {icon}
+          <div>
+            <h2 className="text-xl font-semibold">{title}</h2>
+            {meta ? <p className="mt-1 text-sm text-muted-foreground">{meta}</p> : null}
+          </div>
+        </div>
+        {action}
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function FormSection({
+  children,
+  icon,
+  onSubmit,
+  title,
+}: {
+  children: ReactNode;
+  icon: ReactNode;
+  title: string;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  return (
+    <form
+      className="rounded-md border border-border bg-background p-5 shadow-panel"
+      onSubmit={onSubmit}
+    >
+      <div className="mb-4 flex items-center gap-3">
+        {icon}
+        <h2 className="text-xl font-semibold">{title}</h2>
+      </div>
+      <div className="grid gap-4">{children}</div>
+    </form>
+  );
+}
+
+function Field({
+  children,
+  id,
+  label,
+}: {
+  children: ReactNode;
+  id: string;
+  label: string;
+}) {
+  return (
+    <div>
+      <Label htmlFor={id}>{label}</Label>
+      {children}
+    </div>
+  );
+}
+
+function SelectField({
+  disabled = false,
+  id,
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  disabled?: boolean;
+  id: string;
+  label: string;
+  options: Array<{ label: string; value: string }>;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <Field id={id} label={label}>
+      <select
+        className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+        disabled={disabled}
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </Field>
+  );
+}
+
+function AgendaEventCard({ event }: { event: AgendaEvent }) {
+  const needsAttention = eventNeedsParentAttention(event);
+  return (
+    <div
+      className={`rounded-md border p-3 ${
+        needsAttention ? "border-amber-300 bg-amber-50" : "border-blue-200 bg-blue-50"
+      }`}
+    >
+      <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+        <div>
+          <p className="font-medium">{event.title}</p>
+          <p className="text-sm text-muted-foreground">
+            {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
+            {event.location ? ` - ${event.location}` : ""}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {event.participantNames.length > 0
+              ? event.participantNames.join(", ")
+              : "Participants need review"}
+          </p>
+        </div>
+        {needsAttention ? (
+          <span className="rounded-md bg-amber-100 px-2 py-1 text-xs font-medium text-amber-900">
+            Review Participants
+          </span>
+        ) : (
+          <span className="rounded-md bg-blue-100 px-2 py-1 text-xs font-medium text-blue-800">
+            Read-only
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function StatusMessages({
+  error,
+  message,
+}: {
+  error: string | null;
+  message: string | null;
+}) {
+  if (!message && !error) return null;
+  return (
+    <div className="mb-4 space-y-2">
+      {message ? (
+        <p className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+          {message}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
+function EmptyState({
+  action,
+  detail,
+  href,
+  icon,
+  title,
+}: {
+  action?: string;
+  detail: string;
+  href?: string;
+  icon: ReactNode;
+  title: string;
+}) {
+  return (
+    <div className="rounded-md border border-dashed border-border bg-muted/35 p-4">
+      <div className="flex items-start gap-3">
+        <div className="mt-0.5 text-muted-foreground">{icon}</div>
+        <div>
+          <p className="font-medium">{title}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
+          {href && action ? (
+            <Link
+              className="mt-3 inline-flex items-center gap-2 rounded-md text-sm font-medium text-parent hover:underline"
+              href={href}
+            >
+              {action}
+              <ArrowRight aria-hidden="true" className="h-4 w-4" />
+            </Link>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function BriefingMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function BriefingLine({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2">
+      <span>{label}</span>
+      <span className="font-semibold">{value}</span>
     </div>
   );
 }
@@ -2330,92 +2859,56 @@ function QueueTypeBadge({ item }: { item: ApprovalQueueItem }) {
   );
 }
 
-function EmptyState({
-  action,
-  detail,
-  href,
-  icon,
-  title,
-}: {
-  action?: string;
-  detail: string;
-  href?: string;
-  icon: ReactNode;
-  title: string;
-}) {
+function getRewardRequestsByStatus(
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>,
+  status: "approved" | "fulfilled",
+) {
+  return household.rewardRequests
+    .filter((request) => request.status === status)
+    .flatMap((request) => {
+      const reward = household.rewards.find(
+        (candidate) => candidate.id === request.rewardId,
+      );
+      const child = household.children.find(
+        (candidate) => candidate.id === request.childId,
+      );
+      if (!reward || !child) return [];
+      return [{ ...request, rewardTitle: reward.title, childName: child.name }];
+    });
+}
+
+export function eventNeedsParentAttention(event: AgendaEvent): boolean {
   return (
-    <div className="rounded-md border border-dashed border-border bg-muted/35 p-4">
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 text-muted-foreground">{icon}</div>
-        <div>
-          <p className="font-medium">{title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{detail}</p>
-          {href && action ? (
-            <a
-              className="mt-3 inline-flex items-center gap-2 rounded-md text-sm font-medium text-parent hover:underline"
-              href={href}
-            >
-              {action}
-              <ArrowRight aria-hidden="true" className="h-4 w-4" />
-            </a>
-          ) : null}
-        </div>
-      </div>
-    </div>
+    event.participantNames.length === 0 ||
+    event.isAllHousehold ||
+    (!event.isAllHousehold && event.participantChildIds.length === 0)
   );
 }
 
-function BriefingMetric({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="rounded-md border border-border px-3 py-2">
-      <p className="text-xs text-muted-foreground">{label}</p>
-      <p className="mt-1 text-2xl font-semibold">{value}</p>
-    </div>
-  );
+export function getChildStatusWorkflowLink(input: {
+  activeGoals: number;
+  overdueChores: number;
+  pendingGoalCheckIns: number;
+  pendingRewards: number;
+  todayChores: number;
+}): { href: string; label: string } {
+  if (input.pendingRewards > 0) {
+    return { href: "/parent/rewards", label: "Open Rewards" };
+  }
+  if (input.pendingGoalCheckIns > 0 || input.activeGoals > 0) {
+    return { href: "/parent/goals", label: "Open Goals" };
+  }
+  if (input.overdueChores > 0 || input.todayChores > 0) {
+    return { href: "/parent/chores", label: "Open Chores" };
+  }
+  return { href: "/parent/points", label: "Open Points" };
 }
 
-function BriefingLine({
-  label,
-  value,
-}: {
-  label: string;
-  value: number;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2">
-      <span>{label}</span>
-      <span className="font-semibold">{value}</span>
-    </div>
-  );
-}
-
-function WeeklyReviewLink({
-  detail,
-  href,
-  label,
-}: {
-  detail: string;
-  href: string;
-  label: string;
-}) {
-  return (
-    <a
-      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
-      href={href}
-    >
-      <span>
-        <span className="block font-medium">{label}</span>
-        <span className="block text-muted-foreground">{detail}</span>
-      </span>
-      <ArrowRight aria-hidden="true" className="h-4 w-4" />
-    </a>
-  );
+function toWorkflowHref(anchorHref: string): string {
+  if (anchorHref === "#approval-queue") return "/parent/approvals";
+  if (anchorHref === "#due-chores") return "/parent/chores";
+  if (anchorHref === "#reward-fulfillment") return "/parent/rewards";
+  return "/parent";
 }
 
 function toRewardType(value: string) {
@@ -2426,3 +2919,10 @@ function toRewardType(value: string) {
     ? value
     : "custom";
 }
+
+const rewardTypeOptions = [
+  { label: "Allowance", value: "allowance" },
+  { label: "Experience", value: "experience" },
+  { label: "Privilege", value: "privilege" },
+  { label: "Custom", value: "custom" },
+];
