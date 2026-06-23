@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState, useSyncExternalStore } from "react";
 import {
   Archive,
+  ArrowRight,
   CalendarDays,
   CheckCircle2,
   ClipboardList,
@@ -21,6 +22,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { getParentBriefing } from "@/domain/briefing";
 import type { AgendaEvent } from "@/domain/calendar";
 import {
   configureAppleCalendar,
@@ -715,6 +717,8 @@ export function ParentViewPage() {
 
   const approvalQueue = getApprovalQueue(household);
   const parentAgenda = getParentAgenda(household);
+  const todayDateKey = getTodayDateKey();
+  const parentBriefing = getParentBriefing(household, todayDateKey);
   const calendarNameValue =
     calendarName || household.calendarConnection?.calendarName || "";
   const calendarSourceUrlValue =
@@ -724,7 +728,7 @@ export function ParentViewPage() {
     selectedApprovalIds,
   ).some((item) => item.type === "reward_request");
   const dueOccurrences = household.children.flatMap((child) => {
-    const board = getChildChoreBoard(household, child.id, getTodayDateKey());
+    const board = getChildChoreBoard(household, child.id, todayDateKey);
     return [...board.overdue, ...board.today].map((chore) => ({
       ...chore,
       childName: child.name,
@@ -761,6 +765,167 @@ export function ParentViewPage() {
           Reset demo state
         </Button>
       </div>
+
+      <section className="mb-4 rounded-md border border-border bg-background p-5 shadow-panel">
+        <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+          <div>
+            <div className="flex items-center gap-3">
+              <Sparkles aria-hidden="true" className="h-6 w-6 text-parent" />
+              <h2 className="text-xl font-semibold">Briefing</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatDate(todayDateKey)} and {formatDate(getTomorrowDateKey(todayDateKey))}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <BriefingMetric
+              label="Approval Queue"
+              value={parentBriefing.approvalSummary.total}
+            />
+            <BriefingMetric
+              label="Overdue Chores"
+              value={parentBriefing.overdueChores.length}
+            />
+            <BriefingMetric
+              label="Rewards"
+              value={parentBriefing.unfulfilledRewards.length}
+            />
+            <BriefingMetric
+              label="Events"
+              value={parentBriefing.eventDays.reduce(
+                (total, day) => total + day.events.length,
+                0,
+              )}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div className="rounded-md border border-border p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <CalendarDays aria-hidden="true" className="h-5 w-5 text-parent" />
+              <h3 className="font-semibold">Important Events</h3>
+            </div>
+            {parentBriefing.eventDays.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No Events today or tomorrow.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {parentBriefing.eventDays.map((day) => (
+                  <div className="space-y-2" key={day.date}>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      {formatDate(day.date)}
+                    </p>
+                    {day.events.map((event) => (
+                      <div
+                        className="rounded-md border border-blue-200 bg-blue-50 p-3"
+                        key={event.eventId}
+                      >
+                        <p className="font-medium">{event.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
+                          {event.location ? ` - ${event.location}` : ""}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {event.participantNames.join(", ")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="space-y-4">
+            <div className="rounded-md border border-border p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <ListChecks aria-hidden="true" className="h-5 w-5 text-parent" />
+                <h3 className="font-semibold">Needs Attention</h3>
+              </div>
+              <div className="grid gap-2 text-sm">
+                <BriefingLine
+                  label="Chore Submissions"
+                  value={parentBriefing.approvalSummary.choreSubmissions}
+                />
+                <BriefingLine
+                  label="Progress Check-ins"
+                  value={parentBriefing.approvalSummary.progressCheckIns}
+                />
+                <BriefingLine
+                  label="Reward Requests"
+                  value={parentBriefing.approvalSummary.rewardRequests}
+                />
+              </div>
+              {parentBriefing.overdueChores.length > 0 ? (
+                <div className="mt-4 border-t border-border pt-3">
+                  <p className="text-sm font-medium">Overdue Chores</p>
+                  <div className="mt-2 space-y-2">
+                    {parentBriefing.overdueChores.slice(0, 3).map((chore) => (
+                      <p
+                        className="text-sm text-muted-foreground"
+                        key={`${chore.choreId}-${chore.dueDate}`}
+                      >
+                        {chore.childName} - {chore.title} -{" "}
+                        {formatDate(chore.dueDate)}
+                      </p>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {parentBriefing.unfulfilledRewards.length > 0 ? (
+                <div className="mt-4 border-t border-border pt-3">
+                  <p className="text-sm font-medium">Unfulfilled Rewards</p>
+                  <div className="mt-2 space-y-2">
+                    {parentBriefing.unfulfilledRewards
+                      .slice(0, 3)
+                      .map((reward) => (
+                        <p
+                          className="text-sm text-muted-foreground"
+                          key={reward.requestId}
+                        >
+                          {reward.childName} - {reward.title} - {reward.points}{" "}
+                          Points
+                        </p>
+                      ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="rounded-md border border-border p-4">
+              <div className="mb-3 flex items-center gap-2">
+                <CheckCircle2 aria-hidden="true" className="h-5 w-5 text-parent" />
+                <h3 className="font-semibold">Suggested Actions</h3>
+              </div>
+              {parentBriefing.suggestedActions.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No Suggested Actions right now.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {parentBriefing.suggestedActions.map((action) => (
+                    <a
+                      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
+                      href={action.href}
+                      key={action.id}
+                    >
+                      <span>
+                        <span className="block font-medium">{action.label}</span>
+                        <span className="block text-muted-foreground">
+                          {action.detail}
+                        </span>
+                      </span>
+                      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+                    </a>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       <div className="grid gap-4 lg:grid-cols-3">
         <section className="rounded-md border border-border bg-background p-5 shadow-panel">
@@ -1065,7 +1230,10 @@ export function ParentViewPage() {
           )}
         </div>
 
-        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+        <div
+          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
+          id="approval-queue"
+        >
           <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
               <ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />
@@ -1176,7 +1344,10 @@ export function ParentViewPage() {
           )}
         </div>
 
-        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+        <div
+          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
+          id="due-chores"
+        >
           <div className="mb-4 flex items-center gap-3">
             <SkipForward aria-hidden="true" className="h-6 w-6 text-parent" />
             <h2 className="text-xl font-semibold">Due Chore Occurrences</h2>
@@ -1761,7 +1932,10 @@ export function ParentViewPage() {
           )}
         </div>
 
-        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+        <div
+          className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2"
+          id="reward-fulfillment"
+        >
           <div className="mb-4 flex items-center gap-3">
             <Gift aria-hidden="true" className="h-6 w-6 text-parent" />
             <h2 className="text-xl font-semibold">Reward Fulfillment</h2>
@@ -1816,6 +1990,12 @@ export function ParentViewPage() {
 
 function getTodayDateKey(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+function getTomorrowDateKey(today: string): string {
+  const date = new Date(`${today}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
 function formatDate(dateKey: string): string {
@@ -1879,6 +2059,36 @@ function getApprovalQueueItemClass(item: ApprovalQueueItem): string {
     : item.type === "progress_check_in"
       ? "border-emerald-200 bg-emerald-50"
       : "border-purple-200 bg-purple-50";
+}
+
+function BriefingMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-md border border-border px-3 py-2">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 text-2xl font-semibold">{value}</p>
+    </div>
+  );
+}
+
+function BriefingLine({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2">
+      <span>{label}</span>
+      <span className="font-semibold">{value}</span>
+    </div>
+  );
 }
 
 function toRewardType(value: string) {

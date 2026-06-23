@@ -54,6 +54,8 @@ documents, update the tree and document index below in the same change.
 |   |       |-- input.tsx
 |   |       `-- label.tsx
 |   |-- domain/
+|   |   |-- briefing.ts
+|   |   |-- briefing.test.ts
 |   |   |-- calendar.ts
 |   |   |-- calendar.test.ts
 |   |   |-- chores.ts

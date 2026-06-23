@@ -149,7 +149,7 @@ Add read-only Family Calendar sync using Apple Calendar as the source of truth f
 - [x] Child View shows that Child's Events and all-Household Events when relevant.
 - [x] Tests cover read-only Event behavior, Participant enrichment, Parent Agenda, and Child Agenda filtering.
 
-### 8. Parent Briefing and Suggested Actions
+### 8. Parent Briefing and Suggested Actions - Done
 
 **Blocked by**: Slice 3, Slice 5, Slice 7
 
@@ -161,11 +161,11 @@ Add read-only Family Calendar sync using Apple Calendar as the source of truth f
 Build the Parent Briefing from existing app state: upcoming Events, pending Approval Queue items, Overdue Chores, unfulfilled Rewards, and rule-based Suggested Actions.
 
 **Acceptance criteria**:
-- [ ] Briefing shows today's and tomorrow's important Events.
-- [ ] Briefing summarizes pending Approval Queue items by type.
-- [ ] Briefing highlights Overdue Chores and unfulfilled Rewards.
-- [ ] Suggested Actions are rule-based and link to the relevant workflow.
-- [ ] Tests cover Briefing content and Suggested Action rules.
+- [x] Briefing shows today's and tomorrow's important Events.
+- [x] Briefing summarizes pending Approval Queue items by type.
+- [x] Briefing highlights Overdue Chores and unfulfilled Rewards.
+- [x] Suggested Actions are rule-based and link to the relevant workflow.
+- [x] Tests cover Briefing content and Suggested Action rules.
 
 ### 9. Weekly Review
 
