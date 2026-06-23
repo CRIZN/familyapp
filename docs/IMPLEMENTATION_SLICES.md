@@ -202,3 +202,40 @@ Harden responsive layouts, empty states, accessibility, loading/error states, vi
 - [x] Point Ledger and Wins feel clear and encouraging for Children.
 - [x] Accessibility checks pass for keyboard navigation, labels, contrast, and focus states.
 - [x] Smoke tests cover the full v1 happy path.
+
+### 11. Parent View IA Simplification
+
+**Blocked by**: Slices 1-10
+
+**User stories covered**:
+- As a Parent, I can open Parent View and immediately see the Today/Tomorrow Agenda.
+- As a Parent, I can quickly act on items that need attention without scanning every management surface.
+- As a Parent, I can move into focused workflows when I need to create, edit, archive, or configure Household objects.
+
+**What to build**:
+Refactor Parent View into an agenda-first daily command surface labeled `Today` in Parent workflow navigation. Move durable creation, editing, archiving, configuration, planning, and full review flows for Chores, Goals, Rewards, Calendar, Household, Points, Approvals, and Weekly Review into focused Parent workflow pages. Add compact persistent Parent workflow navigation for Today, Approvals, Chores, Goals, Rewards, Calendar, Points, Household, and Weekly Review, with contextual links inside Parent View sections. Keep quick actions such as Approve, Needs Work, Skip, and Reward fulfillment near the attention items they resolve.
+
+Create separate Parent routes for `/parent`, `/parent/approvals`, `/parent/chores`, `/parent/goals`, `/parent/rewards`, `/parent/calendar`, `/parent/points`, `/parent/household`, and `/parent/weekly-review`. Extract shared components only as needed to support the route-level IA.
+
+Default `Today` content order: Today/Tomorrow Agenda, Needs Attention summary, capped Approval Queue preview, Chores Needing Parent Handling, Reward Fulfillment, Child Status summaries, then Create/Manage shortcuts.
+
+Use a shared Parent layout for `/parent/*` routes with the Household title, Parent workflow navigation, shared status/error messaging, and demo reset access while the local-demo store remains in use.
+
+**Acceptance criteria**:
+- [ ] Parent View shows the Today/Tomorrow Agenda as the first primary content area.
+- [ ] The Agenda shows all Today/Tomorrow Events while visually elevating Events that need Parent attention, such as missing or ambiguous Participants.
+- [ ] The Calendar workflow owns the full Household Agenda, Apple Calendar connection/sync controls, and Event Participant enrichment; Today shows only the Today/Tomorrow agenda slice.
+- [ ] Briefing focuses on items needing Parent attention rather than containing the Agenda.
+- [ ] Parent View includes compact Child status summaries with Point Balance, today's Chore status, active Goal or check-in status, pending Reward state, and one contextual workflow link per Child.
+- [ ] Child status summaries do not expose full Point Ledgers, full Chore or Goal lists, or Child PIN editing.
+- [ ] Parent workflow navigation gives Parents predictable access to Today, Approvals, Chores, Goals, Rewards, Calendar, Points, Household, and Weekly Review without crowding the agenda-first view.
+- [ ] Focused Parent workflow pages exist as separate routes rather than hidden sections of the main Parent View.
+- [ ] Parent workflow pages share a consistent Parent layout and navigation shell.
+- [ ] Parent View shows a capped Approval Queue preview with inline quick actions and links to a full Approvals workflow for larger queues or batch review.
+- [ ] Parent View shows Reward fulfillment as a capped attention module with a quick Fulfill action, while full fulfillment history and Reward Catalog management live in the Rewards workflow.
+- [ ] Parent View exposes creation and management as links or buttons into focused workflows, not as always-visible forms.
+- [ ] Chore, Goal, Reward, Calendar, Household, and Points creation/configuration forms are no longer permanently visible on Parent View.
+- [ ] Full Weekly Review lives at a focused Parent workflow page such as `/parent/weekly-review`, with only a compact link or summary from Parent View.
+- [ ] Parent View shows Chores Needing Parent Handling for Chore occurrences that need a Parent decision, while normal due Chores stay in Child View and Child Status summaries.
+- [ ] Quick review actions remain available from Parent View for Approval Queue items, Chores Needing Parent Handling, and unfulfilled Rewards.
+- [ ] Tests cover the user-facing IA: Today is agenda-first, creation forms are absent from Today, workflow navigation reaches focused pages, focused pages contain their relevant forms and lists, and capped previews link to full workflows.

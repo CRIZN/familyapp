@@ -6,7 +6,7 @@ Family App helps one Household coordinate what is happening, what Children need 
 
 ## Primary Users
 
-- Parents use Parent View to manage the Household, review the Agenda and Briefing, manage Chores, Goals, Rewards, and approve child requests.
+- Parents use Parent View to see the Today/Tomorrow Agenda first, review what needs attention, and take quick actions; durable management workflows for Chores, Goals, Rewards, Calendar, Household, and Points live in focused Parent workflow pages.
 - Children use Child View to see today's work, submit Chores and Progress Check-ins, view Points, contribute toward Rewards, request Rewards, and see Wins.
 
 ## V1 Scope
@@ -17,11 +17,11 @@ Parents can create the Household, add Parents and Children, set Child PINs, conn
 
 ### Calendar Awareness
 
-Family App syncs Events read-only from the shared Apple Family Calendar. Apple Calendar remains the source of truth for Event creation and edits. Parents can enrich synced Events inside Family App by adjusting Participants. Parent View shows the full day-first Agenda. Child View shows Events where that Child is a Participant, plus all-Household Events when relevant.
+Family App syncs Events read-only from the shared Apple Family Calendar. Apple Calendar remains the source of truth for Event creation and edits. Parents can enrich synced Events inside Family App by adjusting Participants. Parent View shows the full day-first Agenda and visually elevates Events that need Parent attention, such as Events with missing or ambiguous Participants. Child View shows Events where that Child is a Participant, plus all-Household Events when relevant.
 
 ### Parent Briefing and Weekly Review
 
-Parent View includes a Briefing with upcoming Events, pending Approval Queue items, Overdue Chores, unfulfilled Rewards, and rule-based Suggested Actions. Parent View also includes a Weekly Review for the upcoming week, child progress, Point Balances, and pending requests.
+Parent View surfaces the Today/Tomorrow Agenda as the primary daily information surface. The Briefing summarizes what needs attention, including pending Approval Queue items, Overdue Chores, unfulfilled Rewards, and rule-based Suggested Actions. Weekly Review is a focused planning workflow, separate from the main Parent View, for the upcoming week, child progress, Point Balances, and pending requests.
 
 ### Chores
 
@@ -78,7 +78,7 @@ Parent View has one combined Approval Queue for Chore Submissions, Progress Chec
 
 ## Success Criteria
 
-- Parents can understand today's household situation from the Briefing without checking several places.
+- Parents can understand today's household situation from the agenda-first Parent View without checking several places.
 - Children can independently see what to do, submit work, understand their Points, and request or contribute toward Rewards.
 - Parents can review child requests quickly from one Approval Queue.
 - Point Balance changes are explainable from the Point Ledger.

@@ -1,0 +1,3 @@
+# Parent View is a command surface
+
+Family App treats Parent View as the Parent-facing daily command surface for current Household awareness and urgent actions, not as the full management console. Parent View should surface the Today/Tomorrow Agenda first because schedule awareness is the primary daily need, then show items requiring Parent attention such as approvals, Overdue Chores, and Reward fulfillment. Durable creation, editing, archiving, and configuration flows should live in focused Parent workflow pages, while Parent View keeps quick review actions such as approval, Needs Work, Skip, and fulfillment close to the information that demands attention.

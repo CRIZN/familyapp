@@ -27,7 +27,8 @@ documents, update the tree and document index below in the same change.
 |       |-- 0003-parent-accounts-and-child-pins.md
 |       |-- 0004-single-points-system.md
 |       |-- 0005-nextjs-supabase-vercel-stack.md
-|       `-- 0006-point-ledger-is-authoritative.md
+|       |-- 0006-point-ledger-is-authoritative.md
+|       `-- 0007-parent-view-command-surface.md
 |-- drizzle/
 |   |-- 0000_reflective_dracula.sql
 |   |-- 0001_bright_preak.sql
@@ -139,6 +140,10 @@ Tailwind CSS, shadcn/ui, and lucide-react.
 Point Ledger entries explain every Point Balance change and must stay in sync
 with any denormalized balance updates.
 
+**[docs/adr/0007-parent-view-command-surface.md](docs/adr/0007-parent-view-command-surface.md)**:
+Parent View is the Parent-facing daily command surface; durable management flows
+live in focused Parent workflow pages.
+
 ## Language
 
 **Household**:
@@ -203,6 +208,11 @@ _Avoid_: Schedule, recurrence, repeat rule
 **Overdue**:
 The state of a Chore that was due but has not been submitted, approved, or skipped.
 _Avoid_: Late, missed, expired
+
+**Chores Needing Parent Handling**:
+The Parent-facing attention list of Chore occurrences that need a Parent decision, such as Skip or other intervention.
+Normal due Chores belong in Child View and Child Status summaries rather than this list.
+_Avoid_: Due Chore Occurrences, parent chore list, chore feed
 
 **Goal**:
 A longer-running objective assigned to a Child that can earn Points through progress or completion.
@@ -285,6 +295,8 @@ _Avoid_: Event edit, calendar update, override
 
 **Agenda**:
 The awareness-focused view of upcoming Household Events and their Participants.
+On Parent View, the Today/Tomorrow Agenda is the first information surface.
+Events that need Parent attention should be visually elevated within the Agenda rather than removed from it.
 _Avoid_: Planner, schedule, calendar feed
 
 **Family Calendar**:
@@ -293,7 +305,7 @@ Family App reads from the Family Calendar for awareness rather than owning the c
 _Avoid_: Internal calendar, app calendar, event database
 
 **Briefing**:
-A Parent-facing summary of what needs attention, including upcoming Events and pending child-related approvals.
+A Parent-facing summary of what needs attention, including pending child-related approvals, Overdue Chores, unfulfilled Rewards, and Suggested Actions.
 _Avoid_: Digest, notification, report
 
 **Suggested Action**:
@@ -302,11 +314,13 @@ _Avoid_: AI suggestion, recommendation, alert
 
 **Weekly Review**:
 A Parent-facing summary for planning the upcoming week and reviewing child progress, Point Balances, and pending requests.
+Weekly Review is a focused planning workflow rather than part of the main Parent View.
 _Avoid_: Weekly digest, report, planning session
 
 **Parent View**:
-The app experience for Parents to see the Agenda, review the Briefing, manage Chores and Goals, and approve child requests.
-_Avoid_: Admin view, adult mode, dashboard
+The Parent-facing daily command surface for understanding the Household's current situation and taking urgent actions.
+Parent View is not the full management console for every create, edit, archive, or configuration workflow.
+_Avoid_: Admin view, admin panel, management console, settings page
 
 **Child View**:
 The app experience for a Child to see assigned Chores and Goals, submit progress, view their Point Balance, and request Rewards.
