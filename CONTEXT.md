@@ -58,6 +58,8 @@ documents, update the tree and document index below in the same change.
 |   |   |-- goals.test.ts
 |   |   |-- household.ts
 |   |   |-- household.test.ts
+|   |   |-- points.ts
+|   |   |-- points.test.ts
 |   |   |-- rewards.ts
 |   |   `-- rewards.test.ts
 |   |-- features/

@@ -29,7 +29,9 @@ export type PointLedgerEntry = {
     | "reward_contribution_return"
     | "reward_request_reservation"
     | "reward_request_approval_spend"
-    | "reward_request_return";
+    | "reward_request_return"
+    | "bonus_points"
+    | "point_adjustment";
   sourceId: string;
   createdAt: string;
 };

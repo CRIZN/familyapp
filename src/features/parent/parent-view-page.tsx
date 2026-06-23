@@ -15,6 +15,7 @@ import {
   RotateCcw,
   ShieldCheck,
   SkipForward,
+  Sparkles,
   UserRound,
   XCircle,
 } from "lucide-react";
@@ -47,6 +48,7 @@ import {
   updateReward,
 } from "@/domain/rewards";
 import { updateChildPin } from "@/domain/household";
+import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -82,6 +84,12 @@ export function ParentViewPage() {
   const [goalTitle, setGoalTitle] = useState("");
   const [goalChildId, setGoalChildId] = useState("");
   const [goalPointValue, setGoalPointValue] = useState("5");
+  const [bonusChildId, setBonusChildId] = useState("");
+  const [bonusPoints, setBonusPoints] = useState("1");
+  const [bonusReason, setBonusReason] = useState("");
+  const [adjustmentChildId, setAdjustmentChildId] = useState("");
+  const [adjustmentPoints, setAdjustmentPoints] = useState("1");
+  const [adjustmentReason, setAdjustmentReason] = useState("");
   const [rewardTitle, setRewardTitle] = useState("");
   const [rewardPointCost, setRewardPointCost] = useState("10");
   const [rewardType, setRewardType] = useState("custom");
@@ -442,6 +450,58 @@ export function ParentViewPage() {
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Could not archive Goal.",
+      );
+    }
+  }
+
+  function onAwardBonusPoints(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = awardBonusPoints(household, {
+        childId: bonusChildId || household.children[0]?.id || "",
+        points: Number(bonusPoints),
+        reason: bonusReason,
+      });
+      saveHousehold(updated);
+      setBonusPoints("1");
+      setBonusReason("");
+      setMessage("Bonus Points awarded.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not award Bonus Points.",
+      );
+    }
+  }
+
+  function onCreatePointAdjustment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = createPointAdjustment(household, {
+        childId: adjustmentChildId || household.children[0]?.id || "",
+        points: Number(adjustmentPoints),
+        reason: adjustmentReason,
+      });
+      saveHousehold(updated);
+      setAdjustmentPoints("1");
+      setAdjustmentReason("");
+      setMessage("Point Adjustment recorded.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not record Point Adjustment.",
       );
     }
   }
@@ -1067,6 +1127,113 @@ export function ParentViewPage() {
             </div>
           )}
         </div>
+
+        <form
+          className="rounded-md border border-border bg-background p-5 shadow-panel"
+          onSubmit={onAwardBonusPoints}
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <Sparkles aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Bonus Points</h2>
+          </div>
+          <div className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="bonus-child">Child</Label>
+                <select
+                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  id="bonus-child"
+                  value={bonusChildId || household.children[0]?.id || ""}
+                  onChange={(event) => setBonusChildId(event.target.value)}
+                >
+                  {household.children.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {child.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="bonus-points">Points</Label>
+                <Input
+                  className="mt-2"
+                  id="bonus-points"
+                  min={1}
+                  type="number"
+                  value={bonusPoints}
+                  onChange={(event) => setBonusPoints(event.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="bonus-reason">Reason</Label>
+              <Input
+                className="mt-2"
+                id="bonus-reason"
+                value={bonusReason}
+                onChange={(event) => setBonusReason(event.target.value)}
+                placeholder="Helped without being asked"
+              />
+            </div>
+          </div>
+          <Button className="mt-4" type="submit" variant="parent">
+            <Sparkles aria-hidden="true" className="h-4 w-4" />
+            Award Bonus
+          </Button>
+        </form>
+
+        <form
+          className="rounded-md border border-border bg-background p-5 shadow-panel"
+          onSubmit={onCreatePointAdjustment}
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Point Adjustment</h2>
+          </div>
+          <div className="grid gap-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="adjustment-child">Child</Label>
+                <select
+                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  id="adjustment-child"
+                  value={adjustmentChildId || household.children[0]?.id || ""}
+                  onChange={(event) => setAdjustmentChildId(event.target.value)}
+                >
+                  {household.children.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {child.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="adjustment-points">Point change</Label>
+                <Input
+                  className="mt-2"
+                  id="adjustment-points"
+                  type="number"
+                  value={adjustmentPoints}
+                  onChange={(event) => setAdjustmentPoints(event.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="adjustment-reason">Reason</Label>
+              <Input
+                className="mt-2"
+                id="adjustment-reason"
+                value={adjustmentReason}
+                onChange={(event) => setAdjustmentReason(event.target.value)}
+                placeholder="Corrected duplicate entry"
+              />
+            </div>
+          </div>
+          <Button className="mt-4" type="submit" variant="parent">
+            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+            Record Adjustment
+          </Button>
+        </form>
 
         <form
           className="rounded-md border border-border bg-background p-5 shadow-panel"

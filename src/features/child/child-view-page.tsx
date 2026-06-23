@@ -26,6 +26,7 @@ import {
 import type { GoalProgress, ProgressCheckInSummary } from "@/domain/goals";
 import { getChildGoalBoard, submitProgressCheckIn } from "@/domain/goals";
 import { getChildView, startChildSession } from "@/domain/household";
+import { getPointLedgerDisplay } from "@/domain/points";
 import type {
   ChildRewardCatalogItem,
   RewardContributionSummary,
@@ -380,22 +381,26 @@ export function ChildViewPage() {
               </p>
             ) : (
               <div className="space-y-3">
-                {pointLedger.map((entry) => (
-                  <div
-                    className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
-                    key={entry.id}
-                  >
-                    <div>
-                      <p className="font-medium">{entry.description}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatDate(entry.createdAt.slice(0, 10))}
-                      </p>
+                {pointLedger.map((entry) => {
+                  const display = getPointLedgerDisplay(entry);
+                  return (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+                      key={entry.id}
+                    >
+                      <div>
+                        <p className="font-medium">{display.label}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {display.explanation} -{" "}
+                          {formatDate(entry.createdAt.slice(0, 10))}
+                        </p>
+                      </div>
+                      <span className="rounded-md bg-child px-2 py-1 text-sm font-semibold text-child-foreground">
+                        {formatPointDelta(entry.delta)}
+                      </span>
                     </div>
-                    <span className="rounded-md bg-child px-2 py-1 text-sm font-semibold text-child-foreground">
-                      {formatPointDelta(entry.delta)}
-                    </span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

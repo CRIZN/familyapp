@@ -109,7 +109,7 @@ Add the shared Reward Catalog, Allowance as a normal Reward type, Reward Contrib
 - [x] The Approval Queue visually distinguishes Reward Requests from other item types.
 - [x] Tests cover contributions, returns, reservation, approval, rejection/cancellation, fulfillment, and ledger entries.
 
-### 6. Bonus Points and Point Adjustments
+### 6. Bonus Points and Point Adjustments - Done
 
 **Blocked by**: Slice 3
 
@@ -122,11 +122,11 @@ Add the shared Reward Catalog, Allowance as a normal Reward type, Reward Contrib
 Add Parent flows for Bonus Points and Point Adjustments, requiring a reason for adjustments and recording every change in the Point Ledger. Negative adjustments are corrections, not penalties.
 
 **Acceptance criteria**:
-- [ ] A Parent can award Bonus Points to a Child.
-- [ ] A Parent can create a positive or negative Point Adjustment with a required reason.
-- [ ] The Point Ledger clearly labels Bonus Points and Point Adjustments.
-- [ ] Child View shows a simplified explanation of each Point change.
-- [ ] Tests cover Bonus Points, required adjustment reasons, negative corrections, and ledger visibility.
+- [x] A Parent can award Bonus Points to a Child.
+- [x] A Parent can create a positive or negative Point Adjustment with a required reason.
+- [x] The Point Ledger clearly labels Bonus Points and Point Adjustments.
+- [x] Child View shows a simplified explanation of each Point change.
+- [x] Tests cover Bonus Points, required adjustment reasons, negative corrections, and ledger visibility.
 
 ### 7. Read-only Apple Calendar Agenda with Event Enrichment
 
