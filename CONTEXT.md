@@ -32,10 +32,12 @@ documents, update the tree and document index below in the same change.
 |   |-- 0000_reflective_dracula.sql
 |   |-- 0001_bright_preak.sql
 |   |-- 0002_colossal_sersi.sql
+|   |-- 0003_slippery_sasquatch.sql
 |   `-- meta/
 |       |-- 0000_snapshot.json
 |       |-- 0001_snapshot.json
 |       |-- 0002_snapshot.json
+|       |-- 0003_snapshot.json
 |       `-- _journal.json
 |-- src/
 |   |-- app/
@@ -52,6 +54,8 @@ documents, update the tree and document index below in the same change.
 |   |       |-- input.tsx
 |   |       `-- label.tsx
 |   |-- domain/
+|   |   |-- calendar.ts
+|   |   |-- calendar.test.ts
 |   |   |-- chores.ts
 |   |   |-- chores.test.ts
 |   |   |-- goals.ts

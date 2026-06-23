@@ -1,6 +1,8 @@
 import {
+  boolean,
   date,
   integer,
+  jsonb,
   pgEnum,
   pgTable,
   text,
@@ -55,6 +57,55 @@ export const households = pgTable("households", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const calendarConnections = pgTable("calendar_connections", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  calendarName: text("calendar_name").notNull(),
+  sourceUrl: text("source_url").notNull(),
+  connectedAt: timestamp("connected_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const calendarEvents = pgTable(
+  "calendar_events",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id),
+    appleEventId: text("apple_event_id").notNull(),
+    title: text("title").notNull(),
+    startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+    endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+    location: text("location"),
+    syncedAt: timestamp("synced_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    appleEventIndex: uniqueIndex("calendar_events_apple_event_idx").on(
+      table.householdId,
+      table.appleEventId,
+    ),
+  }),
+);
+
+export const eventEnrichments = pgTable("event_enrichments", {
+  eventId: uuid("event_id")
+    .primaryKey()
+    .references(() => calendarEvents.id),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  participantChildIds: jsonb("participant_child_ids").$type<string[]>().notNull(),
+  isAllHousehold: boolean("is_all_household").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

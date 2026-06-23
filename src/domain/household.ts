@@ -1,4 +1,9 @@
 import type { Chore, ChoreSubmission, SkippedChoreOccurrence } from "./chores";
+import type {
+  CalendarConnection,
+  EventEnrichment,
+  FamilyCalendarEvent,
+} from "./calendar";
 import type { Goal, ProgressCheckIn } from "./goals";
 import type { Reward, RewardContribution, RewardRequest } from "./rewards";
 
@@ -59,6 +64,9 @@ export type Household = {
   rewards: Reward[];
   rewardContributions: RewardContribution[];
   rewardRequests: RewardRequest[];
+  calendarConnection: CalendarConnection | null;
+  calendarEvents: FamilyCalendarEvent[];
+  eventEnrichments: EventEnrichment[];
   pointLedger: PointLedgerEntry[];
   childWins: ChildWin[];
   createdAt: string;
@@ -153,6 +161,9 @@ export async function createHousehold(
     rewards: [],
     rewardContributions: [],
     rewardRequests: [],
+    calendarConnection: null,
+    calendarEvents: [],
+    eventEnrichments: [],
     pointLedger: [],
     childWins: [],
     createdAt: now,

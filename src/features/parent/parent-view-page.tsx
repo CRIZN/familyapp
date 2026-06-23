@@ -4,6 +4,7 @@ import Link from "next/link";
 import { FormEvent, useState, useSyncExternalStore } from "react";
 import {
   Archive,
+  CalendarDays,
   CheckCircle2,
   ClipboardList,
   Flag,
@@ -20,6 +21,13 @@ import {
   XCircle,
 } from "lucide-react";
 
+import type { AgendaEvent } from "@/domain/calendar";
+import {
+  configureAppleCalendar,
+  getParentAgenda,
+  syncAppleCalendarEvents,
+  updateEventParticipants,
+} from "@/domain/calendar";
 import type { ApprovalQueueItem, ChoreOccurrence } from "@/domain/chores";
 import {
   approveChoreSubmissions,
@@ -64,6 +72,11 @@ import {
   subscribeHydration,
 } from "@/features/household/local-household-store";
 
+type EventParticipantDraft = {
+  isAllHousehold: boolean;
+  participantChildIds: string[];
+};
+
 export function ParentViewPage() {
   const hasLoaded = useSyncExternalStore(
     subscribeHydration,
@@ -90,6 +103,16 @@ export function ParentViewPage() {
   const [adjustmentChildId, setAdjustmentChildId] = useState("");
   const [adjustmentPoints, setAdjustmentPoints] = useState("1");
   const [adjustmentReason, setAdjustmentReason] = useState("");
+  const [calendarName, setCalendarName] = useState("");
+  const [calendarSourceUrl, setCalendarSourceUrl] = useState("");
+  const [eventTitle, setEventTitle] = useState("");
+  const [eventDate, setEventDate] = useState(getTodayDateKey());
+  const [eventStartTime, setEventStartTime] = useState("09:00");
+  const [eventEndTime, setEventEndTime] = useState("10:00");
+  const [eventLocation, setEventLocation] = useState("");
+  const [eventParticipantDrafts, setEventParticipantDrafts] = useState<
+    Record<string, EventParticipantDraft>
+  >({});
   const [rewardTitle, setRewardTitle] = useState("");
   const [rewardPointCost, setRewardPointCost] = useState("10");
   const [rewardType, setRewardType] = useState("custom");
@@ -594,7 +617,108 @@ export function ParentViewPage() {
     }
   }
 
+  function onConfigureCalendar(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    const name =
+      calendarName || household.calendarConnection?.calendarName || "";
+    const sourceUrl =
+      calendarSourceUrl || household.calendarConnection?.sourceUrl || "";
+    try {
+      const updated = configureAppleCalendar(household, {
+        calendarName: name,
+        sourceUrl,
+      });
+      saveHousehold(updated);
+      setCalendarName(updated.calendarConnection?.calendarName ?? "");
+      setCalendarSourceUrl(updated.calendarConnection?.sourceUrl ?? "");
+      setMessage("Apple Family Calendar connected.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not configure Apple Calendar.",
+      );
+    }
+  }
+
+  function onSyncCalendarEvent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = syncAppleCalendarEvents(household, [
+        {
+          appleEventId: createAppleEventId(
+            eventTitle,
+            eventDate,
+            eventStartTime,
+          ),
+          title: eventTitle,
+          startsAt: toAppleDateTime(eventDate, eventStartTime),
+          endsAt: toAppleDateTime(eventDate, eventEndTime),
+          location: eventLocation,
+        },
+      ]);
+      saveHousehold(updated);
+      setEventTitle("");
+      setEventStartTime("09:00");
+      setEventEndTime("10:00");
+      setEventLocation("");
+      setMessage("Apple Calendar Event synced.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not sync Event.",
+      );
+    }
+  }
+
+  function saveEventParticipants(event: AgendaEvent) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const draft = getEventParticipantDraft(event);
+      const updated = updateEventParticipants(household, {
+        eventId: event.eventId,
+        participantChildIds: draft.participantChildIds,
+        isAllHousehold: draft.isAllHousehold,
+      });
+      saveHousehold(updated);
+      setMessage("Event Participants updated.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not update Participants.",
+      );
+    }
+  }
+
+  function getEventParticipantDraft(event: AgendaEvent): EventParticipantDraft {
+    return (
+      eventParticipantDrafts[event.eventId] ?? {
+        isAllHousehold: event.isAllHousehold,
+        participantChildIds: event.participantChildIds,
+      }
+    );
+  }
+
   const approvalQueue = getApprovalQueue(household);
+  const parentAgenda = getParentAgenda(household);
+  const calendarNameValue =
+    calendarName || household.calendarConnection?.calendarName || "";
+  const calendarSourceUrlValue =
+    calendarSourceUrl || household.calendarConnection?.sourceUrl || "";
   const hasSelectedRewardRequest = getSelectedQueueItems(
     household,
     selectedApprovalIds,
@@ -714,6 +838,233 @@ export function ParentViewPage() {
       </div>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <form
+          className="rounded-md border border-border bg-background p-5 shadow-panel"
+          onSubmit={onConfigureCalendar}
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Apple Calendar</h2>
+          </div>
+          <div className="grid gap-4">
+            <div>
+              <Label htmlFor="calendar-name">Calendar name</Label>
+              <Input
+                className="mt-2"
+                id="calendar-name"
+                value={calendarNameValue}
+                onChange={(event) => setCalendarName(event.target.value)}
+                placeholder="Family"
+              />
+            </div>
+            <div>
+              <Label htmlFor="calendar-source">Apple source</Label>
+              <Input
+                className="mt-2"
+                id="calendar-source"
+                value={calendarSourceUrlValue}
+                onChange={(event) => setCalendarSourceUrl(event.target.value)}
+                placeholder="webcal://..."
+              />
+            </div>
+          </div>
+          <Button className="mt-4" type="submit" variant="parent">
+            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+            Save Calendar
+          </Button>
+        </form>
+
+        <form
+          className="rounded-md border border-border bg-background p-5 shadow-panel"
+          onSubmit={onSyncCalendarEvent}
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Sync Apple Event</h2>
+          </div>
+          <div className="grid gap-4">
+            <div>
+              <Label htmlFor="event-title">Event</Label>
+              <Input
+                className="mt-2"
+                id="event-title"
+                value={eventTitle}
+                onChange={(event) => setEventTitle(event.target.value)}
+                placeholder="Soccer practice"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div>
+                <Label htmlFor="event-date">Date</Label>
+                <Input
+                  className="mt-2"
+                  id="event-date"
+                  type="date"
+                  value={eventDate}
+                  onChange={(event) => setEventDate(event.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="event-start">Starts</Label>
+                <Input
+                  className="mt-2"
+                  id="event-start"
+                  type="time"
+                  value={eventStartTime}
+                  onChange={(event) => setEventStartTime(event.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="event-end">Ends</Label>
+                <Input
+                  className="mt-2"
+                  id="event-end"
+                  type="time"
+                  value={eventEndTime}
+                  onChange={(event) => setEventEndTime(event.target.value)}
+                />
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="event-location">Location</Label>
+              <Input
+                className="mt-2"
+                id="event-location"
+                value={eventLocation}
+                onChange={(event) => setEventLocation(event.target.value)}
+                placeholder="Field 2"
+              />
+            </div>
+          </div>
+          <Button
+            className="mt-4"
+            type="submit"
+            variant="parent"
+            disabled={!household.calendarConnection}
+          >
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            Sync Event
+          </Button>
+        </form>
+
+        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+          <div className="mb-4 flex items-center gap-3">
+            <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Household Agenda</h2>
+          </div>
+          {parentAgenda.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Synced Apple Calendar Events will appear here.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {parentAgenda.map((day) => (
+                <div className="space-y-3" key={day.date}>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    {formatDate(day.date)}
+                  </h3>
+                  {day.events.map((event) => {
+                    const draft = getEventParticipantDraft(event);
+                    return (
+                      <div
+                        className="rounded-md border border-border p-3"
+                        key={event.eventId}
+                      >
+                        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+                          <div>
+                            <p className="font-medium">{event.title}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {formatTime(event.startsAt)} -{" "}
+                              {formatTime(event.endsAt)}
+                              {event.location ? ` - ${event.location}` : ""}
+                            </p>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                              {event.participantNames.join(", ")}
+                            </p>
+                          </div>
+                          <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">
+                            Read-only
+                          </span>
+                        </div>
+                        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
+                          <div className="space-y-2">
+                            <label className="flex items-center gap-2 text-sm">
+                              <input
+                                className="h-4 w-4 rounded border-border"
+                                type="checkbox"
+                                checked={draft.isAllHousehold}
+                                onChange={(changeEvent) =>
+                                  setEventParticipantDrafts({
+                                    ...eventParticipantDrafts,
+                                    [event.eventId]: {
+                                      isAllHousehold:
+                                        changeEvent.target.checked,
+                                      participantChildIds: [],
+                                    },
+                                  })
+                                }
+                              />
+                              All Household
+                            </label>
+                            <div className="flex flex-wrap gap-3">
+                              {household.children.map((child) => (
+                                <label
+                                  className="flex items-center gap-2 text-sm"
+                                  key={child.id}
+                                >
+                                  <input
+                                    className="h-4 w-4 rounded border-border"
+                                    type="checkbox"
+                                    disabled={draft.isAllHousehold}
+                                    checked={draft.participantChildIds.includes(
+                                      child.id,
+                                    )}
+                                    onChange={(changeEvent) =>
+                                      setEventParticipantDrafts({
+                                        ...eventParticipantDrafts,
+                                        [event.eventId]: {
+                                          isAllHousehold: false,
+                                          participantChildIds:
+                                            changeEvent.target.checked
+                                              ? [
+                                                  ...draft.participantChildIds,
+                                                  child.id,
+                                                ]
+                                              : draft.participantChildIds.filter(
+                                                  (candidate) =>
+                                                    candidate !== child.id,
+                                                ),
+                                        },
+                                      })
+                                    }
+                                  />
+                                  {child.name}
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="parent"
+                            size="sm"
+                            onClick={() => saveEventParticipants(event)}
+                          >
+                            <CheckCircle2
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                            />
+                            Save Participants
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
           <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
             <div className="flex items-center gap-3">
@@ -1472,6 +1823,26 @@ function formatDate(dateKey: string): string {
     month: "short",
     day: "numeric",
   }).format(new Date(`${dateKey}T00:00:00.000Z`));
+}
+
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat("en", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function toAppleDateTime(date: string, time: string): string {
+  return new Date(`${date}T${time}:00.000`).toISOString();
+}
+
+function createAppleEventId(title: string, date: string, time: string): string {
+  const normalizedTitle = title
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return `apple-${date}-${time}-${normalizedTitle || "event"}`;
 }
 
 function getSelectedQueueItems(

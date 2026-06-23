@@ -1,6 +1,7 @@
 "use client";
 
 import type { ChildSession, Household } from "@/domain/household";
+import { withCalendarCollections } from "@/domain/calendar";
 import { withChoreCollections } from "@/domain/chores";
 import { withGoalCollections } from "@/domain/goals";
 import { withRewardCollections } from "@/domain/rewards";
@@ -24,8 +25,10 @@ export function loadHousehold(): Household | null {
     return null;
   }
 
-  householdCache = withRewardCollections(
-    withGoalCollections(withChoreCollections(JSON.parse(value) as Household)),
+  householdCache = withCalendarCollections(
+    withRewardCollections(
+      withGoalCollections(withChoreCollections(JSON.parse(value) as Household)),
+    ),
   );
   return householdCache;
 }

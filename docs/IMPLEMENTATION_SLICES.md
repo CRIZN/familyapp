@@ -128,7 +128,7 @@ Add Parent flows for Bonus Points and Point Adjustments, requiring a reason for 
 - [x] Child View shows a simplified explanation of each Point change.
 - [x] Tests cover Bonus Points, required adjustment reasons, negative corrections, and ledger visibility.
 
-### 7. Read-only Apple Calendar Agenda with Event Enrichment
+### 7. Read-only Apple Calendar Agenda with Event Enrichment - Done
 
 **Blocked by**: Slice 1
 
@@ -142,12 +142,12 @@ Add Parent flows for Bonus Points and Point Adjustments, requiring a reason for 
 Add read-only Family Calendar sync using Apple Calendar as the source of truth for Events, then layer Event Enrichment for Participants inside Family App. Parent View shows the full Agenda; Child View shows relevant Events.
 
 **Acceptance criteria**:
-- [ ] A Parent can connect or configure the shared Apple Family Calendar.
-- [ ] Synced Events are read-only in Family App.
-- [ ] Parent View shows a day-first Agenda with Participants.
-- [ ] A Parent can manually adjust Participants through Event Enrichment.
-- [ ] Child View shows that Child's Events and all-Household Events when relevant.
-- [ ] Tests cover read-only Event behavior, Participant enrichment, Parent Agenda, and Child Agenda filtering.
+- [x] A Parent can connect or configure the shared Apple Family Calendar.
+- [x] Synced Events are read-only in Family App.
+- [x] Parent View shows a day-first Agenda with Participants.
+- [x] A Parent can manually adjust Participants through Event Enrichment.
+- [x] Child View shows that Child's Events and all-Household Events when relevant.
+- [x] Tests cover read-only Event behavior, Participant enrichment, Parent Agenda, and Child Agenda filtering.
 
 ### 8. Parent Briefing and Suggested Actions
 

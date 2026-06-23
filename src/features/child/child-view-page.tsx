@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState, useSyncExternalStore } from "react";
 import {
+  CalendarDays,
   CheckCircle2,
   Clock3,
   Gift,
@@ -16,6 +17,7 @@ import {
   XCircle,
 } from "lucide-react";
 
+import { getChildAgenda } from "@/domain/calendar";
 import type { ChoreOccurrence } from "@/domain/chores";
 import {
   getChildChoreBoard,
@@ -122,6 +124,7 @@ export function ChildViewPage() {
     const rewardBoard = getChildRewardBoard(household, session.childId);
     const pointLedger = getChildPointLedger(household, session.childId);
     const wins = getChildWins(household, session.childId);
+    const childAgenda = getChildAgenda(household, session.childId);
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -176,6 +179,40 @@ export function ChildViewPage() {
               ))}
             </div>
           </div>
+        </section>
+
+        <section className="mt-4 rounded-md border border-border bg-background p-5 shadow-panel">
+          <div className="mb-4 flex items-center gap-2">
+            <CalendarDays aria-hidden="true" className="h-5 w-5 text-child" />
+            <h2 className="text-lg font-semibold">Agenda</h2>
+          </div>
+          {childAgenda.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Your Apple Calendar Events will appear here.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {childAgenda.map((day) => (
+                <div className="space-y-3" key={day.date}>
+                  <h3 className="text-sm font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    {formatDate(day.date)}
+                  </h3>
+                  {day.events.map((event) => (
+                    <div
+                      className="rounded-md border border-blue-200 bg-blue-50 p-3"
+                      key={event.eventId}
+                    >
+                      <p className="font-medium">{event.title}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
+                        {event.location ? ` - ${event.location}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </section>
 
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -876,6 +913,13 @@ function formatDate(dateKey: string): string {
     month: "short",
     day: "numeric",
   }).format(new Date(`${dateKey}T00:00:00.000Z`));
+}
+
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat("en", {
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(new Date(value));
 }
 
 function formatPointDelta(delta: number): string {
