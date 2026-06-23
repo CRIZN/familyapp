@@ -1,4 +1,4 @@
-import type { Chore, ChoreSubmission } from "./chores";
+import type { Chore, ChoreSubmission, SkippedChoreOccurrence } from "./chores";
 
 export type ParentProfile = {
   id: string;
@@ -14,6 +14,26 @@ export type ChildProfile = {
   pointBalance: number;
 };
 
+export type PointLedgerEntry = {
+  id: string;
+  childId: string;
+  delta: number;
+  description: string;
+  sourceType: "chore_approval";
+  sourceId: string;
+  createdAt: string;
+};
+
+export type ChildWin = {
+  id: string;
+  childId: string;
+  title: string;
+  description: string;
+  sourceType: "chore";
+  sourceId: string;
+  earnedAt: string;
+};
+
 export type Household = {
   id: string;
   name: string;
@@ -21,6 +41,9 @@ export type Household = {
   children: ChildProfile[];
   chores: Chore[];
   choreSubmissions: ChoreSubmission[];
+  skippedChoreOccurrences: SkippedChoreOccurrence[];
+  pointLedger: PointLedgerEntry[];
+  childWins: ChildWin[];
   createdAt: string;
   updatedAt: string;
 };
@@ -107,6 +130,9 @@ export async function createHousehold(
     ),
     chores: [],
     choreSubmissions: [],
+    skippedChoreOccurrences: [],
+    pointLedger: [],
+    childWins: [],
     createdAt: now,
     updatedAt: now,
   };

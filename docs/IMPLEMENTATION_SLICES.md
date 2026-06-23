@@ -43,7 +43,7 @@ Let Parents create one-time and recurring Chores assigned to exactly one Child, 
 - [x] Missed due Chores become Overdue.
 - [x] Tests cover one-time Chores, recurring Chores, Child ownership, submission, and Overdue behavior.
 
-### 3. Approval Queue Awards Points for Chores
+### 3. Approval Queue Awards Points for Chores - Done
 
 **Blocked by**: Slice 2
 
@@ -56,13 +56,13 @@ Let Parents create one-time and recurring Chores assigned to exactly one Child, 
 Add the combined Approval Queue starting with Chore Submissions, including type-distinct queue rows, batch-friendly approval, Needs Work, Skip, Pause, Archive, Point Balance updates, Point Ledger entries, and Child Wins for approved Chores.
 
 **Acceptance criteria**:
-- [ ] Parent View shows pending Chore Submissions in the Approval Queue.
-- [ ] A Parent can approve one or more Chore Submissions and award Points.
-- [ ] A Parent can mark a submission Needs Work without awarding Points.
-- [ ] A Parent can Skip a Chore occurrence without awarding Points.
-- [ ] A Parent can Pause expected Chore occurrences and Archive inactive Chores.
-- [ ] Child View shows updated Point Balance, simplified Point Ledger, and Wins.
-- [ ] Tests cover approval, Needs Work, Skip, Pause, Archive, ledger entries, and batch approval.
+- [x] Parent View shows pending Chore Submissions in the Approval Queue.
+- [x] A Parent can approve one or more Chore Submissions and award Points.
+- [x] A Parent can mark a submission Needs Work without awarding Points.
+- [x] A Parent can Skip a Chore occurrence without awarding Points.
+- [x] A Parent can Pause expected Chore occurrences and Archive inactive Chores.
+- [x] Child View shows updated Point Balance, simplified Point Ledger, and Wins.
+- [x] Tests cover approval, Needs Work, Skip, Pause, Archive, ledger entries, and batch approval.
 
 ### 4. Goals and Progress Check-ins
 

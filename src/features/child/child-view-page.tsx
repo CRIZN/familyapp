@@ -5,14 +5,21 @@ import { FormEvent, useState, useSyncExternalStore } from "react";
 import {
   CheckCircle2,
   Clock3,
+  ListChecks,
   KeyRound,
   LogOut,
   Sparkles,
+  Trophy,
   UserRound,
 } from "lucide-react";
 
 import type { ChoreOccurrence } from "@/domain/chores";
-import { getChildChoreBoard, submitChore } from "@/domain/chores";
+import {
+  getChildChoreBoard,
+  getChildPointLedger,
+  getChildWins,
+  submitChore,
+} from "@/domain/chores";
 import { getChildView, startChildSession } from "@/domain/household";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
@@ -90,6 +97,8 @@ export function ChildViewPage() {
       session.childId,
       getTodayDateKey(),
     );
+    const pointLedger = getChildPointLedger(household, session.childId);
+    const wins = getChildWins(household, session.childId);
     return (
       <div className="mx-auto max-w-5xl px-4 py-8">
         <div className="mb-8 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
@@ -186,6 +195,65 @@ export function ChildViewPage() {
                     key={`${chore.choreId}-${chore.dueDate}`}
                     tone="upcoming"
                   />
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        <section className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-md border border-border bg-background p-5 shadow-panel">
+            <div className="mb-4 flex items-center gap-2">
+              <ListChecks aria-hidden="true" className="h-5 w-5 text-child" />
+              <h2 className="text-lg font-semibold">Point Ledger</h2>
+            </div>
+            {pointLedger.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Approved Chores will show how your Points changed.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {pointLedger.map((entry) => (
+                  <div
+                    className="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+                    key={entry.id}
+                  >
+                    <div>
+                      <p className="font-medium">{entry.description}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatDate(entry.createdAt.slice(0, 10))}
+                      </p>
+                    </div>
+                    <span className="rounded-md bg-child px-2 py-1 text-sm font-semibold text-child-foreground">
+                      +{entry.delta}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-border bg-background p-5 shadow-panel">
+            <div className="mb-4 flex items-center gap-2">
+              <Trophy aria-hidden="true" className="h-5 w-5 text-child" />
+              <h2 className="text-lg font-semibold">Wins</h2>
+            </div>
+            {wins.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Approved Chores will become Wins here.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {wins.map((win) => (
+                  <div
+                    className="rounded-md border border-emerald-200 bg-emerald-50 p-3"
+                    key={win.id}
+                  >
+                    <p className="font-medium">{win.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {win.description} - {formatDate(win.earnedAt.slice(0, 10))}
+                    </p>
+                  </div>
                 ))}
               </div>
             )}

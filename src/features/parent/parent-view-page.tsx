@@ -3,15 +3,32 @@
 import Link from "next/link";
 import { FormEvent, useState, useSyncExternalStore } from "react";
 import {
+  Archive,
+  CheckCircle2,
   ClipboardList,
   KeyRound,
+  ListChecks,
+  PauseCircle,
   Plus,
   RotateCcw,
   ShieldCheck,
+  SkipForward,
   UserRound,
+  XCircle,
 } from "lucide-react";
 
-import { createChore, getRoutineLabel } from "@/domain/chores";
+import type { ChoreOccurrence } from "@/domain/chores";
+import {
+  approveChoreSubmissions,
+  archiveChore,
+  createChore,
+  getApprovalQueue,
+  getChildChoreBoard,
+  getRoutineLabel,
+  markChoreSubmissionNeedsWork,
+  pauseChore,
+  skipChoreOccurrence,
+} from "@/domain/chores";
 import { updateChildPin } from "@/domain/household";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
@@ -45,6 +62,7 @@ export function ParentViewPage() {
   const [chorePointValue, setChorePointValue] = useState("1");
   const [choreDueDate, setChoreDueDate] = useState(getTodayDateKey());
   const [choreRoutine, setChoreRoutine] = useState("none");
+  const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -130,6 +148,160 @@ export function ParentViewPage() {
       setError(caught instanceof Error ? caught.message : "Could not create Chore.");
     }
   }
+
+  function approveSelectedSubmissions() {
+    if (!household || selectedApprovalIds.length === 0) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = approveChoreSubmissions(household, selectedApprovalIds);
+      saveHousehold(updated);
+      setSelectedApprovalIds([]);
+      setMessage("Selected Chore Submissions approved.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not approve Chore Submissions.",
+      );
+    }
+  }
+
+  function approveSubmission(submissionId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = approveChoreSubmissions(household, [submissionId]);
+      saveHousehold(updated);
+      setSelectedApprovalIds((current) =>
+        current.filter((candidate) => candidate !== submissionId),
+      );
+      setMessage("Chore Submission approved.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not approve Chore.",
+      );
+    }
+  }
+
+  function markNeedsWork(submissionId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = markChoreSubmissionNeedsWork(household, submissionId);
+      saveHousehold(updated);
+      setSelectedApprovalIds((current) =>
+        current.filter((candidate) => candidate !== submissionId),
+      );
+      setMessage("Chore Submission marked Needs Work.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not mark Chore Needs Work.",
+      );
+    }
+  }
+
+  function skipOccurrence(chore: ChoreOccurrence) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = skipChoreOccurrence(household, {
+        childId: chore.childId,
+        choreId: chore.choreId,
+        occurrenceDate: chore.dueDate,
+      });
+      saveHousehold(updated);
+      setMessage("Chore occurrence skipped.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not skip Chore.",
+      );
+    }
+  }
+
+  function skipSubmissionOccurrence(submissionId: string) {
+    if (!household) {
+      return;
+    }
+    const item = getApprovalQueue(household).find(
+      (candidate) => candidate.id === submissionId,
+    );
+    if (!item) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = skipChoreOccurrence(household, {
+        childId: item.childId,
+        choreId: item.choreId,
+        occurrenceDate: item.occurrenceDate,
+      });
+      saveHousehold(updated);
+      setSelectedApprovalIds((current) =>
+        current.filter((candidate) => candidate !== submissionId),
+      );
+      setMessage("Chore occurrence skipped.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not skip Chore.",
+      );
+    }
+  }
+
+  function pauseExistingChore(choreId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      saveHousehold(pauseChore(household, choreId));
+      setMessage("Chore paused.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not pause Chore.",
+      );
+    }
+  }
+
+  function archiveExistingChore(choreId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      saveHousehold(archiveChore(household, choreId));
+      setMessage("Chore archived.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not archive Chore.",
+      );
+    }
+  }
+
+  const approvalQueue = getApprovalQueue(household);
+  const dueOccurrences = household.children.flatMap((child) => {
+    const board = getChildChoreBoard(household, child.id, getTodayDateKey());
+    return [...board.overdue, ...board.today].map((chore) => ({
+      ...chore,
+      childName: child.name,
+    }));
+  });
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -224,6 +396,137 @@ export function ParentViewPage() {
       </div>
 
       <section className="mt-4 grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+          <div className="mb-4 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+            <div className="flex items-center gap-3">
+              <ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />
+              <h2 className="text-xl font-semibold">Approval Queue</h2>
+            </div>
+            <Button
+              type="button"
+              variant="parent"
+              onClick={approveSelectedSubmissions}
+              disabled={selectedApprovalIds.length === 0}
+            >
+              <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+              Approve selected
+            </Button>
+          </div>
+          {approvalQueue.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Chore Submissions waiting for review will appear here.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {approvalQueue.map((item) => {
+                const selected = selectedApprovalIds.includes(item.id);
+                return (
+                  <div
+                    className="rounded-md border border-blue-200 bg-blue-50 p-3"
+                    key={item.id}
+                  >
+                    <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
+                      <label className="flex items-start gap-3">
+                        <input
+                          className="mt-1 h-4 w-4 rounded border-border"
+                          type="checkbox"
+                          checked={selected}
+                          onChange={(event) => {
+                            setSelectedApprovalIds((current) =>
+                              event.target.checked
+                                ? [...current, item.id]
+                                : current.filter(
+                                    (candidate) => candidate !== item.id,
+                                  ),
+                            );
+                          }}
+                        />
+                        <span>
+                          <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-parent">
+                            Chore Submission
+                          </span>
+                          <span className="block font-medium">{item.title}</span>
+                          <span className="block text-sm text-muted-foreground">
+                            {item.childName} - {item.pointValue} Points -{" "}
+                            {formatDate(item.occurrenceDate)}
+                          </span>
+                        </span>
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="parent"
+                          size="sm"
+                          onClick={() => approveSubmission(item.id)}
+                        >
+                          <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                          Approve
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => markNeedsWork(item.id)}
+                        >
+                          <XCircle aria-hidden="true" className="h-4 w-4" />
+                          Needs Work
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => skipSubmissionOccurrence(item.id)}
+                        >
+                          <SkipForward aria-hidden="true" className="h-4 w-4" />
+                          Skip
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+          <div className="mb-4 flex items-center gap-3">
+            <SkipForward aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Due Chore Occurrences</h2>
+          </div>
+          {dueOccurrences.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Chores due today or Overdue will appear here.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {dueOccurrences.map((chore) => (
+                <div
+                  className="flex flex-col justify-between gap-3 rounded-md border border-border p-3 sm:flex-row sm:items-center"
+                  key={`${chore.choreId}-${chore.dueDate}`}
+                >
+                  <div>
+                    <p className="font-medium">{chore.title}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {chore.childName} - {formatDate(chore.dueDate)} -{" "}
+                      {chore.pointValue} Points
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => skipOccurrence(chore)}
+                  >
+                    <SkipForward aria-hidden="true" className="h-4 w-4" />
+                    Skip
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <form
           className="rounded-md border border-border bg-background p-5 shadow-panel"
           onSubmit={onCreateChore}
@@ -306,7 +609,7 @@ export function ParentViewPage() {
         <div className="rounded-md border border-border bg-background p-5 shadow-panel">
           <div className="mb-4 flex items-center gap-3">
             <ClipboardList aria-hidden="true" className="h-6 w-6 text-parent" />
-            <h2 className="text-xl font-semibold">Active Chores</h2>
+            <h2 className="text-xl font-semibold">Chores</h2>
           </div>
           {household.chores.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -330,13 +633,44 @@ export function ParentViewPage() {
                           {child?.name} - {chore.pointValue} Points
                         </p>
                       </div>
-                      <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">
-                        {getRoutineLabel(chore.routine)}
-                      </span>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium">
+                          {getRoutineLabel(chore.routine)}
+                        </span>
+                        <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
+                          {chore.status}
+                        </span>
+                      </div>
                     </div>
                     <p className="mt-2 text-sm text-muted-foreground">
                       Due {formatDate(chore.dueDate)}
                     </p>
+                    {chore.status === "active" ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => pauseExistingChore(chore.id)}
+                        >
+                          <PauseCircle aria-hidden="true" className="h-4 w-4" />
+                          Pause
+                        </Button>
+                      </div>
+                    ) : null}
+                    {chore.status === "paused" ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => archiveExistingChore(chore.id)}
+                        >
+                          <Archive aria-hidden="true" className="h-4 w-4" />
+                          Archive
+                        </Button>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}

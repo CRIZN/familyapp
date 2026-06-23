@@ -1,4 +1,9 @@
-import type { ChildProfile, Household } from "./household";
+import type {
+  ChildProfile,
+  ChildWin,
+  Household,
+  PointLedgerEntry,
+} from "./household";
 
 export type Routine =
   | {
@@ -31,6 +36,15 @@ export type ChoreSubmission = {
   occurrenceDate: string;
   status: ChoreSubmissionStatus;
   submittedAt: string;
+  reviewedAt?: string;
+};
+
+export type SkippedChoreOccurrence = {
+  id: string;
+  choreId: string;
+  childId: string;
+  occurrenceDate: string;
+  skippedAt: string;
 };
 
 export type ChoreOccurrence = {
@@ -41,6 +55,18 @@ export type ChoreOccurrence = {
   dueDate: string;
   status: "due_today" | "upcoming" | "overdue" | "pending_review";
   routineLabel: string;
+};
+
+export type ApprovalQueueItem = {
+  id: string;
+  type: "chore_submission";
+  childId: string;
+  childName: string;
+  choreId: string;
+  title: string;
+  pointValue: number;
+  occurrenceDate: string;
+  submittedAt: string;
 };
 
 export type ChildChoreBoard = {
@@ -65,6 +91,12 @@ export type SubmitChoreInput = {
   occurrenceDate: string;
   today?: string;
   submittedAt?: string;
+};
+
+export type SkipChoreOccurrenceInput = {
+  childId: string;
+  choreId: string;
+  occurrenceDate: string;
 };
 
 const UPCOMING_WINDOW_DAYS = 14;
@@ -181,16 +213,241 @@ export function getChildChoreBoard(
   };
 
   function getVisibleOccurrences(chore: Chore): ChoreOccurrence[] {
-    return buildOccurrenceDates(chore, today).map((dueDate) => ({
-      choreId: chore.id,
-      childId: chore.childId,
-      title: chore.title,
-      pointValue: chore.pointValue,
-      dueDate,
-      status: getOccurrenceStatus(household, chore, dueDate, today),
-      routineLabel: getRoutineLabel(chore.routine),
-    }));
+    return buildOccurrenceDates(chore, today).flatMap((dueDate) => {
+      const status = getOccurrenceStatus(household, chore, dueDate, today);
+      if (!status) {
+        return [];
+      }
+      return [
+        {
+          choreId: chore.id,
+          childId: chore.childId,
+          title: chore.title,
+          pointValue: chore.pointValue,
+          dueDate,
+          status,
+          routineLabel: getRoutineLabel(chore.routine),
+        },
+      ];
+    });
   }
+}
+
+export function getApprovalQueue(household: Household): ApprovalQueueItem[] {
+  const normalized = withChoreCollections(household);
+  return normalized.choreSubmissions
+    .filter(
+      (submission) =>
+        submission.status === "pending" &&
+        !isChoreOccurrenceSkipped(
+          normalized,
+          submission.choreId,
+          submission.occurrenceDate,
+        ),
+    )
+    .flatMap((submission) => {
+      const chore = normalized.chores.find(
+        (candidate) => candidate.id === submission.choreId,
+      );
+      const child = normalized.children.find(
+        (candidate) => candidate.id === submission.childId,
+      );
+      if (!chore || !child) {
+        return [];
+      }
+      return [
+        {
+          id: submission.id,
+          type: "chore_submission" as const,
+          childId: child.id,
+          childName: child.name,
+          choreId: chore.id,
+          title: chore.title,
+          pointValue: chore.pointValue,
+          occurrenceDate: submission.occurrenceDate,
+          submittedAt: submission.submittedAt,
+        },
+      ];
+    })
+    .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+}
+
+export function approveChoreSubmissions(
+  household: Household,
+  submissionIds: string[],
+  approvedAt: string = new Date().toISOString(),
+): Household {
+  const normalized = withChoreCollections(household);
+  const uniqueIds = Array.from(new Set(submissionIds));
+  if (uniqueIds.length === 0) {
+    return normalized;
+  }
+
+  const approvals = uniqueIds.map((submissionId) => {
+    const submission = normalized.choreSubmissions.find(
+      (candidate) => candidate.id === submissionId,
+    );
+    if (!submission || submission.status !== "pending") {
+      throw new Error("Only pending Chore Submissions can be approved.");
+    }
+    const chore = normalized.chores.find(
+      (candidate) => candidate.id === submission.choreId,
+    );
+    if (!chore) {
+      throw new Error("Chore not found.");
+    }
+    return { submission, chore };
+  });
+
+  const submissionIdsToApprove = new Set(uniqueIds);
+  const balanceChanges = new Map<string, number>();
+  const ledgerEntries: PointLedgerEntry[] = [];
+  const wins: ChildWin[] = [];
+
+  for (const approval of approvals) {
+    const current = balanceChanges.get(approval.submission.childId) ?? 0;
+    balanceChanges.set(
+      approval.submission.childId,
+      current + approval.chore.pointValue,
+    );
+    ledgerEntries.push({
+      id: createId(),
+      childId: approval.submission.childId,
+      delta: approval.chore.pointValue,
+      description: `Approved Chore: ${approval.chore.title}`,
+      sourceType: "chore_approval",
+      sourceId: approval.submission.id,
+      createdAt: approvedAt,
+    });
+    wins.push({
+      id: createId(),
+      childId: approval.submission.childId,
+      title: approval.chore.title,
+      description: `${approval.chore.pointValue} Points earned`,
+      sourceType: "chore",
+      sourceId: approval.submission.id,
+      earnedAt: approvedAt,
+    });
+  }
+
+  return {
+    ...normalized,
+    children: normalized.children.map((child) => ({
+      ...child,
+      pointBalance: child.pointBalance + (balanceChanges.get(child.id) ?? 0),
+    })),
+    choreSubmissions: normalized.choreSubmissions.map((submission) =>
+      submissionIdsToApprove.has(submission.id)
+        ? { ...submission, status: "approved", reviewedAt: approvedAt }
+        : submission,
+    ),
+    pointLedger: [...normalized.pointLedger, ...ledgerEntries],
+    childWins: [...normalized.childWins, ...wins],
+    updatedAt: approvedAt,
+  };
+}
+
+export function markChoreSubmissionNeedsWork(
+  household: Household,
+  submissionId: string,
+  reviewedAt: string = new Date().toISOString(),
+): Household {
+  const normalized = withChoreCollections(household);
+  const submission = normalized.choreSubmissions.find(
+    (candidate) => candidate.id === submissionId,
+  );
+  if (!submission || submission.status !== "pending") {
+    throw new Error("Only pending Chore Submissions can be marked Needs Work.");
+  }
+
+  return {
+    ...normalized,
+    choreSubmissions: normalized.choreSubmissions.map((candidate) =>
+      candidate.id === submissionId
+        ? { ...candidate, status: "needs_work", reviewedAt }
+        : candidate,
+    ),
+    updatedAt: reviewedAt,
+  };
+}
+
+export function skipChoreOccurrence(
+  household: Household,
+  input: SkipChoreOccurrenceInput,
+  skippedAt: string = new Date().toISOString(),
+): Household {
+  const normalized = withChoreCollections(household);
+  const chore = assertChoreBelongsToChild(
+    normalized,
+    input.choreId,
+    input.childId,
+  );
+  assertDate(input.occurrenceDate);
+
+  const alreadySkipped = normalized.skippedChoreOccurrences.some(
+    (occurrence) =>
+      occurrence.choreId === chore.id &&
+      occurrence.childId === input.childId &&
+      occurrence.occurrenceDate === input.occurrenceDate,
+  );
+
+  return {
+    ...normalized,
+    skippedChoreOccurrences: alreadySkipped
+      ? normalized.skippedChoreOccurrences
+      : [
+          ...normalized.skippedChoreOccurrences,
+          {
+            id: createId(),
+            choreId: chore.id,
+            childId: input.childId,
+            occurrenceDate: input.occurrenceDate,
+            skippedAt,
+          },
+        ],
+    updatedAt: skippedAt,
+  };
+}
+
+export function pauseChore(
+  household: Household,
+  choreId: string,
+  pausedAt: string = new Date().toISOString(),
+): Household {
+  return updateChoreStatus(household, choreId, "paused", pausedAt);
+}
+
+export function archiveChore(
+  household: Household,
+  choreId: string,
+  archivedAt: string = new Date().toISOString(),
+): Household {
+  const normalized = withChoreCollections(household);
+  const chore = normalized.chores.find((candidate) => candidate.id === choreId);
+  if (!chore) {
+    throw new Error("Chore not found.");
+  }
+  if (chore.status === "active") {
+    throw new Error("Pause a Chore before archiving it.");
+  }
+  return updateChoreStatus(normalized, choreId, "archived", archivedAt);
+}
+
+export function getChildPointLedger(
+  household: Household,
+  childId: string,
+): PointLedgerEntry[] {
+  assertChildBelongsToHousehold(household, childId);
+  return getPointLedger(household)
+    .filter((entry) => entry.childId === childId)
+    .sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+}
+
+export function getChildWins(household: Household, childId: string): ChildWin[] {
+  assertChildBelongsToHousehold(household, childId);
+  return getChildWinsCollection(household)
+    .filter((win) => win.childId === childId)
+    .sort((left, right) => left.earnedAt.localeCompare(right.earnedAt));
 }
 
 export function withChoreCollections(household: Household): Household {
@@ -198,6 +455,9 @@ export function withChoreCollections(household: Household): Household {
     ...household,
     chores: getChores(household),
     choreSubmissions: getChoreSubmissions(household),
+    skippedChoreOccurrences: getSkippedChoreOccurrences(household),
+    pointLedger: getPointLedger(household),
+    childWins: getChildWinsCollection(household),
   };
 }
 
@@ -213,7 +473,19 @@ function getOccurrenceStatus(
   chore: Chore,
   dueDate: string,
   today: string,
-): ChoreOccurrence["status"] {
+): ChoreOccurrence["status"] | null {
+  if (isChoreOccurrenceSkipped(household, chore.id, dueDate)) {
+    return null;
+  }
+  const approved = getChoreSubmissions(household).some(
+    (submission) =>
+      submission.choreId === chore.id &&
+      submission.occurrenceDate === dueDate &&
+      submission.status === "approved",
+  );
+  if (approved) {
+    return null;
+  }
   const pending = getChoreSubmissions(household).some(
     (submission) =>
       submission.choreId === chore.id &&
@@ -230,6 +502,18 @@ function getOccurrenceStatus(
     return "due_today";
   }
   return "upcoming";
+}
+
+function isChoreOccurrenceSkipped(
+  household: Household,
+  choreId: string,
+  occurrenceDate: string,
+): boolean {
+  return getSkippedChoreOccurrences(household).some(
+    (occurrence) =>
+      occurrence.choreId === choreId &&
+      occurrence.occurrenceDate === occurrenceDate,
+  );
 }
 
 function buildOccurrenceDates(chore: Chore, today: string): string[] {
@@ -260,6 +544,25 @@ function compareOccurrences(left: ChoreOccurrence, right: ChoreOccurrence) {
   return left.title.localeCompare(right.title);
 }
 
+function updateChoreStatus(
+  household: Household,
+  choreId: string,
+  status: ChoreStatus,
+  updatedAt: string,
+): Household {
+  const normalized = withChoreCollections(household);
+  if (!normalized.chores.some((chore) => chore.id === choreId)) {
+    throw new Error("Chore not found.");
+  }
+  return {
+    ...normalized,
+    chores: normalized.chores.map((chore) =>
+      chore.id === choreId ? { ...chore, status, updatedAt } : chore,
+    ),
+    updatedAt,
+  };
+}
+
 function assertChildBelongsToHousehold(
   household: Household,
   childId: string,
@@ -271,12 +574,42 @@ function assertChildBelongsToHousehold(
   return child;
 }
 
+function assertChoreBelongsToChild(
+  household: Household,
+  choreId: string,
+  childId: string,
+): Chore {
+  assertChildBelongsToHousehold(household, childId);
+  const chore = getChores(household).find((candidate) => candidate.id === choreId);
+  if (!chore) {
+    throw new Error("Chore not found.");
+  }
+  if (chore.childId !== childId) {
+    throw new Error("This Chore is not assigned to this Child.");
+  }
+  return chore;
+}
+
 function getChores(household: Household): Chore[] {
   return household.chores ?? [];
 }
 
 function getChoreSubmissions(household: Household): ChoreSubmission[] {
   return household.choreSubmissions ?? [];
+}
+
+function getSkippedChoreOccurrences(
+  household: Household,
+): SkippedChoreOccurrence[] {
+  return household.skippedChoreOccurrences ?? [];
+}
+
+function getPointLedger(household: Household): PointLedgerEntry[] {
+  return household.pointLedger ?? [];
+}
+
+function getChildWinsCollection(household: Household): ChildWin[] {
+  return household.childWins ?? [];
 }
 
 function assertDate(value: string): void {

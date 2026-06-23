@@ -101,6 +101,7 @@ export const choreSubmissions = pgTable(
     submittedAt: timestamp("submitted_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
   },
   (table) => ({
     pendingOccurrenceIndex: uniqueIndex(
@@ -108,3 +109,60 @@ export const choreSubmissions = pgTable(
     ).on(table.choreId, table.childId, table.occurrenceDate, table.status),
   }),
 );
+
+export const skippedChoreOccurrences = pgTable(
+  "skipped_chore_occurrences",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    householdId: uuid("household_id")
+      .notNull()
+      .references(() => households.id),
+    choreId: uuid("chore_id")
+      .notNull()
+      .references(() => chores.id),
+    childId: uuid("child_id")
+      .notNull()
+      .references(() => children.id),
+    occurrenceDate: date("occurrence_date").notNull(),
+    skippedAt: timestamp("skipped_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (table) => ({
+    skippedOccurrenceIndex: uniqueIndex("skipped_chore_occurrences_idx").on(
+      table.choreId,
+      table.childId,
+      table.occurrenceDate,
+    ),
+  }),
+);
+
+export const pointLedger = pgTable("point_ledger", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  childId: uuid("child_id")
+    .notNull()
+    .references(() => children.id),
+  delta: integer("delta").notNull(),
+  description: text("description").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceId: uuid("source_id").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const childWins = pgTable("child_wins", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  childId: uuid("child_id")
+    .notNull()
+    .references(() => children.id),
+  title: text("title").notNull(),
+  description: text("description").notNull(),
+  sourceType: text("source_type").notNull(),
+  sourceId: uuid("source_id").notNull(),
+  earnedAt: timestamp("earned_at", { withTimezone: true }).notNull().defaultNow(),
+});
