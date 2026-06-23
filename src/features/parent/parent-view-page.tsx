@@ -23,6 +23,7 @@ import {
 } from "lucide-react";
 
 import { getParentBriefing } from "@/domain/briefing";
+import { getParentWeeklyReview } from "@/domain/weekly-review";
 import type { AgendaEvent } from "@/domain/calendar";
 import {
   configureAppleCalendar,
@@ -719,6 +720,7 @@ export function ParentViewPage() {
   const parentAgenda = getParentAgenda(household);
   const todayDateKey = getTodayDateKey();
   const parentBriefing = getParentBriefing(household, todayDateKey);
+  const parentWeeklyReview = getParentWeeklyReview(household, todayDateKey);
   const calendarNameValue =
     calendarName || household.calendarConnection?.calendarName || "";
   const calendarSourceUrlValue =
@@ -923,6 +925,186 @@ export function ParentViewPage() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      </section>
+
+      <section className="mb-4 rounded-md border border-border bg-background p-5 shadow-panel">
+        <div className="mb-4 flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+          <div>
+            <div className="flex items-center gap-3">
+              <CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />
+              <h2 className="text-xl font-semibold">Weekly Review</h2>
+            </div>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {formatDate(parentWeeklyReview.startsOn)} through{" "}
+              {formatDate(parentWeeklyReview.endsOn)}
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm sm:grid-cols-4">
+            <BriefingMetric
+              label="Week Events"
+              value={parentWeeklyReview.eventDays.reduce(
+                (total, day) => total + day.events.length,
+                0,
+              )}
+            />
+            <BriefingMetric
+              label="Pending Requests"
+              value={parentWeeklyReview.pendingRewardRequests.length}
+            />
+            <BriefingMetric
+              label="Unfulfilled"
+              value={parentWeeklyReview.unfulfilledRewards.length}
+            />
+            <BriefingMetric
+              label="Children"
+              value={parentWeeklyReview.childSummaries.length}
+            />
+          </div>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="rounded-md border border-border p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <CalendarDays aria-hidden="true" className="h-5 w-5 text-parent" />
+              <h3 className="font-semibold">Upcoming Week Events</h3>
+            </div>
+            {parentWeeklyReview.eventDays.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No synced Events in the upcoming week.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {parentWeeklyReview.eventDays.map((day) => (
+                  <div className="space-y-2" key={day.date}>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                      {formatDate(day.date)}
+                    </p>
+                    {day.events.map((event) => (
+                      <div
+                        className="rounded-md border border-blue-200 bg-blue-50 p-3"
+                        key={event.eventId}
+                      >
+                        <p className="font-medium">{event.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
+                          {event.location ? ` - ${event.location}` : ""}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {event.participantNames.join(", ")}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-border p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <UserRound aria-hidden="true" className="h-5 w-5 text-child" />
+              <h3 className="font-semibold">Child Progress</h3>
+            </div>
+            <div className="space-y-3">
+              {parentWeeklyReview.childSummaries.map((summary) => (
+                <div
+                  className="rounded-md border border-border p-3"
+                  key={summary.childId}
+                >
+                  <div className="flex flex-col justify-between gap-2 sm:flex-row sm:items-start">
+                    <div>
+                      <p className="font-medium">{summary.childName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {summary.pointBalance} Points
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2 text-xs font-medium">
+                      <a
+                        className="rounded-md bg-muted px-2 py-1 transition-colors hover:bg-muted/70"
+                        href="#due-chores"
+                      >
+                        {summary.chores.dueThisWeek} due
+                      </a>
+                      <a
+                        className="rounded-md bg-muted px-2 py-1 transition-colors hover:bg-muted/70"
+                        href="#goals"
+                      >
+                        {summary.goals.active} Goals
+                      </a>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
+                    <BriefingLine
+                      label="Overdue Chores"
+                      value={summary.chores.overdue}
+                    />
+                    <BriefingLine
+                      label="Pending Review"
+                      value={
+                        summary.chores.pendingReview +
+                        summary.goals.pendingCheckIns
+                      }
+                    />
+                    <BriefingLine
+                      label="Completed Goals"
+                      value={summary.goals.completed}
+                    />
+                    <BriefingLine
+                      label="Reward Requests"
+                      value={summary.rewardRequests.pending}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-md border border-border p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <ListChecks aria-hidden="true" className="h-5 w-5 text-parent" />
+              <h3 className="font-semibold">Pending Reward Requests</h3>
+            </div>
+            {parentWeeklyReview.pendingRewardRequests.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No Reward Requests waiting for approval.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {parentWeeklyReview.pendingRewardRequests.map((request) => (
+                  <WeeklyReviewLink
+                    detail={`${request.childName} - ${request.points} Points`}
+                    href="#approval-queue"
+                    key={request.requestId}
+                    label={request.title}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-border p-4">
+            <div className="mb-3 flex items-center gap-2">
+              <Gift aria-hidden="true" className="h-5 w-5 text-parent" />
+              <h3 className="font-semibold">Unfulfilled Rewards</h3>
+            </div>
+            {parentWeeklyReview.unfulfilledRewards.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No approved Rewards waiting for fulfillment.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {parentWeeklyReview.unfulfilledRewards.map((reward) => (
+                  <WeeklyReviewLink
+                    detail={`${reward.childName} - ${reward.points} Points`}
+                    href="#reward-fulfillment"
+                    key={reward.requestId}
+                    label={reward.title}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </section>
@@ -1590,7 +1772,10 @@ export function ParentViewPage() {
           </Button>
         </form>
 
-        <div className="rounded-md border border-border bg-background p-5 shadow-panel">
+        <div
+          className="rounded-md border border-border bg-background p-5 shadow-panel"
+          id="goals"
+        >
           <div className="mb-4 flex items-center gap-3">
             <Flag aria-hidden="true" className="h-6 w-6 text-parent" />
             <h2 className="text-xl font-semibold">Goals</h2>
@@ -2088,6 +2273,29 @@ function BriefingLine({
       <span>{label}</span>
       <span className="font-semibold">{value}</span>
     </div>
+  );
+}
+
+function WeeklyReviewLink({
+  detail,
+  href,
+  label,
+}: {
+  detail: string;
+  href: string;
+  label: string;
+}) {
+  return (
+    <a
+      className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
+      href={href}
+    >
+      <span>
+        <span className="block font-medium">{label}</span>
+        <span className="block text-muted-foreground">{detail}</span>
+      </span>
+      <ArrowRight aria-hidden="true" className="h-4 w-4" />
+    </a>
   );
 }
 

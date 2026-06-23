@@ -167,7 +167,7 @@ Build the Parent Briefing from existing app state: upcoming Events, pending Appr
 - [x] Suggested Actions are rule-based and link to the relevant workflow.
 - [x] Tests cover Briefing content and Suggested Action rules.
 
-### 9. Weekly Review
+### 9. Weekly Review - Done
 
 **Blocked by**: Slice 4, Slice 5, Slice 7, Slice 8
 
@@ -179,10 +179,10 @@ Build the Parent Briefing from existing app state: upcoming Events, pending Appr
 Add the Parent Weekly Review for the upcoming week of Events, child Chore and Goal progress, Point Balances, pending Reward Requests, and unfulfilled Rewards.
 
 **Acceptance criteria**:
-- [ ] Weekly Review shows upcoming week Events from the Family Calendar.
-- [ ] Weekly Review summarizes Chores, Overdue Chores, Goals, Point Balances, pending Reward Requests, and unfulfilled Rewards.
-- [ ] Weekly Review links back into the relevant Parent workflows.
-- [ ] Tests cover Weekly Review aggregation and empty states.
+- [x] Weekly Review shows upcoming week Events from the Family Calendar.
+- [x] Weekly Review summarizes Chores, Overdue Chores, Goals, Point Balances, pending Reward Requests, and unfulfilled Rewards.
+- [x] Weekly Review links back into the relevant Parent workflows.
+- [x] Tests cover Weekly Review aggregation and empty states.
 
 ### 10. V1 Polish, Empty States, and Installable Quality Pass
 

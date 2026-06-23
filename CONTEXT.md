@@ -67,7 +67,9 @@ documents, update the tree and document index below in the same change.
 |   |   |-- points.ts
 |   |   |-- points.test.ts
 |   |   |-- rewards.ts
-|   |   `-- rewards.test.ts
+|   |   |-- rewards.test.ts
+|   |   |-- weekly-review.ts
+|   |   `-- weekly-review.test.ts
 |   |-- features/
 |   |   |-- child/child-view-page.tsx
 |   |   |-- household/
