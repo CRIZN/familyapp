@@ -64,7 +64,7 @@ Add the combined Approval Queue starting with Chore Submissions, including type-
 - [x] Child View shows updated Point Balance, simplified Point Ledger, and Wins.
 - [x] Tests cover approval, Needs Work, Skip, Pause, Archive, ledger entries, and batch approval.
 
-### 4. Goals and Progress Check-ins
+### 4. Goals and Progress Check-ins - Done
 
 **Blocked by**: Slice 1, Slice 3
 
@@ -78,13 +78,13 @@ Add the combined Approval Queue starting with Chore Submissions, including type-
 Add plain Child-owned Goals with Point values, Progress Check-ins in Child View, Approval Queue support for check-ins, Point Ledger updates, Wins, and Parent-marked Goal Completion.
 
 **Acceptance criteria**:
-- [ ] A Parent can create and Archive a Goal for one Child.
-- [ ] A Child can submit a Progress Check-in for an active Goal.
-- [ ] The Approval Queue distinguishes Progress Check-ins from Chore Submissions.
-- [ ] Approved Progress Check-ins can award Points and create Point Ledger entries.
-- [ ] Needs Work sends a Progress Check-in back without awarding Points.
-- [ ] Goal Completion can award remaining Points and appear in Wins.
-- [ ] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
+- [x] A Parent can create and Archive a Goal for one Child.
+- [x] A Child can submit a Progress Check-in for an active Goal.
+- [x] The Approval Queue distinguishes Progress Check-ins from Chore Submissions.
+- [x] Approved Progress Check-ins can award Points and create Point Ledger entries.
+- [x] Needs Work sends a Progress Check-in back without awarding Points.
+- [x] Goal Completion can award remaining Points and appear in Wins.
+- [x] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
 
 ### 5. Reward Catalog, Contributions, Requests, and Fulfillment
 

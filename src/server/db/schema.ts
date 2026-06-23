@@ -21,6 +21,16 @@ export const choreSubmissionStatus = pgEnum("chore_submission_status", [
   "approved",
   "needs_work",
 ]);
+export const goalStatus = pgEnum("goal_status", [
+  "active",
+  "completed",
+  "archived",
+]);
+export const progressCheckInStatus = pgEnum("progress_check_in_status", [
+  "pending",
+  "approved",
+  "needs_work",
+]);
 
 export const households = pgTable("households", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -136,6 +146,40 @@ export const skippedChoreOccurrences = pgTable(
     ),
   }),
 );
+
+export const goals = pgTable("goals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  childId: uuid("child_id")
+    .notNull()
+    .references(() => children.id),
+  title: text("title").notNull(),
+  pointValue: integer("point_value").notNull(),
+  status: goalStatus("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+});
+
+export const progressCheckIns = pgTable("progress_check_ins", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  goalId: uuid("goal_id")
+    .notNull()
+    .references(() => goals.id),
+  childId: uuid("child_id")
+    .notNull()
+    .references(() => children.id),
+  status: progressCheckInStatus("status").notNull().default("pending"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+});
 
 export const pointLedger = pgTable("point_ledger", {
   id: uuid("id").primaryKey().defaultRandom(),

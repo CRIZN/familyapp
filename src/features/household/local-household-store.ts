@@ -2,6 +2,7 @@
 
 import type { ChildSession, Household } from "@/domain/household";
 import { withChoreCollections } from "@/domain/chores";
+import { withGoalCollections } from "@/domain/goals";
 
 const HOUSEHOLD_KEY = "familyapp.household.v1";
 const CHILD_SESSION_KEY = "familyapp.childSession.v1";
@@ -22,7 +23,9 @@ export function loadHousehold(): Household | null {
     return null;
   }
 
-  householdCache = withChoreCollections(JSON.parse(value) as Household);
+  householdCache = withGoalCollections(
+    withChoreCollections(JSON.parse(value) as Household),
+  );
   return householdCache;
 }
 

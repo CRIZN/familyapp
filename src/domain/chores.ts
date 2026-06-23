@@ -4,6 +4,10 @@ import type {
   Household,
   PointLedgerEntry,
 } from "./household";
+import {
+  getProgressCheckInApprovalQueue,
+  type ProgressCheckInApprovalQueueItem,
+} from "./goals";
 
 export type Routine =
   | {
@@ -57,7 +61,7 @@ export type ChoreOccurrence = {
   routineLabel: string;
 };
 
-export type ApprovalQueueItem = {
+export type ChoreSubmissionApprovalQueueItem = {
   id: string;
   type: "chore_submission";
   childId: string;
@@ -68,6 +72,10 @@ export type ApprovalQueueItem = {
   occurrenceDate: string;
   submittedAt: string;
 };
+
+export type ApprovalQueueItem =
+  | ChoreSubmissionApprovalQueueItem
+  | ProgressCheckInApprovalQueueItem;
 
 export type ChildChoreBoard = {
   child: Pick<ChildProfile, "id" | "name">;
@@ -235,7 +243,7 @@ export function getChildChoreBoard(
 
 export function getApprovalQueue(household: Household): ApprovalQueueItem[] {
   const normalized = withChoreCollections(household);
-  return normalized.choreSubmissions
+  const choreItems = normalized.choreSubmissions
     .filter(
       (submission) =>
         submission.status === "pending" &&
@@ -270,6 +278,9 @@ export function getApprovalQueue(household: Household): ApprovalQueueItem[] {
       ];
     })
     .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
+  return [...choreItems, ...getProgressCheckInApprovalQueue(household)].sort(
+    (left, right) => left.submittedAt.localeCompare(right.submittedAt),
+  );
 }
 
 export function approveChoreSubmissions(

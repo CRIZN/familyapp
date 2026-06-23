@@ -5,12 +5,14 @@ import { FormEvent, useState, useSyncExternalStore } from "react";
 import {
   CheckCircle2,
   Clock3,
+  Flag,
   ListChecks,
   KeyRound,
   LogOut,
   Sparkles,
   Trophy,
   UserRound,
+  XCircle,
 } from "lucide-react";
 
 import type { ChoreOccurrence } from "@/domain/chores";
@@ -20,6 +22,8 @@ import {
   getChildWins,
   submitChore,
 } from "@/domain/chores";
+import type { GoalProgress, ProgressCheckInSummary } from "@/domain/goals";
+import { getChildGoalBoard, submitProgressCheckIn } from "@/domain/goals";
 import { getChildView, startChildSession } from "@/domain/household";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
@@ -97,6 +101,7 @@ export function ChildViewPage() {
       session.childId,
       getTodayDateKey(),
     );
+    const goalBoard = getChildGoalBoard(household, session.childId);
     const pointLedger = getChildPointLedger(household, session.childId);
     const wins = getChildWins(household, session.childId);
     return (
@@ -156,14 +161,37 @@ export function ChildViewPage() {
         </section>
 
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+            <div className="mb-4 flex items-center gap-2">
+              <Flag aria-hidden="true" className="h-5 w-5 text-child" />
+              <h2 className="text-lg font-semibold">Goals</h2>
+            </div>
+            {goalBoard.active.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Active Goals will appear here.
+              </p>
+            ) : (
+              <div className="space-y-3">
+                {goalBoard.active.map((goal) => (
+                  <GoalCard
+                    goal={goal}
+                    key={goal.goalId}
+                    onSubmit={() => submitGoalProgress(goal)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="rounded-md border border-border bg-background p-5 shadow-panel">
             <div className="mb-4 flex items-center gap-2">
               <Clock3 aria-hidden="true" className="h-5 w-5 text-parent" />
               <h2 className="text-lg font-semibold">Waiting for Parent</h2>
             </div>
-            {choreBoard.pendingReview.length === 0 ? (
+            {choreBoard.pendingReview.length === 0 &&
+            goalBoard.pendingReview.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Submitted Chores will wait here.
+                Submitted Chores and Progress Check-ins will wait here.
               </p>
             ) : (
               <div className="space-y-3">
@@ -171,6 +199,13 @@ export function ChildViewPage() {
                   <ChoreCard
                     chore={chore}
                     key={`${chore.choreId}-${chore.dueDate}`}
+                    tone="pending"
+                  />
+                ))}
+                {goalBoard.pendingReview.map((checkIn) => (
+                  <ProgressCheckInCard
+                    checkIn={checkIn}
+                    key={checkIn.checkInId}
                     tone="pending"
                   />
                 ))}
@@ -201,6 +236,25 @@ export function ChildViewPage() {
           </div>
         </section>
 
+        {goalBoard.needsWork.length > 0 ? (
+          <section className="mt-4 rounded-md border border-border bg-background p-5 shadow-panel">
+            <div className="mb-4 flex items-center gap-2">
+              <XCircle aria-hidden="true" className="h-5 w-5 text-parent" />
+              <h2 className="text-lg font-semibold">Needs Work</h2>
+            </div>
+            <div className="space-y-3">
+              {goalBoard.needsWork.map((checkIn) => (
+                <ProgressCheckInCard
+                  checkIn={checkIn}
+                  key={checkIn.checkInId}
+                  tone="needs_work"
+                  onSubmit={() => resubmitGoalProgress(checkIn)}
+                />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
         <section className="mt-4 grid gap-4 lg:grid-cols-2">
           <div className="rounded-md border border-border bg-background p-5 shadow-panel">
             <div className="mb-4 flex items-center gap-2">
@@ -209,7 +263,7 @@ export function ChildViewPage() {
             </div>
             {pointLedger.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Approved Chores will show how your Points changed.
+                Approved Chores and Goals will show how your Points changed.
               </p>
             ) : (
               <div className="space-y-3">
@@ -240,7 +294,7 @@ export function ChildViewPage() {
             </div>
             {wins.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                Approved Chores will become Wins here.
+                Approved Chores and Goals will become Wins here.
               </p>
             ) : (
               <div className="space-y-3">
@@ -292,6 +346,40 @@ export function ChildViewPage() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not submit Chore.");
     }
+  }
+
+  function submitGoalProgress(goal: GoalProgress) {
+    if (!household || !session) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = submitProgressCheckIn(household, {
+        childId: session.childId,
+        goalId: goal.goalId,
+      });
+      saveHousehold(updated);
+      setMessage(`${goal.title} Progress Check-in is waiting for Parent review.`);
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not submit Progress Check-in.",
+      );
+    }
+  }
+
+  function resubmitGoalProgress(checkIn: ProgressCheckInSummary) {
+    submitGoalProgress({
+      goalId: checkIn.goalId,
+      childId: checkIn.childId,
+      title: checkIn.title,
+      pointValue: 0,
+      awardedPoints: 0,
+      remainingPoints: 0,
+      status: "active",
+    });
   }
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -402,6 +490,69 @@ function ChoreCard({
           <Button type="button" variant="child" onClick={onSubmit}>
             <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
             Submit
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
+function GoalCard({
+  goal,
+  onSubmit,
+}: {
+  goal: GoalProgress;
+  onSubmit: () => void;
+}) {
+  return (
+    <div className="rounded-md border border-emerald-200 bg-emerald-50 p-3">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <p className="font-medium">{goal.title}</p>
+          <p className="text-sm text-muted-foreground">
+            {goal.awardedPoints} of {goal.pointValue} Points earned -{" "}
+            {goal.remainingPoints} remaining
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="child"
+          onClick={onSubmit}
+          disabled={goal.remainingPoints === 0}
+        >
+          <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+          Check in
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function ProgressCheckInCard({
+  checkIn,
+  tone,
+  onSubmit,
+}: {
+  checkIn: ProgressCheckInSummary;
+  tone: "pending" | "needs_work";
+  onSubmit?: () => void;
+}) {
+  const toneClass =
+    tone === "needs_work" ? "border-amber-200 bg-amber-50" : "border-blue-200 bg-blue-50";
+
+  return (
+    <div className={`rounded-md border p-3 ${toneClass}`}>
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+        <div>
+          <p className="font-medium">{checkIn.title}</p>
+          <p className="text-sm text-muted-foreground">
+            Progress Check-in - {formatDate(checkIn.submittedAt.slice(0, 10))}
+          </p>
+        </div>
+        {onSubmit ? (
+          <Button type="button" variant="child" onClick={onSubmit}>
+            <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+            Submit again
           </Button>
         ) : null}
       </div>

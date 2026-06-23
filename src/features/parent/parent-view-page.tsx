@@ -6,6 +6,7 @@ import {
   Archive,
   CheckCircle2,
   ClipboardList,
+  Flag,
   KeyRound,
   ListChecks,
   PauseCircle,
@@ -17,7 +18,7 @@ import {
   XCircle,
 } from "lucide-react";
 
-import type { ChoreOccurrence } from "@/domain/chores";
+import type { ApprovalQueueItem, ChoreOccurrence } from "@/domain/chores";
 import {
   approveChoreSubmissions,
   archiveChore,
@@ -29,6 +30,13 @@ import {
   pauseChore,
   skipChoreOccurrence,
 } from "@/domain/chores";
+import {
+  approveProgressCheckIns,
+  archiveGoal,
+  completeGoal,
+  createGoal,
+  markProgressCheckInNeedsWork,
+} from "@/domain/goals";
 import { updateChildPin } from "@/domain/household";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
@@ -62,6 +70,9 @@ export function ParentViewPage() {
   const [chorePointValue, setChorePointValue] = useState("1");
   const [choreDueDate, setChoreDueDate] = useState(getTodayDateKey());
   const [choreRoutine, setChoreRoutine] = useState("none");
+  const [goalTitle, setGoalTitle] = useState("");
+  const [goalChildId, setGoalChildId] = useState("");
+  const [goalPointValue, setGoalPointValue] = useState("5");
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -156,57 +167,84 @@ export function ParentViewPage() {
     setError(null);
     setMessage(null);
     try {
-      const updated = approveChoreSubmissions(household, selectedApprovalIds);
+      const selectedItems = getSelectedQueueItems(household, selectedApprovalIds);
+      const choreSubmissionIds = selectedItems
+        .filter((item) => item.type === "chore_submission")
+        .map((item) => item.id);
+      const progressCheckInIds = selectedItems
+        .filter((item) => item.type === "progress_check_in")
+        .map((item) => item.id);
+      let updated = household;
+      if (choreSubmissionIds.length > 0) {
+        updated = approveChoreSubmissions(updated, choreSubmissionIds);
+      }
+      if (progressCheckInIds.length > 0) {
+        updated = approveProgressCheckIns(updated, progressCheckInIds);
+      }
       saveHousehold(updated);
       setSelectedApprovalIds([]);
-      setMessage("Selected Chore Submissions approved.");
+      setMessage("Selected Approval Queue items approved.");
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "Could not approve Chore Submissions.",
+          : "Could not approve selected items.",
       );
     }
   }
 
-  function approveSubmission(submissionId: string) {
+  function approveQueueItem(item: ApprovalQueueItem) {
     if (!household) {
       return;
     }
     setError(null);
     setMessage(null);
     try {
-      const updated = approveChoreSubmissions(household, [submissionId]);
+      const updated =
+        item.type === "chore_submission"
+          ? approveChoreSubmissions(household, [item.id])
+          : approveProgressCheckIns(household, [item.id]);
       saveHousehold(updated);
       setSelectedApprovalIds((current) =>
-        current.filter((candidate) => candidate !== submissionId),
+        current.filter((candidate) => candidate !== item.id),
       );
-      setMessage("Chore Submission approved.");
+      setMessage(
+        item.type === "chore_submission"
+          ? "Chore Submission approved."
+          : "Progress Check-in approved.",
+      );
     } catch (caught) {
       setError(
-        caught instanceof Error ? caught.message : "Could not approve Chore.",
+        caught instanceof Error ? caught.message : "Could not approve item.",
       );
     }
   }
 
-  function markNeedsWork(submissionId: string) {
+  function markNeedsWork(item: ApprovalQueueItem) {
     if (!household) {
       return;
     }
     setError(null);
     setMessage(null);
     try {
-      const updated = markChoreSubmissionNeedsWork(household, submissionId);
+      const updated =
+        item.type === "chore_submission"
+          ? markChoreSubmissionNeedsWork(household, item.id)
+          : markProgressCheckInNeedsWork(household, item.id);
       saveHousehold(updated);
       setSelectedApprovalIds((current) =>
-        current.filter((candidate) => candidate !== submissionId),
+        current.filter((candidate) => candidate !== item.id),
       );
-      setMessage("Chore Submission marked Needs Work.");
+      setMessage(
+        item.type === "chore_submission"
+          ? "Chore Submission marked Needs Work."
+          : "Progress Check-in marked Needs Work.",
+      );
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
-          : "Could not mark Chore Needs Work.",
+          : "Could not mark item Needs Work.",
       );
     }
   }
@@ -239,7 +277,7 @@ export function ParentViewPage() {
     const item = getApprovalQueue(household).find(
       (candidate) => candidate.id === submissionId,
     );
-    if (!item) {
+    if (!item || item.type !== "chore_submission") {
       return;
     }
     setError(null);
@@ -290,6 +328,60 @@ export function ParentViewPage() {
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Could not archive Chore.",
+      );
+    }
+  }
+
+  function onCreateGoal(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = createGoal(household, {
+        title: goalTitle,
+        childId: goalChildId || household.children[0]?.id || "",
+        pointValue: Number(goalPointValue),
+      });
+      saveHousehold(updated);
+      setGoalTitle("");
+      setGoalPointValue("5");
+      setMessage("Goal created.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not create Goal.");
+    }
+  }
+
+  function completeExistingGoal(goalId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      saveHousehold(completeGoal(household, goalId));
+      setMessage("Goal completed.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not complete Goal.",
+      );
+    }
+  }
+
+  function archiveExistingGoal(goalId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      saveHousehold(archiveGoal(household, goalId));
+      setMessage("Goal archived.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not archive Goal.",
       );
     }
   }
@@ -414,7 +506,8 @@ export function ParentViewPage() {
           </div>
           {approvalQueue.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Chore Submissions waiting for review will appear here.
+              Chore Submissions and Progress Check-ins waiting for review will
+              appear here.
             </p>
           ) : (
             <div className="space-y-3">
@@ -422,7 +515,7 @@ export function ParentViewPage() {
                 const selected = selectedApprovalIds.includes(item.id);
                 return (
                   <div
-                    className="rounded-md border border-blue-200 bg-blue-50 p-3"
+                    className={`rounded-md border p-3 ${getApprovalQueueItemClass(item)}`}
                     key={item.id}
                   >
                     <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
@@ -443,12 +536,11 @@ export function ParentViewPage() {
                         />
                         <span>
                           <span className="block text-xs font-semibold uppercase tracking-[0.16em] text-parent">
-                            Chore Submission
+                            {getApprovalQueueItemLabel(item)}
                           </span>
                           <span className="block font-medium">{item.title}</span>
                           <span className="block text-sm text-muted-foreground">
-                            {item.childName} - {item.pointValue} Points -{" "}
-                            {formatDate(item.occurrenceDate)}
+                            {getApprovalQueueItemDetail(item)}
                           </span>
                         </span>
                       </label>
@@ -457,7 +549,7 @@ export function ParentViewPage() {
                           type="button"
                           variant="parent"
                           size="sm"
-                          onClick={() => approveSubmission(item.id)}
+                          onClick={() => approveQueueItem(item)}
                         >
                           <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
                           Approve
@@ -466,20 +558,25 @@ export function ParentViewPage() {
                           type="button"
                           variant="outline"
                           size="sm"
-                          onClick={() => markNeedsWork(item.id)}
+                          onClick={() => markNeedsWork(item)}
                         >
                           <XCircle aria-hidden="true" className="h-4 w-4" />
                           Needs Work
                         </Button>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => skipSubmissionOccurrence(item.id)}
-                        >
-                          <SkipForward aria-hidden="true" className="h-4 w-4" />
-                          Skip
-                        </Button>
+                        {item.type === "chore_submission" ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => skipSubmissionOccurrence(item.id)}
+                          >
+                            <SkipForward
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                            />
+                            Skip
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   </div>
@@ -678,6 +775,120 @@ export function ParentViewPage() {
           )}
         </div>
 
+        <form
+          className="rounded-md border border-border bg-background p-5 shadow-panel"
+          onSubmit={onCreateGoal}
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <Flag aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Create Goal</h2>
+          </div>
+          <div className="grid gap-4">
+            <div>
+              <Label htmlFor="goal-title">Goal</Label>
+              <Input
+                className="mt-2"
+                id="goal-title"
+                value={goalTitle}
+                onChange={(event) => setGoalTitle(event.target.value)}
+                placeholder="Read three books"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="goal-child">Child</Label>
+                <select
+                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  id="goal-child"
+                  value={goalChildId || household.children[0]?.id || ""}
+                  onChange={(event) => setGoalChildId(event.target.value)}
+                >
+                  {household.children.map((child) => (
+                    <option key={child.id} value={child.id}>
+                      {child.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <Label htmlFor="goal-points">Points</Label>
+                <Input
+                  className="mt-2"
+                  id="goal-points"
+                  min={1}
+                  type="number"
+                  value={goalPointValue}
+                  onChange={(event) => setGoalPointValue(event.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+          <Button className="mt-4" type="submit" variant="parent">
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            Add Goal
+          </Button>
+        </form>
+
+        <div className="rounded-md border border-border bg-background p-5 shadow-panel">
+          <div className="mb-4 flex items-center gap-3">
+            <Flag aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Goals</h2>
+          </div>
+          {household.goals.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Create the first Goal to make it visible in Child View.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {household.goals.map((goal) => {
+                const child = household.children.find(
+                  (candidate) => candidate.id === goal.childId,
+                );
+                return (
+                  <div
+                    className="rounded-md border border-border p-3"
+                    key={goal.id}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium">{goal.title}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {child?.name} - {goal.pointValue} Points
+                        </p>
+                      </div>
+                      <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
+                        {goal.status}
+                      </span>
+                    </div>
+                    {goal.status === "active" ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button
+                          type="button"
+                          variant="parent"
+                          size="sm"
+                          onClick={() => completeExistingGoal(goal.id)}
+                        >
+                          <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                          Complete
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => archiveExistingGoal(goal.id)}
+                        >
+                          <Archive aria-hidden="true" className="h-4 w-4" />
+                          Archive
+                        </Button>
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         <Link
           className="rounded-md border border-border bg-child p-5 text-child-foreground shadow-panel transition-colors hover:bg-child/90"
           href="/child"
@@ -701,4 +912,33 @@ function formatDate(dateKey: string): string {
     month: "short",
     day: "numeric",
   }).format(new Date(`${dateKey}T00:00:00.000Z`));
+}
+
+function getSelectedQueueItems(
+  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>,
+  selectedApprovalIds: string[],
+): ApprovalQueueItem[] {
+  const selectedIds = new Set(selectedApprovalIds);
+  return getApprovalQueue(household).filter((item) => selectedIds.has(item.id));
+}
+
+function getApprovalQueueItemLabel(item: ApprovalQueueItem): string {
+  return item.type === "chore_submission"
+    ? "Chore Submission"
+    : "Progress Check-in";
+}
+
+function getApprovalQueueItemDetail(item: ApprovalQueueItem): string {
+  if (item.type === "chore_submission") {
+    return `${item.childName} - ${item.pointValue} Points - ${formatDate(
+      item.occurrenceDate,
+    )}`;
+  }
+  return `${item.childName} - ${item.awardedPoints} progress Point - ${item.remainingPoints} remaining`;
+}
+
+function getApprovalQueueItemClass(item: ApprovalQueueItem): string {
+  return item.type === "chore_submission"
+    ? "border-blue-200 bg-blue-50"
+    : "border-emerald-200 bg-emerald-50";
 }
