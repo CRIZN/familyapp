@@ -31,6 +31,25 @@ export const progressCheckInStatus = pgEnum("progress_check_in_status", [
   "approved",
   "needs_work",
 ]);
+export const rewardType = pgEnum("reward_type", [
+  "allowance",
+  "experience",
+  "privilege",
+  "custom",
+]);
+export const rewardStatus = pgEnum("reward_status", ["active", "archived"]);
+export const rewardContributionStatus = pgEnum("reward_contribution_status", [
+  "active",
+  "requested",
+  "returned",
+]);
+export const rewardRequestStatus = pgEnum("reward_request_status", [
+  "pending",
+  "approved",
+  "rejected",
+  "canceled",
+  "fulfilled",
+]);
 
 export const households = pgTable("households", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -179,6 +198,58 @@ export const progressCheckIns = pgTable("progress_check_ins", {
     .notNull()
     .defaultNow(),
   reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+});
+
+export const rewards = pgTable("rewards", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  title: text("title").notNull(),
+  pointCost: integer("point_cost").notNull(),
+  type: rewardType("type").notNull().default("custom"),
+  status: rewardStatus("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const rewardContributions = pgTable("reward_contributions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  rewardId: uuid("reward_id")
+    .notNull()
+    .references(() => rewards.id),
+  childId: uuid("child_id")
+    .notNull()
+    .references(() => children.id),
+  requestId: uuid("request_id"),
+  points: integer("points").notNull(),
+  status: rewardContributionStatus("status").notNull().default("active"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export const rewardRequests = pgTable("reward_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  householdId: uuid("household_id")
+    .notNull()
+    .references(() => households.id),
+  rewardId: uuid("reward_id")
+    .notNull()
+    .references(() => rewards.id),
+  childId: uuid("child_id")
+    .notNull()
+    .references(() => children.id),
+  status: rewardRequestStatus("status").notNull().default("pending"),
+  contributionPoints: integer("contribution_points").notNull().default(0),
+  reservedPoints: integer("reserved_points").notNull().default(0),
+  requestedAt: timestamp("requested_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  fulfilledAt: timestamp("fulfilled_at", { withTimezone: true }),
 });
 
 export const pointLedger = pgTable("point_ledger", {

@@ -15,6 +15,13 @@
       "when": 1782246632923,
       "tag": "0001_bright_preak",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1782250094029,
+      "tag": "0002_colossal_sersi",
+      "breakpoints": true
     }
   ]
 }

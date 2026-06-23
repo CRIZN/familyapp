@@ -7,6 +7,7 @@ import {
   CheckCircle2,
   ClipboardList,
   Flag,
+  Gift,
   KeyRound,
   ListChecks,
   PauseCircle,
@@ -37,6 +38,14 @@ import {
   createGoal,
   markProgressCheckInNeedsWork,
 } from "@/domain/goals";
+import {
+  approveRewardRequest,
+  archiveReward,
+  createReward,
+  fulfillRewardRequest,
+  rejectRewardRequest,
+  updateReward,
+} from "@/domain/rewards";
 import { updateChildPin } from "@/domain/household";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
@@ -73,6 +82,12 @@ export function ParentViewPage() {
   const [goalTitle, setGoalTitle] = useState("");
   const [goalChildId, setGoalChildId] = useState("");
   const [goalPointValue, setGoalPointValue] = useState("5");
+  const [rewardTitle, setRewardTitle] = useState("");
+  const [rewardPointCost, setRewardPointCost] = useState("10");
+  const [rewardType, setRewardType] = useState("custom");
+  const [rewardDrafts, setRewardDrafts] = useState<
+    Record<string, { title: string; pointCost: string; type: string }>
+  >({});
   const [selectedApprovalIds, setSelectedApprovalIds] = useState<string[]>([]);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -174,12 +189,18 @@ export function ParentViewPage() {
       const progressCheckInIds = selectedItems
         .filter((item) => item.type === "progress_check_in")
         .map((item) => item.id);
+      const rewardRequestIds = selectedItems
+        .filter((item) => item.type === "reward_request")
+        .map((item) => item.id);
       let updated = household;
       if (choreSubmissionIds.length > 0) {
         updated = approveChoreSubmissions(updated, choreSubmissionIds);
       }
       if (progressCheckInIds.length > 0) {
         updated = approveProgressCheckIns(updated, progressCheckInIds);
+      }
+      for (const rewardRequestId of rewardRequestIds) {
+        updated = approveRewardRequest(updated, rewardRequestId);
       }
       saveHousehold(updated);
       setSelectedApprovalIds([]);
@@ -189,6 +210,37 @@ export function ParentViewPage() {
         caught instanceof Error
           ? caught.message
           : "Could not approve selected items.",
+      );
+    }
+  }
+
+  function rejectSelectedRewardRequests() {
+    if (!household || selectedApprovalIds.length === 0) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const rewardRequestIds = getSelectedQueueItems(
+        household,
+        selectedApprovalIds,
+      )
+        .filter((item) => item.type === "reward_request")
+        .map((item) => item.id);
+      let updated = household;
+      for (const rewardRequestId of rewardRequestIds) {
+        updated = rejectRewardRequest(updated, rewardRequestId);
+      }
+      saveHousehold(updated);
+      setSelectedApprovalIds((current) =>
+        current.filter((candidate) => !rewardRequestIds.includes(candidate)),
+      );
+      setMessage("Selected Reward Requests rejected.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not reject selected Reward Requests.",
       );
     }
   }
@@ -203,7 +255,9 @@ export function ParentViewPage() {
       const updated =
         item.type === "chore_submission"
           ? approveChoreSubmissions(household, [item.id])
-          : approveProgressCheckIns(household, [item.id]);
+          : item.type === "progress_check_in"
+            ? approveProgressCheckIns(household, [item.id])
+            : approveRewardRequest(household, item.id);
       saveHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== item.id),
@@ -211,7 +265,9 @@ export function ParentViewPage() {
       setMessage(
         item.type === "chore_submission"
           ? "Chore Submission approved."
-          : "Progress Check-in approved.",
+          : item.type === "progress_check_in"
+            ? "Progress Check-in approved."
+            : "Reward Request approved.",
       );
     } catch (caught) {
       setError(
@@ -230,7 +286,9 @@ export function ParentViewPage() {
       const updated =
         item.type === "chore_submission"
           ? markChoreSubmissionNeedsWork(household, item.id)
-          : markProgressCheckInNeedsWork(household, item.id);
+          : item.type === "progress_check_in"
+            ? markProgressCheckInNeedsWork(household, item.id)
+            : rejectRewardRequest(household, item.id);
       saveHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== item.id),
@@ -238,7 +296,9 @@ export function ParentViewPage() {
       setMessage(
         item.type === "chore_submission"
           ? "Chore Submission marked Needs Work."
-          : "Progress Check-in marked Needs Work.",
+          : item.type === "progress_check_in"
+            ? "Progress Check-in marked Needs Work."
+            : "Reward Request rejected.",
       );
     } catch (caught) {
       setError(
@@ -386,7 +446,99 @@ export function ParentViewPage() {
     }
   }
 
+  function onCreateReward(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = createReward(household, {
+        title: rewardTitle,
+        pointCost: Number(rewardPointCost),
+        type: toRewardType(rewardType),
+      });
+      saveHousehold(updated);
+      setRewardTitle("");
+      setRewardPointCost("10");
+      setRewardType("custom");
+      setMessage("Reward created.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not create Reward.",
+      );
+    }
+  }
+
+  function saveRewardDraft(rewardId: string) {
+    if (!household) {
+      return;
+    }
+    const existing = household.rewards.find((reward) => reward.id === rewardId);
+    const draft = rewardDrafts[rewardId];
+    if (!existing) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      const updated = updateReward(household, rewardId, {
+        title: draft?.title ?? existing.title,
+        pointCost: Number(draft?.pointCost ?? existing.pointCost),
+        type: toRewardType(draft?.type ?? existing.type),
+      });
+      saveHousehold(updated);
+      setRewardDrafts((current) => {
+        const next = { ...current };
+        delete next[rewardId];
+        return next;
+      });
+      setMessage("Reward updated.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not update Reward.",
+      );
+    }
+  }
+
+  function archiveExistingReward(rewardId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      saveHousehold(archiveReward(household, rewardId));
+      setMessage("Reward archived.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not archive Reward.",
+      );
+    }
+  }
+
+  function fulfillApprovedRewardRequest(requestId: string) {
+    if (!household) {
+      return;
+    }
+    setError(null);
+    setMessage(null);
+    try {
+      saveHousehold(fulfillRewardRequest(household, requestId));
+      setMessage("Reward fulfilled.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not fulfill Reward.",
+      );
+    }
+  }
+
   const approvalQueue = getApprovalQueue(household);
+  const hasSelectedRewardRequest = getSelectedQueueItems(
+    household,
+    selectedApprovalIds,
+  ).some((item) => item.type === "reward_request");
   const dueOccurrences = household.children.flatMap((child) => {
     const board = getChildChoreBoard(household, child.id, getTodayDateKey());
     return [...board.overdue, ...board.today].map((chore) => ({
@@ -394,6 +546,20 @@ export function ParentViewPage() {
       childName: child.name,
     }));
   });
+  const approvedRewardRequests = household.rewardRequests
+    .filter((request) => request.status === "approved")
+    .flatMap((request) => {
+      const reward = household.rewards.find(
+        (candidate) => candidate.id === request.rewardId,
+      );
+      const child = household.children.find(
+        (candidate) => candidate.id === request.childId,
+      );
+      if (!reward || !child) {
+        return [];
+      }
+      return [{ ...request, rewardTitle: reward.title, childName: child.name }];
+    });
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -494,15 +660,26 @@ export function ParentViewPage() {
               <ListChecks aria-hidden="true" className="h-6 w-6 text-parent" />
               <h2 className="text-xl font-semibold">Approval Queue</h2>
             </div>
-            <Button
-              type="button"
-              variant="parent"
-              onClick={approveSelectedSubmissions}
-              disabled={selectedApprovalIds.length === 0}
-            >
-              <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-              Approve selected
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button
+                type="button"
+                variant="parent"
+                onClick={approveSelectedSubmissions}
+                disabled={selectedApprovalIds.length === 0}
+              >
+                <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                Approve selected
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={rejectSelectedRewardRequests}
+                disabled={!hasSelectedRewardRequest}
+              >
+                <XCircle aria-hidden="true" className="h-4 w-4" />
+                Reject selected Rewards
+              </Button>
+            </div>
           </div>
           {approvalQueue.length === 0 ? (
             <p className="text-sm text-muted-foreground">
@@ -561,7 +738,9 @@ export function ParentViewPage() {
                           onClick={() => markNeedsWork(item)}
                         >
                           <XCircle aria-hidden="true" className="h-4 w-4" />
-                          Needs Work
+                          {item.type === "reward_request"
+                            ? "Reject"
+                            : "Needs Work"}
                         </Button>
                         {item.type === "chore_submission" ? (
                           <Button
@@ -889,6 +1068,220 @@ export function ParentViewPage() {
           )}
         </div>
 
+        <form
+          className="rounded-md border border-border bg-background p-5 shadow-panel"
+          onSubmit={onCreateReward}
+        >
+          <div className="mb-4 flex items-center gap-3">
+            <Gift aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Create Reward</h2>
+          </div>
+          <div className="grid gap-4">
+            <div>
+              <Label htmlFor="reward-title">Reward</Label>
+              <Input
+                className="mt-2"
+                id="reward-title"
+                value={rewardTitle}
+                onChange={(event) => setRewardTitle(event.target.value)}
+                placeholder="Allowance payout"
+              />
+            </div>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <Label htmlFor="reward-cost">Point cost</Label>
+                <Input
+                  className="mt-2"
+                  id="reward-cost"
+                  min={1}
+                  type="number"
+                  value={rewardPointCost}
+                  onChange={(event) => setRewardPointCost(event.target.value)}
+                />
+              </div>
+              <div>
+                <Label htmlFor="reward-type">Type</Label>
+                <select
+                  className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  id="reward-type"
+                  value={rewardType}
+                  onChange={(event) => setRewardType(event.target.value)}
+                >
+                  <option value="allowance">Allowance</option>
+                  <option value="experience">Experience</option>
+                  <option value="privilege">Privilege</option>
+                  <option value="custom">Custom</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <Button className="mt-4" type="submit" variant="parent">
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            Add Reward
+          </Button>
+        </form>
+
+        <div className="rounded-md border border-border bg-background p-5 shadow-panel">
+          <div className="mb-4 flex items-center gap-3">
+            <Gift aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Reward Catalog</h2>
+          </div>
+          {household.rewards.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Create shared Rewards for Children to request.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {household.rewards.map((reward) => {
+                const draft = rewardDrafts[reward.id] ?? {
+                  title: reward.title,
+                  pointCost: String(reward.pointCost),
+                  type: reward.type,
+                };
+                return (
+                  <div
+                    className="rounded-md border border-border p-3"
+                    key={reward.id}
+                  >
+                    <div className="grid gap-3 sm:grid-cols-[1fr_7rem_9rem]">
+                      <div>
+                        <Label htmlFor={`${reward.id}-title`}>Reward</Label>
+                        <Input
+                          className="mt-2"
+                          id={`${reward.id}-title`}
+                          value={draft.title}
+                          disabled={reward.status !== "active"}
+                          onChange={(event) =>
+                            setRewardDrafts({
+                              ...rewardDrafts,
+                              [reward.id]: {
+                                ...draft,
+                                title: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`${reward.id}-cost`}>Points</Label>
+                        <Input
+                          className="mt-2"
+                          id={`${reward.id}-cost`}
+                          min={1}
+                          type="number"
+                          value={draft.pointCost}
+                          disabled={reward.status !== "active"}
+                          onChange={(event) =>
+                            setRewardDrafts({
+                              ...rewardDrafts,
+                              [reward.id]: {
+                                ...draft,
+                                pointCost: event.target.value,
+                              },
+                            })
+                          }
+                        />
+                      </div>
+                      <div>
+                        <Label htmlFor={`${reward.id}-type`}>Type</Label>
+                        <select
+                          className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          id={`${reward.id}-type`}
+                          value={draft.type}
+                          disabled={reward.status !== "active"}
+                          onChange={(event) =>
+                            setRewardDrafts({
+                              ...rewardDrafts,
+                              [reward.id]: {
+                                ...draft,
+                                type: event.target.value,
+                              },
+                            })
+                          }
+                        >
+                          <option value="allowance">Allowance</option>
+                          <option value="experience">Experience</option>
+                          <option value="privilege">Privilege</option>
+                          <option value="custom">Custom</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <span className="rounded-md bg-muted px-2 py-1 text-xs font-medium capitalize">
+                        {reward.status}
+                      </span>
+                      {reward.status === "active" ? (
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            type="button"
+                            variant="parent"
+                            size="sm"
+                            onClick={() => saveRewardDraft(reward.id)}
+                          >
+                            <CheckCircle2
+                              aria-hidden="true"
+                              className="h-4 w-4"
+                            />
+                            Save
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            onClick={() => archiveExistingReward(reward.id)}
+                          >
+                            <Archive aria-hidden="true" className="h-4 w-4" />
+                            Archive
+                          </Button>
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-md border border-border bg-background p-5 shadow-panel lg:col-span-2">
+          <div className="mb-4 flex items-center gap-3">
+            <Gift aria-hidden="true" className="h-6 w-6 text-parent" />
+            <h2 className="text-xl font-semibold">Reward Fulfillment</h2>
+          </div>
+          {approvedRewardRequests.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              Approved Reward Requests waiting for delivery will appear here.
+            </p>
+          ) : (
+            <div className="space-y-3">
+              {approvedRewardRequests.map((request) => (
+                <div
+                  className="flex flex-col justify-between gap-3 rounded-md border border-purple-200 bg-purple-50 p-3 sm:flex-row sm:items-center"
+                  key={request.id}
+                >
+                  <div>
+                    <p className="font-medium">{request.rewardTitle}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {request.childName} -{" "}
+                      {request.contributionPoints + request.reservedPoints}{" "}
+                      Points
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="parent"
+                    size="sm"
+                    onClick={() => fulfillApprovedRewardRequest(request.id)}
+                  >
+                    <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
+                    Fulfill
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
         <Link
           className="rounded-md border border-border bg-child p-5 text-child-foreground shadow-panel transition-colors hover:bg-child/90"
           href="/child"
@@ -925,7 +1318,9 @@ function getSelectedQueueItems(
 function getApprovalQueueItemLabel(item: ApprovalQueueItem): string {
   return item.type === "chore_submission"
     ? "Chore Submission"
-    : "Progress Check-in";
+    : item.type === "progress_check_in"
+      ? "Progress Check-in"
+      : "Reward Request";
 }
 
 function getApprovalQueueItemDetail(item: ApprovalQueueItem): string {
@@ -934,11 +1329,25 @@ function getApprovalQueueItemDetail(item: ApprovalQueueItem): string {
       item.occurrenceDate,
     )}`;
   }
-  return `${item.childName} - ${item.awardedPoints} progress Point - ${item.remainingPoints} remaining`;
+  if (item.type === "progress_check_in") {
+    return `${item.childName} - ${item.awardedPoints} progress Point - ${item.remainingPoints} remaining`;
+  }
+  return `${item.childName} - ${item.pointCost} Points - ${item.contributionPoints} contributed`;
 }
 
 function getApprovalQueueItemClass(item: ApprovalQueueItem): string {
   return item.type === "chore_submission"
     ? "border-blue-200 bg-blue-50"
-    : "border-emerald-200 bg-emerald-50";
+    : item.type === "progress_check_in"
+      ? "border-emerald-200 bg-emerald-50"
+      : "border-purple-200 bg-purple-50";
+}
+
+function toRewardType(value: string) {
+  return value === "allowance" ||
+    value === "experience" ||
+    value === "privilege" ||
+    value === "custom"
+    ? value
+    : "custom";
 }

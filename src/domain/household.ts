@@ -1,5 +1,6 @@
 import type { Chore, ChoreSubmission, SkippedChoreOccurrence } from "./chores";
 import type { Goal, ProgressCheckIn } from "./goals";
+import type { Reward, RewardContribution, RewardRequest } from "./rewards";
 
 export type ParentProfile = {
   id: string;
@@ -23,7 +24,12 @@ export type PointLedgerEntry = {
   sourceType:
     | "chore_approval"
     | "progress_check_in_approval"
-    | "goal_completion";
+    | "goal_completion"
+    | "reward_contribution"
+    | "reward_contribution_return"
+    | "reward_request_reservation"
+    | "reward_request_approval_spend"
+    | "reward_request_return";
   sourceId: string;
   createdAt: string;
 };
@@ -33,7 +39,7 @@ export type ChildWin = {
   childId: string;
   title: string;
   description: string;
-  sourceType: "chore" | "progress_check_in" | "goal";
+  sourceType: "chore" | "progress_check_in" | "goal" | "reward";
   sourceId: string;
   earnedAt: string;
 };
@@ -48,6 +54,9 @@ export type Household = {
   skippedChoreOccurrences: SkippedChoreOccurrence[];
   goals: Goal[];
   progressCheckIns: ProgressCheckIn[];
+  rewards: Reward[];
+  rewardContributions: RewardContribution[];
+  rewardRequests: RewardRequest[];
   pointLedger: PointLedgerEntry[];
   childWins: ChildWin[];
   createdAt: string;
@@ -139,6 +148,9 @@ export async function createHousehold(
     skippedChoreOccurrences: [],
     goals: [],
     progressCheckIns: [],
+    rewards: [],
+    rewardContributions: [],
+    rewardRequests: [],
     pointLedger: [],
     childWins: [],
     createdAt: now,

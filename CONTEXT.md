@@ -30,8 +30,12 @@ documents, update the tree and document index below in the same change.
 |       `-- 0006-point-ledger-is-authoritative.md
 |-- drizzle/
 |   |-- 0000_reflective_dracula.sql
+|   |-- 0001_bright_preak.sql
+|   |-- 0002_colossal_sersi.sql
 |   `-- meta/
 |       |-- 0000_snapshot.json
+|       |-- 0001_snapshot.json
+|       |-- 0002_snapshot.json
 |       `-- _journal.json
 |-- src/
 |   |-- app/
@@ -50,8 +54,12 @@ documents, update the tree and document index below in the same change.
 |   |-- domain/
 |   |   |-- chores.ts
 |   |   |-- chores.test.ts
+|   |   |-- goals.ts
+|   |   |-- goals.test.ts
 |   |   |-- household.ts
-|   |   `-- household.test.ts
+|   |   |-- household.test.ts
+|   |   |-- rewards.ts
+|   |   `-- rewards.test.ts
 |   |-- features/
 |   |   |-- child/child-view-page.tsx
 |   |   |-- household/

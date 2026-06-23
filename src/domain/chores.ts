@@ -8,6 +8,10 @@ import {
   getProgressCheckInApprovalQueue,
   type ProgressCheckInApprovalQueueItem,
 } from "./goals";
+import {
+  getRewardRequestApprovalQueue,
+  type RewardRequestApprovalQueueItem,
+} from "./rewards";
 
 export type Routine =
   | {
@@ -75,7 +79,8 @@ export type ChoreSubmissionApprovalQueueItem = {
 
 export type ApprovalQueueItem =
   | ChoreSubmissionApprovalQueueItem
-  | ProgressCheckInApprovalQueueItem;
+  | ProgressCheckInApprovalQueueItem
+  | RewardRequestApprovalQueueItem;
 
 export type ChildChoreBoard = {
   child: Pick<ChildProfile, "id" | "name">;
@@ -278,9 +283,11 @@ export function getApprovalQueue(household: Household): ApprovalQueueItem[] {
       ];
     })
     .sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
-  return [...choreItems, ...getProgressCheckInApprovalQueue(household)].sort(
-    (left, right) => left.submittedAt.localeCompare(right.submittedAt),
-  );
+  return [
+    ...choreItems,
+    ...getProgressCheckInApprovalQueue(household),
+    ...getRewardRequestApprovalQueue(household),
+  ].sort((left, right) => left.submittedAt.localeCompare(right.submittedAt));
 }
 
 export function approveChoreSubmissions(

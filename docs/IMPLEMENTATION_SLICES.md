@@ -86,7 +86,7 @@ Add plain Child-owned Goals with Point values, Progress Check-ins in Child View,
 - [x] Goal Completion can award remaining Points and appear in Wins.
 - [x] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
 
-### 5. Reward Catalog, Contributions, Requests, and Fulfillment
+### 5. Reward Catalog, Contributions, Requests, and Fulfillment - Done
 
 **Blocked by**: Slice 3
 
@@ -100,14 +100,14 @@ Add plain Child-owned Goals with Point values, Progress Check-ins in Child View,
 Add the shared Reward Catalog, Allowance as a normal Reward type, Reward Contributions, child-reversible contributions before request, Reward Requests with Reserved Points, Approval Queue support for requests, and separate Fulfillment after approval.
 
 **Acceptance criteria**:
-- [ ] A Parent can create, edit, and Archive shared Rewards with one Point cost.
-- [ ] A Child can contribute available Points toward a Reward.
-- [ ] A Child can return Reward Contributions before submitting a Reward Request.
-- [ ] A Reward Request reserves Points while pending and prevents double-spend.
-- [ ] Approval spends Points; rejection or cancellation returns Reserved Points.
-- [ ] Fulfillment is tracked separately after approval.
-- [ ] The Approval Queue visually distinguishes Reward Requests from other item types.
-- [ ] Tests cover contributions, returns, reservation, approval, rejection/cancellation, fulfillment, and ledger entries.
+- [x] A Parent can create, edit, and Archive shared Rewards with one Point cost.
+- [x] A Child can contribute available Points toward a Reward.
+- [x] A Child can return Reward Contributions before submitting a Reward Request.
+- [x] A Reward Request reserves Points while pending and prevents double-spend.
+- [x] Approval spends Points; rejection or cancellation returns Reserved Points.
+- [x] Fulfillment is tracked separately after approval.
+- [x] The Approval Queue visually distinguishes Reward Requests from other item types.
+- [x] Tests cover contributions, returns, reservation, approval, rejection/cancellation, fulfillment, and ledger entries.
 
 ### 6. Bonus Points and Point Adjustments
 
