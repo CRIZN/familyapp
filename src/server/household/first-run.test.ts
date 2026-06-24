@@ -117,6 +117,9 @@ function createRepository(
     createGoal: async () => {
       throw new Error("not used");
     },
+    createReward: async () => {
+      throw new Error("not used");
+    },
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
@@ -133,6 +136,9 @@ function createRepository(
       throw new Error("not used");
     },
     saveProgressCheckInNeedsWork: async () => {
+      throw new Error("not used");
+    },
+    saveReward: async () => {
       throw new Error("not used");
     },
     skipChoreOccurrence: async () => {

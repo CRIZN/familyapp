@@ -36,19 +36,17 @@ import type {
   RewardContributionSummary,
   RewardRequestSummary,
 } from "@/domain/rewards";
-import {
-  cancelRewardRequest,
-  contributeToReward,
-  getChildRewardBoard,
-  requestReward,
-  returnRewardContribution,
-} from "@/domain/rewards";
+import { getChildRewardBoard } from "@/domain/rewards";
 import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
+  cancelRewardRequestAction,
+  contributeToRewardAction,
   logoutChildAction,
+  requestRewardAction,
+  returnRewardContributionAction,
   signInChildAction,
   submitChildChoreAction,
   submitChildProgressCheckInAction,
@@ -652,24 +650,27 @@ export function ChildViewPage({
     });
   }
 
-  function contributePointsToReward(reward: ChildRewardCatalogItem) {
+  async function contributePointsToReward(reward: ChildRewardCatalogItem) {
     if (!household || !session) {
       return;
     }
     setError(null);
     setMessage(null);
     try {
-      const updated = contributeToReward(household, {
-        childId: session.childId,
+      const result = await contributeToRewardAction({
         rewardId: reward.rewardId,
         points: Number(rewardContributionDrafts[reward.rewardId] ?? "0"),
       });
-      setHousehold(updated);
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
       setRewardContributionDrafts({
         ...rewardContributionDrafts,
         [reward.rewardId]: "",
       });
-      setMessage(`${reward.title} has saved Points.`);
+      setMessage(result.message);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -679,17 +680,22 @@ export function ChildViewPage({
     }
   }
 
-  function returnContribution(contribution: RewardContributionSummary) {
+  async function returnContribution(contribution: RewardContributionSummary) {
     if (!household) {
       return;
     }
     setError(null);
     setMessage(null);
     try {
-      setHousehold(
-        returnRewardContribution(household, contribution.contributionId),
-      );
-      setMessage(`${contribution.title} Points returned.`);
+      const result = await returnRewardContributionAction({
+        contributionId: contribution.contributionId,
+      });
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
+      setMessage(result.message);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -699,19 +705,22 @@ export function ChildViewPage({
     }
   }
 
-  function submitRewardRequest(reward: ChildRewardCatalogItem) {
+  async function submitRewardRequest(reward: ChildRewardCatalogItem) {
     if (!household || !session) {
       return;
     }
     setError(null);
     setMessage(null);
     try {
-      const updated = requestReward(household, {
-        childId: session.childId,
+      const result = await requestRewardAction({
         rewardId: reward.rewardId,
       });
-      setHousehold(updated);
-      setMessage(`${reward.title} is waiting for Parent review.`);
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
+      setMessage(result.message);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Could not request Reward.",
@@ -719,15 +728,22 @@ export function ChildViewPage({
     }
   }
 
-  function cancelPendingRewardRequest(request: RewardRequestSummary) {
+  async function cancelPendingRewardRequest(request: RewardRequestSummary) {
     if (!household) {
       return;
     }
     setError(null);
     setMessage(null);
     try {
-      setHousehold(cancelRewardRequest(household, request.requestId));
-      setMessage(`${request.title} request canceled.`);
+      const result = await cancelRewardRequestAction({
+        requestId: request.requestId,
+      });
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
+      setMessage(result.message);
     } catch (caught) {
       setError(
         caught instanceof Error ? caught.message : "Could not cancel request.",

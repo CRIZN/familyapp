@@ -22,10 +22,13 @@ import {
   addAllowedParent,
   archiveChoreForParent,
   archiveGoalForParent,
+  archiveRewardForParent,
   completeGoalForParent,
   createChoreForParent,
   createGoalForParent,
+  createRewardForParent,
   pauseChoreForParent,
+  updateRewardForParent,
   updateChildPinForParent,
   updateChildProfile,
   type HouseholdManagementResult,
@@ -162,6 +165,35 @@ export async function completeGoalAction(input: {
   );
 }
 
+export async function createRewardAction(input: {
+  pointCost: number;
+  title: string;
+  type: "allowance" | "experience" | "privilege" | "custom";
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    createRewardForParent(dependencies, input),
+  );
+}
+
+export async function updateRewardAction(input: {
+  pointCost: number;
+  rewardId: string;
+  title: string;
+  type: "allowance" | "experience" | "privilege" | "custom";
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    updateRewardForParent(dependencies, input),
+  );
+}
+
+export async function archiveRewardAction(input: {
+  rewardId: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    archiveRewardForParent(dependencies, input),
+  );
+}
+
 export async function approveChoreSubmissionsAction(input: {
   submissionIds: string[];
 }): Promise<HouseholdApprovalResult> {
@@ -231,6 +263,7 @@ async function runHouseholdManagementAction(
       revalidatePath("/parent");
       revalidatePath("/parent/chores");
       revalidatePath("/parent/goals");
+      revalidatePath("/parent/rewards");
       revalidatePath("/child");
     }
 

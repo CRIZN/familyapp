@@ -10,8 +10,11 @@ import {
   updateChildPinForParent,
   updateChildProfile,
   archiveGoalForParent,
+  archiveRewardForParent,
   completeGoalForParent,
   createGoalForParent,
+  createRewardForParent,
+  updateRewardForParent,
 } from "./management";
 import type { HouseholdRepository } from "./repository";
 
@@ -364,6 +367,91 @@ describe("Household management", () => {
     );
   });
 
+  it("creates, updates, and archives Rewards through the repository", async () => {
+    const household = await createTestHousehold();
+    const createRewardMock = vi.fn(async (_householdId, reward) => ({
+      ...household,
+      rewards: [...household.rewards, reward],
+    }));
+
+    const created = await createRewardForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, {
+          createReward: createRewardMock,
+        }),
+      },
+      { pointCost: 10, title: " Movie night ", type: "experience" },
+    );
+
+    expect(created.status).toBe("ok");
+    expect(createRewardMock).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        pointCost: 10,
+        status: "active",
+        title: "Movie night",
+        type: "experience",
+      }),
+    );
+
+    const withReward =
+      created.status === "ok" ? created.household : { ...household, rewards: [] };
+    const reward = withReward.rewards[0]!;
+    const saveRewardMock = vi.fn(async () => ({
+      ...withReward,
+      rewards: [{ ...reward, title: "Movie matinee" }],
+    }));
+
+    const updated = await updateRewardForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(withReward, { saveReward: saveRewardMock }),
+      },
+      {
+        pointCost: 8,
+        rewardId: reward.id,
+        title: "Movie matinee",
+        type: "experience",
+      },
+    );
+
+    expect(updated.status).toBe("ok");
+    expect(saveRewardMock).toHaveBeenCalledWith(
+      household.id,
+      reward.id,
+      expect.objectContaining({
+        pointCost: 8,
+        title: "Movie matinee",
+        type: "experience",
+      }),
+    );
+
+    const archived = await archiveRewardForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(withReward, { saveReward: saveRewardMock }),
+      },
+      { rewardId: reward.id },
+    );
+
+    expect(archived.status).toBe("ok");
+    expect(saveRewardMock).toHaveBeenLastCalledWith(
+      household.id,
+      reward.id,
+      expect.objectContaining({ status: "archived" }),
+    );
+  });
+
   it("hashes Child PIN updates server-side and returns invalidation data", async () => {
     const household = await createTestHousehold();
     const child = household.children[0]!;
@@ -423,6 +511,7 @@ function createRepository(
     approveChoreSubmissions: async () => household,
     createChore: async () => household,
     createGoal: async () => household,
+    createReward: async () => household,
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async (email) =>
       email === "first@example.com" ? household : null,
@@ -432,6 +521,7 @@ function createRepository(
     saveGoalStatus: async () => household,
     saveProgressCheckInApproval: async () => household,
     saveProgressCheckInNeedsWork: async () => household,
+    saveReward: async () => household,
     skipChoreOccurrence: async () => household,
     updateChildPin: async () => household,
     updateChildProfile: async () => household,

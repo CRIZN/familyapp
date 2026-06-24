@@ -44,12 +44,9 @@ import type { Household } from "@/domain/household";
 import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
 import {
   approveRewardRequest,
-  archiveReward,
-  createReward,
   fulfillRewardRequest,
   getChildRewardBoard,
   rejectRewardRequest,
-  updateReward,
 } from "@/domain/rewards";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,13 +57,16 @@ import {
   approveProgressCheckInsAction,
   archiveChoreAction,
   archiveGoalAction,
+  archiveRewardAction,
   createChoreAction,
   createGoalAction,
+  createRewardAction,
   completeGoalAction,
   markChoreSubmissionNeedsWorkAction,
   markProgressCheckInNeedsWorkAction,
   pauseChoreAction,
   skipChoreOccurrenceAction,
+  updateRewardAction,
   updateChildPinAction,
   updateChildProfileAction,
 } from "@/server/household/actions";
@@ -556,52 +556,63 @@ export function ParentViewPage({
     }, "Could not record Point Adjustment.");
   }
 
-  function onCreateReward(event: FormEvent<HTMLFormElement>) {
+  async function onCreateReward(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
-    withParentAction(() => {
-      setHousehold(
-        createReward(household, {
-          title: rewardTitle,
-          pointCost: Number(rewardPointCost),
-          type: toRewardType(rewardType),
-        }),
-      );
+    setError(null);
+    setMessage(null);
+    const result = await createRewardAction({
+      title: rewardTitle,
+      pointCost: Number(rewardPointCost),
+      type: toRewardType(rewardType),
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
       setRewardTitle("");
       setRewardPointCost("10");
       setRewardType("custom");
-      setMessage("Reward created.");
-    }, "Could not create Reward.");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
-  function saveRewardDraft(rewardId: string) {
+  async function saveRewardDraft(rewardId: string) {
     if (!household) return;
     const existing = household.rewards.find((reward) => reward.id === rewardId);
     const draft = rewardDrafts[rewardId];
     if (!existing) return;
-    withParentAction(() => {
-      setHousehold(
-        updateReward(household, rewardId, {
-          title: draft?.title ?? existing.title,
-          pointCost: Number(draft?.pointCost ?? existing.pointCost),
-          type: toRewardType(draft?.type ?? existing.type),
-        }),
-      );
+    setError(null);
+    setMessage(null);
+    const result = await updateRewardAction({
+      rewardId,
+      title: draft?.title ?? existing.title,
+      pointCost: Number(draft?.pointCost ?? existing.pointCost),
+      type: toRewardType(draft?.type ?? existing.type),
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
       setRewardDrafts((current) => {
         const next = { ...current };
         delete next[rewardId];
         return next;
       });
-      setMessage("Reward updated.");
-    }, "Could not update Reward.");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
-  function archiveExistingReward(rewardId: string) {
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(archiveReward(household, rewardId));
-      setMessage("Reward archived.");
-    }, "Could not archive Reward.");
+  async function archiveExistingReward(rewardId: string) {
+    setError(null);
+    setMessage(null);
+    const result = await archiveRewardAction({ rewardId });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   function fulfillApprovedRewardRequest(requestId: string) {
