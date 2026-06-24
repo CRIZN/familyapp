@@ -1,4 +1,9 @@
 import type { Metadata } from "next";
+
+import { LockedAppScreen } from "@/features/auth/locked-app-screen";
+import { PrivateAppDeniedScreen } from "@/features/auth/private-app-denied-screen";
+import { getParentAppGate } from "@/server/auth/parent-access";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -6,14 +11,26 @@ export const metadata: Metadata = {
   description: "Household coordination for Parents and Children.",
 };
 
-export default function RootLayout({
+export const dynamic = "force-dynamic";
+
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const gate = await getParentAppGate();
+
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        {gate.status === "allowed" ? (
+          children
+        ) : gate.status === "denied" ? (
+          <PrivateAppDeniedScreen />
+        ) : (
+          <LockedAppScreen />
+        )}
+      </body>
     </html>
   );
 }
