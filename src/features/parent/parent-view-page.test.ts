@@ -95,6 +95,16 @@ async function createAggregatedHousehold(): Promise<Household> {
 
 function toPersistedRows(household: Household): PersistedHouseholdRows {
   return {
+    calendarConnection: household.calendarConnection
+      ? {
+          calendarName: household.calendarConnection.calendarName,
+          connectedAt: new Date(household.calendarConnection.connectedAt),
+          householdId: household.id,
+          id: household.calendarConnection.id,
+          publicFeedUrl: household.calendarConnection.sourceUrl,
+          updatedAt: new Date(household.calendarConnection.updatedAt),
+        }
+      : null,
     childWins: household.childWins.map((win) => ({
       ...win,
       earnedAt: new Date(win.earnedAt),
@@ -275,7 +285,7 @@ describe("ParentViewPage aggregation", () => {
     expect(markup).toContain("Choose dinner");
     expect(markup).toContain("Child Progress");
     expect(markup).toContain("Ada");
-    expect(markup).toContain("No synced Events in the upcoming week.");
+    expect(markup).toContain("No Calendar Events in the upcoming week.");
   });
 
   it("keeps Parent Today and Weekly Review empty states useful for an empty persisted Household", async () => {
@@ -305,8 +315,48 @@ describe("ParentViewPage aggregation", () => {
     expect(todayMarkup).toContain("Nothing is waiting for approval.");
     expect(todayMarkup).toContain("No Chores need Parent handling.");
     expect(todayMarkup).toContain("No Rewards are waiting for fulfillment.");
-    expect(weeklyMarkup).toContain("No synced Events in the upcoming week.");
+    expect(weeklyMarkup).toContain("No Calendar Events in the upcoming week.");
     expect(weeklyMarkup).toContain("No Reward Requests waiting.");
     expect(weeklyMarkup).toContain("No Rewards need fulfillment.");
+  });
+
+  it("renders Calendar metadata states without exposing the feed URL", async () => {
+    const emptyHousehold = hydratePersistedRows(
+      await createHousehold({
+        children: [{ name: "Ada", pin: "1234" }],
+        householdName: "Clozcasa",
+        parents: [{ email: "first@example.com", name: "First" }],
+      }),
+    );
+    const connectedHousehold = hydratePersistedRows({
+      ...emptyHousehold,
+      calendarConnection: {
+        calendarName: "Family",
+        connectedAt: "2026-06-24T12:00:00.000Z",
+        id: "calendar-1",
+        sourceUrl: "webcal://example.test/family.ics",
+        updatedAt: "2026-06-24T12:00:00.000Z",
+      },
+    });
+
+    const notConnectedMarkup = renderToStaticMarkup(
+      createElement(ParentViewPage, {
+        initialHousehold: emptyHousehold,
+        workflow: "calendar",
+      }),
+    );
+    const connectedMarkup = renderToStaticMarkup(
+      createElement(ParentViewPage, {
+        initialHousehold: connectedHousehold,
+        workflow: "calendar",
+      }),
+    );
+
+    expect(notConnectedMarkup).toContain("No Calendar connected yet.");
+    expect(notConnectedMarkup).toContain("No Calendar Events yet.");
+    expect(connectedMarkup).toContain("Calendar metadata saved.");
+    expect(connectedMarkup).toContain("Family");
+    expect(connectedMarkup).toContain("The feed URL is stored server-side");
+    expect(connectedMarkup).not.toContain("webcal://example.test/family.ics");
   });
 });

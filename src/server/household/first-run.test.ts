@@ -132,6 +132,9 @@ function createRepository(
     saveGoalStatus: async () => {
       throw new Error("not used");
     },
+    saveCalendarConnection: async () => {
+      throw new Error("not used");
+    },
     saveProgressCheckInApproval: async () => {
       throw new Error("not used");
     },

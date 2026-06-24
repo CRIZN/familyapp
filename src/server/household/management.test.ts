@@ -14,6 +14,7 @@ import {
   archiveGoalForParent,
   archiveRewardForParent,
   awardBonusPointsForParent,
+  configureCalendarForParent,
   completeGoalForParent,
   createPointAdjustmentForParent,
   createGoalForParent,
@@ -276,6 +277,81 @@ describe("Household management", () => {
     expect(updateChildProfileMock).toHaveBeenCalledWith(household.id, child.id, {
       name: "Ada Lovelace",
     });
+  });
+
+  it("saves Calendar metadata through Parent authorization without echoing the feed URL", async () => {
+    const household = await createTestHousehold();
+    const saveCalendarConnectionMock = vi.fn(async (_householdId, connection) => ({
+      ...household,
+      calendarConnection: connection,
+    }));
+
+    const saved = await configureCalendarForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, {
+          saveCalendarConnection: saveCalendarConnectionMock,
+        }),
+      },
+      {
+        calendarName: " Family ",
+        sourceUrl: " webcal://example.test/family.ics ",
+      },
+    );
+
+    expect(saved.status).toBe("ok");
+    expect(saveCalendarConnectionMock).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        calendarName: "Family",
+        sourceUrl: "webcal://example.test/family.ics",
+      }),
+    );
+    expect(
+      saved.status === "ok" ? saved.household.calendarConnection?.sourceUrl : null,
+    ).toBe("webcal://example.test/family.ics");
+
+    const missingUrl = await configureCalendarForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, {
+          saveCalendarConnection: saveCalendarConnectionMock,
+        }),
+      },
+      { calendarName: "Family", sourceUrl: " " },
+    );
+    expect(missingUrl).toEqual({
+      message: "Add the Apple Calendar source.",
+      status: "error",
+    });
+
+    const denied = await configureCalendarForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "visitor@example.com",
+          userId: "user-2",
+        }),
+        repository: createRepository(household, {
+          findHouseholdForParent: async () => null,
+          saveCalendarConnection: saveCalendarConnectionMock,
+        }),
+      },
+      {
+        calendarName: "Family",
+        sourceUrl: "webcal://example.test/family.ics",
+      },
+    );
+    expect(denied).toEqual({
+      message: "This Parent email is not allowed for the Household.",
+      status: "error",
+    });
+    expect(saveCalendarConnectionMock).toHaveBeenCalledTimes(1);
   });
 
   it("creates, completes, and archives Goals through the repository", async () => {
@@ -683,6 +759,7 @@ function createRepository(
     markChoreSubmissionNeedsWork: async () => household,
     saveGoalCompletion: async () => household,
     saveGoalStatus: async () => household,
+    saveCalendarConnection: async () => household,
     saveProgressCheckInApproval: async () => household,
     saveProgressCheckInNeedsWork: async () => household,
     savePointEffects: async () => household,

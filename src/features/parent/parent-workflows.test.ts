@@ -143,6 +143,18 @@ describe("parent workflow IA", () => {
     expect(source).not.toContain("createPointAdjustment(household");
   });
 
+  it("routes Calendar metadata through server actions without local Event sync", () => {
+    const source = readFileSync(
+      "src/features/parent/parent-view-page.tsx",
+      "utf8",
+    );
+
+    expect(source).toContain("configureCalendarAction");
+    expect(source).not.toContain("configureAppleCalendar(household");
+    expect(source).not.toContain("<SyncEventForm");
+    expect(source).not.toContain("syncAppleCalendarEvents(household");
+  });
+
   it("flags ambiguous or missing Event Participants for Parent attention", () => {
     expect(
       eventNeedsParentAttention({

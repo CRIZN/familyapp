@@ -450,7 +450,7 @@ Wire Parent Today, Needs Attention, Child Status summaries, Briefing, Suggested 
 - [x] Empty states remain useful when no data exists.
 - [x] Tests cover aggregation rules and empty states over persisted data.
 
-### P14. Calendar Connection Metadata Without Live Feed Sync
+### P14. Calendar Connection Metadata Without Live Feed Sync - Done
 
 **Blocked by**: P3
 
@@ -458,11 +458,11 @@ Wire Parent Today, Needs Attention, Child Status summaries, Briefing, Suggested 
 Wire the Calendar workflow enough for production release without live Apple feed fetching. Parents can save or replace the public `webcal`/ICS feed URL server-side, but the client only sees safe metadata.
 
 **Acceptance criteria**:
-- [ ] Parents can save Calendar name and public feed URL through a server action.
-- [ ] The feed URL is stored server-side and is not echoed back to the client after save.
-- [ ] Calendar screens show safe connection metadata and empty/not-connected states.
-- [ ] Event Enrichment UI handles an empty agenda gracefully.
-- [ ] Tests cover feed URL write-only behavior and Parent authorization.
+- [x] Parents can save Calendar name and public feed URL through a server action.
+- [x] The feed URL is stored server-side and is not echoed back to the client after save.
+- [x] Calendar screens show safe connection metadata and empty/not-connected states.
+- [x] Event Enrichment UI handles an empty agenda gracefully.
+- [x] Tests cover feed URL write-only behavior and Parent authorization.
 
 ### P15. Production Release Hardening
 

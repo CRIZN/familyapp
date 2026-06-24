@@ -10,6 +10,7 @@ import {
   readFirstRunSetupInput,
   type FirstRunSetupResult,
 } from "./first-run";
+import { toClientSafeHousehold } from "./client-household";
 import {
   approveChoreSubmissionsForParent,
   approveProgressCheckInsForParent,
@@ -27,6 +28,7 @@ import {
   archiveGoalForParent,
   archiveRewardForParent,
   awardBonusPointsForParent,
+  configureCalendarForParent,
   completeGoalForParent,
   createPointAdjustmentForParent,
   createChoreForParent,
@@ -141,6 +143,15 @@ export async function updateChildPinAction(input: {
 }): Promise<HouseholdManagementResult> {
   return runHouseholdManagementAction((dependencies) =>
     updateChildPinForParent(dependencies, input),
+  );
+}
+
+export async function configureCalendarAction(input: {
+  calendarName: string;
+  sourceUrl: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    configureCalendarForParent(dependencies, input),
   );
 }
 
@@ -310,12 +321,17 @@ async function runHouseholdManagementAction(
 
     if (result.status === "ok") {
       revalidatePath("/parent");
+      revalidatePath("/parent/calendar");
       revalidatePath("/parent/chores");
       revalidatePath("/parent/goals");
       revalidatePath("/parent/points");
       revalidatePath("/parent/rewards");
       revalidatePath("/parent/weekly-review");
       revalidatePath("/child");
+      return {
+        ...result,
+        household: toClientSafeHousehold(result.household),
+      };
     }
 
     return result;
@@ -359,6 +375,10 @@ async function runHouseholdApprovalAction(
       revalidatePath("/parent/rewards");
       revalidatePath("/parent/weekly-review");
       revalidatePath("/child");
+      return {
+        ...result,
+        household: toClientSafeHousehold(result.household),
+      };
     }
 
     return result;

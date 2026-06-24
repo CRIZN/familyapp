@@ -1,4 +1,8 @@
 import {
+  configureAppleCalendar,
+  type ConfigureAppleCalendarInput,
+} from "@/domain/calendar";
+import {
   archiveChore,
   createChore,
   pauseChore,
@@ -175,6 +179,37 @@ export async function updateChildPinForParent(
   );
 
   return { household, message: "Child PIN updated.", status: "ok" };
+}
+
+export async function configureCalendarForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: ConfigureAppleCalendarInput,
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updatedHousehold = configureAppleCalendar(authorization.household, input);
+    const connection = updatedHousehold.calendarConnection;
+    if (!connection) {
+      return { message: "Could not save Apple Calendar.", status: "error" };
+    }
+
+    const household = await dependencies.repository.saveCalendarConnection(
+      authorization.household.id,
+      connection,
+    );
+
+    return { household, message: "Apple Family Calendar connected.", status: "ok" };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error
+          ? caught.message
+          : "Could not configure Apple Calendar.",
+      status: "error",
+    };
+  }
 }
 
 export async function pauseChoreForParent(
