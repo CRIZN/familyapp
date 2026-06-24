@@ -2,15 +2,17 @@ import "server-only";
 
 import { and, asc, eq, sql } from "drizzle-orm";
 
+import type { Chore } from "@/domain/chores";
 import type { Household } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
-import { children, households, parents } from "@/server/db/schema";
+import { children, chores, households, parents } from "@/server/db/schema";
 
 export type HouseholdRepository = {
   addAllowedParent: (
     householdId: string,
     input: { email: string; name: string },
   ) => Promise<Household>;
+  createChore: (householdId: string, chore: Chore) => Promise<Household>;
   createFirstRunHousehold: (
     household: Household,
     firstParentAuthUserId: string,
@@ -30,6 +32,11 @@ export type HouseholdRepository = {
     childId: string,
     input: { name: string },
   ) => Promise<Household>;
+  updateChoreStatus: (
+    householdId: string,
+    choreId: string,
+    input: { status: Chore["status"] },
+  ) => Promise<Household>;
 };
 
 export function createDrizzleHouseholdRepository(
@@ -41,6 +48,23 @@ export function createDrizzleHouseholdRepository(
         email: input.email.trim().toLowerCase(),
         householdId,
         name: input.name.trim(),
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async createChore(householdId, chore) {
+      await db.insert(chores).values({
+        childId: chore.childId,
+        createdAt: new Date(chore.createdAt),
+        dueDate: chore.dueDate,
+        householdId,
+        id: chore.id,
+        pointValue: chore.pointValue,
+        routineFrequency: chore.routine?.frequency ?? null,
+        status: chore.status,
+        title: chore.title,
+        updatedAt: new Date(chore.updatedAt),
       });
 
       return requireHouseholdById(db, householdId);
@@ -141,6 +165,23 @@ export function createDrizzleHouseholdRepository(
 
       return requireHouseholdById(db, householdId);
     },
+
+    async updateChoreStatus(householdId, choreId, input) {
+      const updatedRows = await db
+        .update(chores)
+        .set({
+          status: input.status,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(chores.householdId, householdId), eq(chores.id, choreId)))
+        .returning({ id: chores.id });
+
+      if (updatedRows.length === 0) {
+        throw new Error("Chore not found.");
+      }
+
+      return requireHouseholdById(db, householdId);
+    },
   };
 }
 
@@ -170,7 +211,7 @@ async function getHouseholdById(
     return null;
   }
 
-  const [parentRows, childRows] = await Promise.all([
+  const [parentRows, childRows, choreRows] = await Promise.all([
     db
       .select()
       .from(parents)
@@ -181,6 +222,11 @@ async function getHouseholdById(
       .from(children)
       .where(eq(children.householdId, household.id))
       .orderBy(asc(children.createdAt)),
+    db
+      .select()
+      .from(chores)
+      .where(eq(chores.householdId, household.id))
+      .orderBy(asc(chores.dueDate), asc(chores.createdAt)),
   ]);
 
   return {
@@ -196,7 +242,19 @@ async function getHouseholdById(
       sessionVersion: child.sessionVersion,
     })),
     choreSubmissions: [],
-    chores: [],
+    chores: choreRows.map((chore) => ({
+      childId: chore.childId,
+      createdAt: chore.createdAt.toISOString(),
+      dueDate: chore.dueDate,
+      id: chore.id,
+      pointValue: chore.pointValue,
+      routine: chore.routineFrequency
+        ? { frequency: chore.routineFrequency }
+        : null,
+      status: chore.status,
+      title: chore.title,
+      updatedAt: chore.updatedAt.toISOString(),
+    })),
     createdAt: household.createdAt.toISOString(),
     eventEnrichments: [],
     goals: [],

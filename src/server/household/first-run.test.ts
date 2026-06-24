@@ -108,6 +108,9 @@ function createRepository(
     addAllowedParent: async () => {
       throw new Error("not used");
     },
+    createChore: async () => {
+      throw new Error("not used");
+    },
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
@@ -115,6 +118,9 @@ function createRepository(
       throw new Error("not used");
     },
     updateChildProfile: async () => {
+      throw new Error("not used");
+    },
+    updateChoreStatus: async () => {
       throw new Error("not used");
     },
     ...overrides,

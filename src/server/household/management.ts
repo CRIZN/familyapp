@@ -1,4 +1,10 @@
 import {
+  archiveChore,
+  createChore,
+  pauseChore,
+  type Routine,
+} from "@/domain/chores";
+import {
   createChildPinCredentials,
   type Household,
 } from "@/domain/household";
@@ -18,6 +24,33 @@ export type HouseholdManagementDependencies = {
 export type HouseholdManagementResult =
   | { household: Household; message: string; status: "ok" }
   | { message: string; status: "error" };
+
+export async function createChoreForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: {
+    childId: string;
+    dueDate: string;
+    pointValue: number;
+    routine: Routine | null;
+    title: string;
+  },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = createChore(authorization.household, input);
+  const createdChore = updatedHousehold.chores.at(-1);
+  if (!createdChore) {
+    return { message: "Could not create Chore.", status: "error" };
+  }
+
+  const household = await dependencies.repository.createChore(
+    authorization.household.id,
+    createdChore,
+  );
+
+  return { household, message: "Chore created.", status: "ok" };
+}
 
 export async function addAllowedParent(
   dependencies: HouseholdManagementDependencies,
@@ -79,6 +112,49 @@ export async function updateChildPinForParent(
   );
 
   return { household, message: "Child PIN updated.", status: "ok" };
+}
+
+export async function pauseChoreForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { choreId: string },
+): Promise<HouseholdManagementResult> {
+  return updateParentChoreStatus(dependencies, input.choreId, pauseChore, "Chore paused.");
+}
+
+export async function archiveChoreForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { choreId: string },
+): Promise<HouseholdManagementResult> {
+  return updateParentChoreStatus(
+    dependencies,
+    input.choreId,
+    archiveChore,
+    "Chore archived.",
+  );
+}
+
+async function updateParentChoreStatus(
+  dependencies: HouseholdManagementDependencies,
+  choreId: string,
+  update: (household: Household, choreId: string) => Household,
+  message: string,
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = update(authorization.household, choreId);
+  const updatedChore = updatedHousehold.chores.find((chore) => chore.id === choreId);
+  if (!updatedChore) {
+    return { message: "Chore not found.", status: "error" };
+  }
+
+  const household = await dependencies.repository.updateChoreStatus(
+    authorization.household.id,
+    choreId,
+    { status: updatedChore.status },
+  );
+
+  return { household, message, status: "ok" };
 }
 
 async function authorizeParent(

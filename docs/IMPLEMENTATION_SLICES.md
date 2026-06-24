@@ -331,7 +331,7 @@ Replace demo Child session storage with signed, httpOnly, same-site Child sessio
 - [x] Child logout clears the session cookie.
 - [x] Tests cover valid PIN sign-in, invalid PIN rejection, scoped Child data access, and invalidated sessions.
 
-### P6. Parent Chore Management Persistence
+### P6. Parent Chore Management Persistence - Done
 
 **Blocked by**: P5
 
@@ -339,12 +339,12 @@ Replace demo Child session storage with signed, httpOnly, same-site Child sessio
 Wire the Chores workflow for Parent-created and Parent-managed Chores through server actions and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Parents can create one-time and recurring Chores assigned to one Child.
-- [ ] Parents can Pause and Archive Chores.
-- [ ] Chore forms and Chore lists use server-backed data, not client demo state.
-- [ ] Server actions enforce Parent allowlist authorization.
-- [ ] Domain tests still cover Chore validation and recurrence behavior.
-- [ ] Integration tests cover Parent Chore creation and management persistence.
+- [x] Parents can create one-time and recurring Chores assigned to one Child.
+- [x] Parents can Pause and Archive Chores.
+- [x] Chore forms and Chore lists use server-backed data, not client demo state.
+- [x] Server actions enforce Parent allowlist authorization.
+- [x] Domain tests still cover Chore validation and recurrence behavior.
+- [x] Integration tests cover Parent Chore creation and management persistence.
 
 ### P7. Child Chore Board and Submission Persistence
 
