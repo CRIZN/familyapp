@@ -1,13 +1,21 @@
 import { AppShell } from "@/components/app-shell";
 import { ChildViewPage } from "@/features/child/child-view-page";
-import { getCurrentParentHousehold } from "@/server/household/queries";
+import {
+  getChildSignInOptions,
+  getCurrentChildSession,
+} from "@/server/child/queries";
 
 export default async function ChildPage() {
-  const household = await getCurrentParentHousehold();
+  const childSession = await getCurrentChildSession();
+  const signInOptions = childSession ? null : await getChildSignInOptions();
 
   return (
     <AppShell tone="child">
-      <ChildViewPage initialHousehold={household} />
+      <ChildViewPage
+        initialHousehold={childSession?.household ?? null}
+        initialSession={childSession?.session ?? null}
+        signInOptions={signInOptions}
+      />
     </AppShell>
   );
 }

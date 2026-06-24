@@ -222,8 +222,7 @@ export async function startChildSession(
     throw new Error("Child not found in this Household.");
   }
 
-  const pinHash = await hashChildPin(pin, child.pinSalt);
-  if (pinHash !== child.pinHash) {
+  if (!(await verifyChildPin(pin, child))) {
     throw new Error("That PIN does not match this Child.");
   }
 
@@ -233,6 +232,14 @@ export async function startChildSession(
     childName: child.name,
     startedAt: new Date().toISOString(),
   };
+}
+
+export async function verifyChildPin(
+  pin: string,
+  child: Pick<ChildProfile, "pinHash" | "pinSalt">,
+): Promise<boolean> {
+  const pinHash = await hashChildPin(pin, child.pinSalt);
+  return pinHash === child.pinHash;
 }
 
 export function getChildView(

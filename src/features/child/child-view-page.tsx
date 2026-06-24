@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, type ReactNode, useState, useSyncExternalStore } from "react";
+import { type ReactNode, useActionState, useState } from "react";
 import {
   CalendarDays,
   CheckCircle2,
@@ -29,7 +29,6 @@ import type { GoalProgress, ProgressCheckInSummary } from "@/domain/goals";
 import { getChildGoalBoard, submitProgressCheckIn } from "@/domain/goals";
 import {
   getChildView,
-  startChildSession,
   type Household,
 } from "@/domain/household";
 import { getPointLedgerDisplay } from "@/domain/points";
@@ -50,25 +49,45 @@ import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  clearChildSession,
-  getChildSessionSnapshot,
-  getServerSnapshot,
-  saveChildSession,
-  subscribeChildSession,
-} from "@/features/household/local-household-store";
+  logoutChildAction,
+  signInChildAction,
+  type ChildSignInActionState,
+} from "@/server/child/actions";
+
+type ChildViewSession = {
+  childId: string;
+  householdId: string;
+  sessionVersion: number;
+};
+
+type ChildSignInOptions = {
+  children: Array<{ id: string; name: string }>;
+  householdId: string;
+};
+
+const initialSignInState: ChildSignInActionState = {
+  message: null,
+  status: "idle",
+};
 
 export function ChildViewPage({
   initialHousehold,
+  initialSession,
+  signInOptions,
 }: {
   initialHousehold: Household | null;
+  initialSession: ChildViewSession | null;
+  signInOptions: ChildSignInOptions | null;
 }) {
   const [household, setHousehold] = useState<Household | null>(initialHousehold);
-  const session = useSyncExternalStore(
-    subscribeChildSession,
-    getChildSessionSnapshot,
-    getServerSnapshot,
+  const [signInState, formAction, isSigningIn] = useActionState(
+    signInChildAction,
+    initialSignInState,
   );
-  const [selectedChildId, setSelectedChildId] = useState("");
+  const session = initialSession;
+  const [selectedChildId, setSelectedChildId] = useState(
+    signInOptions?.children[0]?.id ?? "",
+  );
   const [pin, setPin] = useState("");
   const [rewardContributionDrafts, setRewardContributionDrafts] = useState<
     Record<string, string>
@@ -76,27 +95,87 @@ export function ChildViewPage({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  if (!household) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="rounded-md border border-border bg-background p-6 shadow-panel">
-          <UserRound aria-hidden="true" className="mb-4 h-9 w-9 text-child" />
-          <h1 className="text-2xl font-semibold">Child View</h1>
-          <p className="mt-2 text-muted-foreground">
-            A Parent needs to create the Household before Children can enter.
-          </p>
-          <Link
-            className={buttonVariants({ className: "mt-5", variant: "parent" })}
-            href="/setup"
-          >
-            Start Household Setup
-          </Link>
+  if (!session || !household) {
+    if (!signInOptions || signInOptions.children.length === 0) {
+      return (
+        <div className="mx-auto max-w-4xl px-4 py-10">
+          <div className="rounded-md border border-border bg-background p-6 shadow-panel">
+            <UserRound aria-hidden="true" className="mb-4 h-9 w-9 text-child" />
+            <h1 className="text-2xl font-semibold">Child View</h1>
+            <p className="mt-2 text-muted-foreground">
+              A Parent needs to create the Household before Children can enter.
+            </p>
+            <Link
+              className={buttonVariants({ className: "mt-5", variant: "parent" })}
+              href="/setup"
+            >
+              Start Household Setup
+            </Link>
+          </div>
         </div>
-      </div>
+      );
+    }
+
+    return (
+      <form action={formAction} className="mx-auto max-w-3xl px-4 py-10">
+        <div className="rounded-md border border-border bg-background p-6 shadow-panel">
+          <KeyRound aria-hidden="true" className="mb-4 h-9 w-9 text-child" />
+          <h1 className="text-2xl font-semibold">Enter Child View</h1>
+          <p className="mt-2 text-muted-foreground">
+            Choose your profile and enter your Child PIN.
+          </p>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-[1fr_12rem_auto]">
+            <div>
+              <Label htmlFor="child">Child</Label>
+              <select
+                className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                id="child"
+                name="childId"
+                value={selectedChildId || signInOptions.children[0]?.id || ""}
+                onChange={(event) => setSelectedChildId(event.target.value)}
+              >
+                {signInOptions.children.map((child) => (
+                  <option key={child.id} value={child.id}>
+                    {child.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label htmlFor="pin">Child PIN</Label>
+              <Input
+                className="mt-2"
+                id="pin"
+                inputMode="numeric"
+                maxLength={8}
+                name="pin"
+                type="password"
+                value={pin}
+                onChange={(event) => setPin(event.target.value)}
+              />
+            </div>
+            <Button
+              className="self-end"
+              disabled={isSigningIn}
+              type="submit"
+              variant="child"
+            >
+              Enter
+            </Button>
+          </div>
+
+          {signInState.status === "error" && signInState.message ? (
+            <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+              {signInState.message}
+            </p>
+          ) : null}
+        </div>
+      </form>
     );
   }
 
-  if (session) {
+  {
     const view = getChildView(household, session.childId);
     const choreBoard = getChildChoreBoard(
       household,
@@ -120,10 +199,12 @@ export function ChildViewPage({
             </h1>
             <p className="mt-2 text-muted-foreground">{view.householdName}</p>
           </div>
-          <Button type="button" variant="outline" onClick={leaveChildView}>
-            <LogOut aria-hidden="true" className="h-4 w-4" />
-            Leave Child View
-          </Button>
+          <form action={logoutChildAction}>
+            <Button type="submit" variant="outline">
+              <LogOut aria-hidden="true" className="h-4 w-4" />
+              Leave Child View
+            </Button>
+          </form>
         </div>
 
         <section className="grid gap-4 sm:grid-cols-3">
@@ -635,82 +716,6 @@ export function ChildViewPage({
     }
   }
 
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!household) {
-      return;
-    }
-
-    setError(null);
-    try {
-      const childId = selectedChildId || household.children[0]?.id || "";
-      const nextSession = await startChildSession(
-        household,
-        childId,
-        pin,
-      );
-      saveChildSession(nextSession);
-      setPin("");
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Could not enter Child View.",
-      );
-    }
-  }
-
-  function leaveChildView() {
-    clearChildSession();
-  }
-
-  return (
-    <form className="mx-auto max-w-3xl px-4 py-10" onSubmit={onSubmit}>
-      <div className="rounded-md border border-border bg-background p-6 shadow-panel">
-        <KeyRound aria-hidden="true" className="mb-4 h-9 w-9 text-child" />
-        <h1 className="text-2xl font-semibold">Enter Child View</h1>
-        <p className="mt-2 text-muted-foreground">
-          Choose your profile and enter your Child PIN.
-        </p>
-
-        <div className="mt-6 grid gap-4 sm:grid-cols-[1fr_12rem_auto]">
-          <div>
-            <Label htmlFor="child">Child</Label>
-            <select
-              className="mt-2 flex h-10 w-full rounded-md border border-border bg-background px-3 py-2 text-sm shadow-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-              id="child"
-              value={selectedChildId || household.children[0]?.id || ""}
-              onChange={(event) => setSelectedChildId(event.target.value)}
-            >
-              {household.children.map((child) => (
-                <option key={child.id} value={child.id}>
-                  {child.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <Label htmlFor="pin">Child PIN</Label>
-            <Input
-              className="mt-2"
-              id="pin"
-              inputMode="numeric"
-              maxLength={8}
-              value={pin}
-              onChange={(event) => setPin(event.target.value)}
-            />
-          </div>
-          <Button className="self-end" type="submit" variant="child">
-            Enter
-          </Button>
-        </div>
-
-        {error ? (
-          <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-            {error}
-          </p>
-        ) : null}
-      </div>
-    </form>
-  );
 }
 
 function ChoreCard({

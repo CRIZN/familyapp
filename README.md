@@ -123,7 +123,7 @@ Useful routes:
 - `/parent` - Parent View.
 - `/child` - Child View.
 
-Household setup writes to Postgres through Drizzle and requires `DATABASE_URL`, Supabase Auth configuration, and `FIRST_RUN_SETUP_TOKEN`.
+Household setup writes to Postgres through Drizzle and requires `DATABASE_URL`, Supabase Auth configuration, and `FIRST_RUN_SETUP_TOKEN`. Child PIN sessions also require `CHILD_SESSION_SECRET` for signing the 30-day httpOnly Child session cookie.
 
 ## Development Commands
 

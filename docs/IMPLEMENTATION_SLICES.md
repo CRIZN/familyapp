@@ -316,7 +316,7 @@ Wire the Household workflow to server actions for Parent allowlist management, C
 - [x] Child PIN changes update the Child session invalidation field.
 - [x] Tests cover allowlisted access, unallowlisted denial, and PIN update invalidation data.
 
-### P5. Child PIN Sessions and Child App Gate
+### P5. Child PIN Sessions and Child App Gate - Done
 
 **Blocked by**: P4
 
@@ -324,12 +324,12 @@ Wire the Household workflow to server actions for Parent allowlist management, C
 Replace demo Child session storage with signed, httpOnly, same-site Child session cookies. Child sessions last 30 days and are valid only inside the production Household context.
 
 **Acceptance criteria**:
-- [ ] Child sign-in verifies the PIN against the server-side hash for the selected Child.
-- [ ] Successful sign-in creates a signed 30-day httpOnly same-site cookie containing only Household/Child identity and session version data.
-- [ ] Child requests validate the cookie against the current Child row before returning data.
-- [ ] PIN changes invalidate existing Child sessions.
-- [ ] Child logout clears the session cookie.
-- [ ] Tests cover valid PIN sign-in, invalid PIN rejection, scoped Child data access, and invalidated sessions.
+- [x] Child sign-in verifies the PIN against the server-side hash for the selected Child.
+- [x] Successful sign-in creates a signed 30-day httpOnly same-site cookie containing only Household/Child identity and session version data.
+- [x] Child requests validate the cookie against the current Child row before returning data.
+- [x] PIN changes invalidate existing Child sessions.
+- [x] Child logout clears the session cookie.
+- [x] Tests cover valid PIN sign-in, invalid PIN rejection, scoped Child data access, and invalidated sessions.
 
 ### P6. Parent Chore Management Persistence
 
