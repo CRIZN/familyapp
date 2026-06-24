@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
+import {
+  configureAppleCalendar,
+  syncAppleCalendarEvents,
+} from "@/domain/calendar";
 import { getChildPointLedger, getChildWins } from "@/domain/chores";
 import { createHousehold, type Household } from "@/domain/household";
 import { getPointLedgerDisplay } from "@/domain/points";
@@ -19,6 +23,7 @@ import {
   createPointAdjustmentForParent,
   createGoalForParent,
   createRewardForParent,
+  updateEventParticipantsForParent,
   updateRewardForParent,
 } from "./management";
 import type { HouseholdRepository } from "./repository";
@@ -298,7 +303,7 @@ describe("Household management", () => {
       },
       {
         calendarName: " Family ",
-        sourceUrl: " webcal://example.test/family.ics ",
+        sourceUrl: " webcal://p01-caldav.icloud.com/published/2/family ",
       },
     );
 
@@ -307,12 +312,12 @@ describe("Household management", () => {
       household.id,
       expect.objectContaining({
         calendarName: "Family",
-        sourceUrl: "webcal://example.test/family.ics",
+        sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
       }),
     );
     expect(
       saved.status === "ok" ? saved.household.calendarConnection?.sourceUrl : null,
-    ).toBe("webcal://example.test/family.ics");
+    ).toBe("webcal://p01-caldav.icloud.com/published/2/family");
 
     const missingUrl = await configureCalendarForParent(
       {
@@ -344,7 +349,7 @@ describe("Household management", () => {
       },
       {
         calendarName: "Family",
-        sourceUrl: "webcal://example.test/family.ics",
+        sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
       },
     );
     expect(denied).toEqual({
@@ -352,6 +357,55 @@ describe("Household management", () => {
       status: "error",
     });
     expect(saveCalendarConnectionMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("persists Event Participants through Parent authorization", async () => {
+    const household = await createTestHousehold();
+    const childId = household.children[0]!.id;
+    const withCalendar = configureAppleCalendar(household, {
+      calendarName: "Family",
+      sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
+    });
+    const withEvent = syncAppleCalendarEvents(withCalendar, [
+      {
+        appleEventId: "apple-1",
+        endsAt: "2026-06-24T17:00:00.000Z",
+        startsAt: "2026-06-24T16:00:00.000Z",
+        title: "Soccer practice",
+      },
+    ]);
+    const eventId = withEvent.calendarEvents[0]!.id;
+    const saveEventEnrichmentMock = vi.fn(async (_householdId, enrichment) => ({
+      ...withEvent,
+      eventEnrichments: [enrichment],
+    }));
+
+    const result = await updateEventParticipantsForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(withEvent, {
+          saveEventEnrichment: saveEventEnrichmentMock,
+        }),
+      },
+      {
+        eventId,
+        isAllHousehold: false,
+        participantChildIds: [childId],
+      },
+    );
+
+    expect(result.status).toBe("ok");
+    expect(saveEventEnrichmentMock).toHaveBeenCalledWith(
+      withEvent.id,
+      expect.objectContaining({
+        eventId,
+        isAllHousehold: false,
+        participantChildIds: [childId],
+      }),
+    );
   });
 
   it("creates, completes, and archives Goals through the repository", async () => {
@@ -756,10 +810,14 @@ function createRepository(
     findHouseholdForParent: async (email) =>
       email === "first@example.com" ? household : null,
     hasAnyHousehold: async () => true,
+    listHouseholdsWithCalendarConnections: async () => [],
     markChoreSubmissionNeedsWork: async () => household,
+    recordCalendarSyncStatus: async () => household,
     saveGoalCompletion: async () => household,
     saveGoalStatus: async () => household,
     saveCalendarConnection: async () => household,
+    saveCalendarSync: async () => household,
+    saveEventEnrichment: async () => household,
     saveProgressCheckInApproval: async () => household,
     saveProgressCheckInNeedsWork: async () => household,
     savePointEffects: async () => household,

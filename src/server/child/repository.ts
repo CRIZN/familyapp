@@ -2,6 +2,7 @@ import "server-only";
 
 import { and, asc, eq, sql } from "drizzle-orm";
 
+import type { EventEnrichment, FamilyCalendarEvent } from "@/domain/calendar";
 import type { ChoreSubmission } from "@/domain/chores";
 import type { Goal, ProgressCheckIn } from "@/domain/goals";
 import type { ChildWin, PointLedgerEntry } from "@/domain/household";
@@ -13,10 +14,12 @@ import type {
 } from "@/domain/rewards";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
+  calendarEvents,
   children,
   childWins,
   choreSubmissions,
   chores,
+  eventEnrichments,
   goals,
   households,
   pointLedger,
@@ -393,6 +396,8 @@ async function getChildScopedHousehold(
   }
 
   const [
+    calendarEventRows,
+    eventEnrichmentRows,
     choreRows,
     submissionRows,
     skippedRows,
@@ -404,6 +409,16 @@ async function getChildScopedHousehold(
     ledgerRows,
     winRows,
   ] = await Promise.all([
+    db
+      .select()
+      .from(calendarEvents)
+      .where(eq(calendarEvents.householdId, child.householdId))
+      .orderBy(asc(calendarEvents.startsAt)),
+    db
+      .select()
+      .from(eventEnrichments)
+      .where(eq(eventEnrichments.householdId, child.householdId))
+      .orderBy(asc(eventEnrichments.updatedAt)),
     db
       .select()
       .from(chores)
@@ -494,10 +509,15 @@ async function getChildScopedHousehold(
       )
       .orderBy(asc(childWins.earnedAt)),
   ]);
+  const childCalendar = getChildScopedCalendarRows({
+    childId: child.childId,
+    eventRows: calendarEventRows,
+    enrichmentRows: eventEnrichmentRows,
+  });
 
   return {
     calendarConnection: null,
-    calendarEvents: [],
+    calendarEvents: childCalendar.events,
     childWins: winRows.map(mapChildWinRow),
     children: [
       {
@@ -524,7 +544,7 @@ async function getChildScopedHousehold(
       updatedAt: chore.updatedAt.toISOString(),
     })),
     createdAt: household.createdAt.toISOString(),
-    eventEnrichments: [],
+    eventEnrichments: childCalendar.enrichments,
     goals: goalRows.map(mapGoalRow),
     id: household.id,
     name: household.name,
@@ -542,6 +562,61 @@ async function getChildScopedHousehold(
       skippedAt: occurrence.skippedAt.toISOString(),
     })),
     updatedAt: household.updatedAt.toISOString(),
+  };
+}
+
+function getChildScopedCalendarRows({
+  childId,
+  enrichmentRows,
+  eventRows,
+}: {
+  childId: string;
+  enrichmentRows: Array<typeof eventEnrichments.$inferSelect>;
+  eventRows: Array<typeof calendarEvents.$inferSelect>;
+}): { enrichments: EventEnrichment[]; events: FamilyCalendarEvent[] } {
+  const enrichmentByEventId = new Map(
+    enrichmentRows.map((enrichment) => [enrichment.eventId, enrichment]),
+  );
+  const accessibleEventRows = eventRows.filter((event) => {
+    const enrichment = enrichmentByEventId.get(event.id);
+    return (
+      !enrichment ||
+      enrichment.isAllHousehold ||
+      enrichment.participantChildIds.includes(childId)
+    );
+  });
+  const accessibleEventIds = new Set(accessibleEventRows.map((event) => event.id));
+
+  return {
+    enrichments: enrichmentRows
+      .filter((enrichment) => accessibleEventIds.has(enrichment.eventId))
+      .map(mapEventEnrichmentRow),
+    events: accessibleEventRows.map(mapCalendarEventRow),
+  };
+}
+
+function mapCalendarEventRow(
+  event: typeof calendarEvents.$inferSelect,
+): FamilyCalendarEvent {
+  return {
+    appleEventId: event.appleEventId,
+    endsAt: event.endsAt.toISOString(),
+    id: event.id,
+    location: event.location ?? undefined,
+    startsAt: event.startsAt.toISOString(),
+    syncedAt: event.syncedAt.toISOString(),
+    title: event.title,
+  };
+}
+
+function mapEventEnrichmentRow(
+  enrichment: typeof eventEnrichments.$inferSelect,
+): EventEnrichment {
+  return {
+    eventId: enrichment.eventId,
+    isAllHousehold: enrichment.isAllHousehold,
+    participantChildIds: enrichment.participantChildIds,
+    updatedAt: enrichment.updatedAt.toISOString(),
   };
 }
 

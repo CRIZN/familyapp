@@ -101,10 +101,26 @@ function toPersistedRows(household: Household): PersistedHouseholdRows {
           connectedAt: new Date(household.calendarConnection.connectedAt),
           householdId: household.id,
           id: household.calendarConnection.id,
+          lastSyncAttemptedAt: household.calendarConnection.lastSyncAttemptedAt
+            ? new Date(household.calendarConnection.lastSyncAttemptedAt)
+            : null,
+          lastSyncMessage: household.calendarConnection.lastSyncMessage ?? null,
+          lastSyncStatus: household.calendarConnection.lastSyncStatus ?? "idle",
+          lastSyncedAt: household.calendarConnection.lastSyncedAt
+            ? new Date(household.calendarConnection.lastSyncedAt)
+            : null,
           publicFeedUrl: household.calendarConnection.sourceUrl,
           updatedAt: new Date(household.calendarConnection.updatedAt),
         }
       : null,
+    calendarEvents: household.calendarEvents.map((event) => ({
+      ...event,
+      endsAt: new Date(event.endsAt),
+      householdId: household.id,
+      location: event.location ?? null,
+      startsAt: new Date(event.startsAt),
+      syncedAt: new Date(event.syncedAt),
+    })),
     childWins: household.childWins.map((win) => ({
       ...win,
       earnedAt: new Date(win.earnedAt),
@@ -121,6 +137,11 @@ function toPersistedRows(household: Household): PersistedHouseholdRows {
       role: "child" as const,
       sessionVersion: child.sessionVersion ?? 1,
       updatedAt: new Date(household.updatedAt),
+    })),
+    eventEnrichments: household.eventEnrichments.map((enrichment) => ({
+      ...enrichment,
+      householdId: household.id,
+      updatedAt: new Date(enrichment.updatedAt),
     })),
     choreSubmissions: household.choreSubmissions.map((submission) => ({
       childId: submission.childId,
@@ -334,7 +355,10 @@ describe("ParentViewPage aggregation", () => {
         calendarName: "Family",
         connectedAt: "2026-06-24T12:00:00.000Z",
         id: "calendar-1",
-        sourceUrl: "webcal://example.test/family.ics",
+        lastSyncAttemptedAt: "2026-06-24T12:05:00.000Z",
+        lastSyncMessage: "Calendar sync failed. Check the Apple Calendar sharing link.",
+        lastSyncStatus: "error",
+        sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
         updatedAt: "2026-06-24T12:00:00.000Z",
       },
     });
@@ -355,8 +379,12 @@ describe("ParentViewPage aggregation", () => {
     expect(notConnectedMarkup).toContain("No Calendar connected yet.");
     expect(notConnectedMarkup).toContain("No Calendar Events yet.");
     expect(connectedMarkup).toContain("Calendar metadata saved.");
+    expect(connectedMarkup).toContain("Calendar sync needs attention");
+    expect(connectedMarkup).toContain(
+      "Calendar sync failed. Check the Apple Calendar sharing link.",
+    );
     expect(connectedMarkup).toContain("Family");
     expect(connectedMarkup).toContain("The feed URL is stored server-side");
-    expect(connectedMarkup).not.toContain("webcal://example.test/family.ics");
+    expect(connectedMarkup).not.toContain("webcal://p01-caldav.icloud.com/published/2/family");
   });
 });

@@ -14,6 +14,7 @@ Set these in Vercel Production and in any local shell that runs server-backed fl
 | `NEXT_PUBLIC_SITE_URL` | Server | Canonical production origin used for Supabase magic-link redirects, for example `https://familyapp.example`. |
 | `FIRST_RUN_SETUP_TOKEN` | Server | Long random token required once for first-run Household setup after Parent magic-link authentication. Rotate or remove after setup. |
 | `CHILD_SESSION_SECRET` | Server | At least 32 random bytes used to sign 30-day Child session cookies. Rotating it signs all Children out. |
+| `CRON_SECRET` | Server | Required bearer token for Vercel cron and manual calls to `/api/calendar/sync`. Vercel cron sends `Authorization: Bearer $CRON_SECRET` on the hourly schedule in `vercel.json`. |
 
 Optional production smoke variables for `npm run test:e2e`:
 
@@ -37,6 +38,7 @@ Production deployment checklist:
 - Create the Vercel project from this repository.
 - Set all required environment variables in the Production environment.
 - Set Supabase Auth redirect URLs to `NEXT_PUBLIC_SITE_URL` and `NEXT_PUBLIC_SITE_URL/auth/callback`.
+- Confirm `CRON_SECRET` is set and the Vercel cron entry for `/api/calendar/sync` is enabled after deployment.
 - Deploy from the release branch and verify `npm run build` passes in Vercel.
 - Keep preview deployments enabled for PR validation, but use a separate Supabase project or database for preview tests.
 

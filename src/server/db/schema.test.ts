@@ -24,6 +24,10 @@ const p11Migration = readFileSync(
   join(process.cwd(), "drizzle/0005_p11_reward_approval_ledger.sql"),
   "utf8",
 );
+const p16Migration = readFileSync(
+  join(process.cwd(), "drizzle/0006_p16_calendar_sync_status.sql"),
+  "utf8",
+);
 const migrationJournal = JSON.parse(
   readFileSync(join(process.cwd(), "drizzle/meta/_journal.json"), "utf8"),
 ) as { entries: Array<{ tag: string }> };
@@ -35,6 +39,9 @@ const p11Snapshot = JSON.parse(
     { checkConstraints?: Record<string, { value: string }> }
   >;
 };
+const p16Snapshot = JSON.parse(
+  readFileSync(join(process.cwd(), "drizzle/meta/0006_snapshot.json"), "utf8"),
+) as Snapshot;
 
 const householdScopedTables = [
   "calendar_connections",
@@ -106,6 +113,9 @@ describe("production database schema", () => {
     expect(migrationJournal.entries).toContainEqual(
       expect.objectContaining({ tag: "0005_p11_reward_approval_ledger" }),
     );
+    expect(migrationJournal.entries).toContainEqual(
+      expect.objectContaining({ tag: "0006_p16_calendar_sync_status" }),
+    );
     expect(
       p11Snapshot.tables["public.point_ledger"]?.checkConstraints
         ?.point_ledger_delta_non_zero?.value,
@@ -116,6 +126,10 @@ describe("production database schema", () => {
     expect(migration).toContain(
       `CREATE TYPE "public"."child_win_source_type" AS ENUM`,
     );
+    expect(p16Migration).toContain("last_sync_status");
+    expect(
+      p16Snapshot.tables["public.calendar_connections"]?.columns,
+    ).toHaveProperty("last_sync_status");
   });
 
   it("guards child-session access with current Child identity and session version", () => {
