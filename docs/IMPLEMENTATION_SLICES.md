@@ -239,3 +239,257 @@ Use a shared Parent layout for `/parent/*` routes with the Household title, Pare
 - [x] Parent View shows Chores Needing Parent Handling for Chore occurrences that need a Parent decision, while normal due Chores stay in Child View and Child Status summaries.
 - [x] Quick review actions remain available from Parent View for Approval Queue items, Chores Needing Parent Handling, and unfulfilled Rewards.
 - [x] Tests cover the user-facing IA: Today is agenda-first, creation forms are absent from Today, workflow navigation reaches focused pages, focused pages contain their relevant forms and lists, and capped previews link to full workflows.
+
+## Production Launch Slices
+
+These slices move the completed V1 demo into a private production app for one Household. Keep slices intentionally small: create the full V1 Supabase schema first, then wire one workflow at a time through server actions, Drizzle, Supabase Auth, and server-side authorization. Do not preserve the `localStorage` demo persistence path as a parallel mode.
+
+**Launch decisions**:
+- Production launch is private to one Household, not a public multi-Household product.
+- The first production Parent signs in with a Supabase magic link, then uses `FIRST_RUN_SETUP_TOKEN` to create the fresh production Household.
+- Parent access is allowlisted by exact Parent email, and every Parent request verifies the authenticated Supabase email against an allowed Parent row.
+- Children use 30-day signed, httpOnly, same-site Household-scoped sessions from Parent-managed PINs; PIN changes invalidate existing Child sessions.
+- Production starts fresh in Supabase Postgres with the full V1 launch schema; no demo `localStorage` data migration is required.
+- Production release includes V1 slices 1-11 wired to Supabase and server actions, with live Apple Calendar feed fetching the only base feature allowed to follow after release.
+- Apple Calendar uses a public `webcal`/ICS feed URL stored server-side as Calendar Connection data; the URL is treated as a secret and is not echoed back to the client after save.
+
+### P1. Full V1 Supabase Schema, Constraints, and RLS
+
+**Blocked by**: V1 Slice 11
+
+**What to build**:
+Create or harden the complete V1 Drizzle/Supabase schema for a fresh production instance, including Household-owned tables, indexes, foreign keys, state enums, Point Ledger data, Calendar Connection fields for a server-side public feed URL, Child session invalidation fields, and Row Level Security policies. Schema and RLS ship together.
+
+**Acceptance criteria**:
+- [ ] Drizzle schema and generated migrations cover all V1 entities from slices 1-11.
+- [ ] Every household-owned table has `household_id` and appropriate foreign keys.
+- [ ] State fields use explicit status enums rather than boolean clusters.
+- [ ] Point Ledger entries can represent every production Point Balance change.
+- [ ] Calendar Connection stores the public feed URL server-side and supports safe client metadata.
+- [ ] Child rows include a session invalidation field such as `pin_updated_at` or `session_version`.
+- [ ] RLS is enabled for household-owned tables and denies access by default.
+- [ ] RLS policies enforce Parent email allowlist access and Child-session scoped access where applicable.
+- [ ] Tests or migration checks verify the schema, constraints, and RLS policy shape.
+
+### P2. Supabase Auth Gate and Locked App Shell
+
+**Blocked by**: P1
+
+**What to build**:
+Add Supabase Auth integration for Parent magic links and a server-rendered app gate. Anonymous visitors and authenticated-but-unallowlisted users must see only generic private-app screens with no Household details.
+
+**Acceptance criteria**:
+- [ ] Supabase client/server helpers are configured for Next.js App Router.
+- [ ] Parent sign-in uses email magic links.
+- [ ] Anonymous users see only a locked sign-in screen.
+- [ ] Authenticated users whose email is not allowlisted see a generic private-app denial.
+- [ ] No locked or denied state exposes Household names, Parent identities, Child profiles, or PIN existence.
+- [ ] Tests cover the auth gate decisions without relying on client-only hiding.
+
+### P3. First-Run Household Setup and Local Demo Removal
+
+**Blocked by**: P2
+
+**What to build**:
+Replace `localStorage` Household setup with a server-backed first-run setup. A verified Supabase user can create the one production Household only when no Household exists and the submitted `FIRST_RUN_SETUP_TOKEN` matches the server-only environment variable.
+
+**Acceptance criteria**:
+- [ ] First-run setup requires an authenticated Supabase user and valid `FIRST_RUN_SETUP_TOKEN`.
+- [ ] Setup creates the Household, first Parent row for the authenticated email, initial Children, and hashed Child PINs in Supabase.
+- [ ] Setup is disabled once a Household exists.
+- [ ] Parent View loads Household data from server-side Drizzle queries.
+- [ ] `localStorage` Household persistence and demo reset are removed from production UI code.
+- [ ] Tests cover successful first-run setup, invalid token rejection, and setup lockout after Household creation.
+
+### P4. Parent Allowlist and Household Management
+
+**Blocked by**: P3
+
+**What to build**:
+Wire the Household workflow to server actions for Parent allowlist management, Child profile management, and Child PIN updates. Every Parent request must verify the authenticated Supabase email maps to an allowed Parent row.
+
+**Acceptance criteria**:
+- [ ] Parent rows can be created for exact invited email addresses.
+- [ ] Parent access is granted only when the authenticated Supabase email matches an allowed Parent row.
+- [ ] Child profile updates and PIN changes persist through Drizzle.
+- [ ] Child PINs are hashed server-side and never returned to the client.
+- [ ] Child PIN changes update the Child session invalidation field.
+- [ ] Tests cover allowlisted access, unallowlisted denial, and PIN update invalidation data.
+
+### P5. Child PIN Sessions and Child App Gate
+
+**Blocked by**: P4
+
+**What to build**:
+Replace demo Child session storage with signed, httpOnly, same-site Child session cookies. Child sessions last 30 days and are valid only inside the production Household context.
+
+**Acceptance criteria**:
+- [ ] Child sign-in verifies the PIN against the server-side hash for the selected Child.
+- [ ] Successful sign-in creates a signed 30-day httpOnly same-site cookie containing only Household/Child identity and session version data.
+- [ ] Child requests validate the cookie against the current Child row before returning data.
+- [ ] PIN changes invalidate existing Child sessions.
+- [ ] Child logout clears the session cookie.
+- [ ] Tests cover valid PIN sign-in, invalid PIN rejection, scoped Child data access, and invalidated sessions.
+
+### P6. Parent Chore Management Persistence
+
+**Blocked by**: P5
+
+**What to build**:
+Wire the Chores workflow for Parent-created and Parent-managed Chores through server actions and Drizzle.
+
+**Acceptance criteria**:
+- [ ] Parents can create one-time and recurring Chores assigned to one Child.
+- [ ] Parents can Pause and Archive Chores.
+- [ ] Chore forms and Chore lists use server-backed data, not client demo state.
+- [ ] Server actions enforce Parent allowlist authorization.
+- [ ] Domain tests still cover Chore validation and recurrence behavior.
+- [ ] Integration tests cover Parent Chore creation and management persistence.
+
+### P7. Child Chore Board and Submission Persistence
+
+**Blocked by**: P6
+
+**What to build**:
+Wire Child View Chore boards and Chore Submission actions through Child session authorization and Drizzle.
+
+**Acceptance criteria**:
+- [ ] Child View shows today, upcoming, overdue, and pending-review Chores from Supabase.
+- [ ] Children can submit only their own due or Overdue Chores.
+- [ ] Chore Submissions persist with occurrence dates and pending status.
+- [ ] Child session authorization prevents access to another Child's Chores.
+- [ ] Tests cover Child ownership, submission persistence, and Overdue behavior.
+
+### P8. Chore Approval Queue and Point Ledger Persistence
+
+**Blocked by**: P7
+
+**What to build**:
+Wire the Approval Queue for Chore Submissions, including Approve, Needs Work, Skip, and batch-friendly approval with Point Ledger and Point Balance updates in one database transaction.
+
+**Acceptance criteria**:
+- [ ] Parent Approval Queue shows pending Chore Submissions from Supabase.
+- [ ] Approving Chore Submissions creates Point Ledger entries and updates Point Balance atomically.
+- [ ] Needs Work and Skip persist without awarding Points.
+- [ ] Batch approval works for multiple Chore Submissions.
+- [ ] Server actions enforce Parent allowlist authorization.
+- [ ] Tests cover transaction safety, ledger entries, balance updates, Needs Work, Skip, and batch approval.
+
+### P9. Goals and Progress Check-ins Persistence
+
+**Blocked by**: P8
+
+**What to build**:
+Wire Goals, Progress Check-ins, Goal approval outcomes, and Goal Completion through server actions and Drizzle.
+
+**Acceptance criteria**:
+- [ ] Parents can create, complete, and Archive Goals for one Child.
+- [ ] Children can submit Progress Check-ins for their own active Goals.
+- [ ] Approval Queue distinguishes Progress Check-ins from Chore Submissions.
+- [ ] Approved Progress Check-ins and Goal Completion create Point Ledger entries and Wins atomically.
+- [ ] Needs Work persists without awarding Points.
+- [ ] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
+
+### P10. Reward Catalog and Child Reward Actions Persistence
+
+**Blocked by**: P8
+
+**What to build**:
+Wire Reward Catalog management plus Child Reward Contributions, contribution returns, Reward Requests, and cancellations through server actions and Drizzle.
+
+**Acceptance criteria**:
+- [ ] Parents can create, edit, and Archive shared Rewards.
+- [ ] Children can contribute available Points toward Rewards and return active contributions.
+- [ ] Children can submit Reward Requests when enough Points are committed or available.
+- [ ] Pending Reward Requests reserve Points and prevent double-spend.
+- [ ] Cancellation returns Reserved Points.
+- [ ] Tests cover Reward Catalog persistence, contributions, returns, reservations, cancellation, and ledger entries.
+
+### P11. Reward Approval and Fulfillment Persistence
+
+**Blocked by**: P10
+
+**What to build**:
+Wire Reward Request review and fulfillment through the Approval Queue and Rewards workflow.
+
+**Acceptance criteria**:
+- [ ] Approval Queue visually distinguishes Reward Requests.
+- [ ] Parent approval spends Reserved Points and creates ledger entries atomically.
+- [ ] Rejection returns Reserved Points.
+- [ ] Fulfillment is tracked separately after approval.
+- [ ] Rewards workflow shows unfulfilled Rewards and fulfillment history from Supabase.
+- [ ] Tests cover approval, rejection, fulfillment, balance changes, and ledger entries.
+
+### P12. Bonus Points, Point Adjustments, Ledger, and Wins Persistence
+
+**Blocked by**: P11
+
+**What to build**:
+Wire Bonus Points, Point Adjustments, Point Ledger displays, and Wins displays through server actions and Drizzle.
+
+**Acceptance criteria**:
+- [ ] Parents can award Bonus Points to a Child.
+- [ ] Parents can create positive or negative Point Adjustments with a required reason.
+- [ ] All Point Balance changes appear in the authoritative Point Ledger.
+- [ ] Child View shows simplified Point Ledger and Wins from Supabase.
+- [ ] Server actions enforce Parent allowlist authorization.
+- [ ] Tests cover Bonus Points, required adjustment reasons, negative corrections, ledger visibility, and Wins visibility.
+
+### P13. Parent Today, Briefing, and Weekly Review Production Aggregation
+
+**Blocked by**: P9, P12
+
+**What to build**:
+Wire Parent Today, Needs Attention, Child Status summaries, Briefing, Suggested Actions, and Weekly Review to server-backed aggregation over Supabase data.
+
+**Acceptance criteria**:
+- [ ] Parent Today loads agenda-independent attention data from Supabase.
+- [ ] Approval Queue preview, Chores Needing Parent Handling, Reward Fulfillment, and Child Status summaries are server-backed.
+- [ ] Briefing Suggested Actions link to focused Parent workflows.
+- [ ] Weekly Review summarizes Chores, Goals, Point Balances, pending Reward Requests, and unfulfilled Rewards from Supabase.
+- [ ] Empty states remain useful when no data exists.
+- [ ] Tests cover aggregation rules and empty states over persisted data.
+
+### P14. Calendar Connection Metadata Without Live Feed Sync
+
+**Blocked by**: P3
+
+**What to build**:
+Wire the Calendar workflow enough for production release without live Apple feed fetching. Parents can save or replace the public `webcal`/ICS feed URL server-side, but the client only sees safe metadata.
+
+**Acceptance criteria**:
+- [ ] Parents can save Calendar name and public feed URL through a server action.
+- [ ] The feed URL is stored server-side and is not echoed back to the client after save.
+- [ ] Calendar screens show safe connection metadata and empty/not-connected states.
+- [ ] Event Enrichment UI handles an empty agenda gracefully.
+- [ ] Tests cover feed URL write-only behavior and Parent authorization.
+
+### P15. Production Release Hardening
+
+**Blocked by**: P1-P14
+
+**What to build**:
+Prepare the private production release on Vercel and Supabase with operational checks, release smoke tests, and rollback-safe configuration.
+
+**Acceptance criteria**:
+- [ ] Required environment variables are documented, including Supabase values, `FIRST_RUN_SETUP_TOKEN`, and Child session signing secret.
+- [ ] Vercel production deployment is configured for the Next.js app.
+- [ ] Supabase production project has migrations applied, RLS enabled, and backups configured.
+- [ ] Playwright covers the production happy path across Parent magic-link setup, Child PIN sign-in, Chore approval, Points, Rewards, and Weekly Review.
+- [ ] A release checklist covers first-run setup, Parent allowlist verification, Child PIN verification, and private-app denial states.
+- [ ] No production UI path reads or writes demo `localStorage` Household state.
+
+### P16. Post-Release Apple Calendar Feed Sync
+
+**Blocked by**: P14
+
+**What to build**:
+Add server-side scheduled fetching and parsing of the public Apple Calendar `webcal`/ICS feed into normalized read-only Events, preserving Family App Event Enrichment.
+
+**Acceptance criteria**:
+- [ ] Vercel cron or an equivalent server route fetches the stored feed URL server-side.
+- [ ] ICS parsing creates and updates read-only Calendar Events without exposing the feed URL.
+- [ ] Event Enrichment remains separate from synced Events.
+- [ ] Parent Agenda and Child Agenda show synced Events with Participant filtering.
+- [ ] Sync failures are logged and surfaced to Parents as safe, non-secret status.
+- [ ] Tests cover feed parsing, Event upsert behavior, enrichment preservation, and agenda filtering.

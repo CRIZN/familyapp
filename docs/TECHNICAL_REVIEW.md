@@ -13,7 +13,7 @@ Build Family App as a hosted TypeScript responsive web app:
 - **ORM and migrations**: Drizzle ORM and Drizzle Kit
 - **UI**: Tailwind CSS, shadcn/ui, lucide-react
 - **Testing**: Vitest for domain/application tests; Playwright for end-to-end flows
-- **Calendar sync**: Read-only Apple Calendar integration through a calendar provider adapter, backed by CalDAV/iCalendar parsing
+- **Calendar sync**: Read-only Apple Calendar integration through a server-side calendar feed adapter, backed by public `webcal`/ICS parsing for launch
 
 This stack optimizes for a small private app that still needs to be available from phones on the go, store private household data safely, and evolve without splitting frontend/backend work too early.
 
@@ -125,7 +125,7 @@ Store Child PINs hashed, never as plaintext.
 
 ### Calendar sync is an adapter, not a dependency everywhere
 
-The rest of the app should not know about CalDAV details. Define a calendar provider boundary that returns normalized read-only Events. The Apple implementation can use CalDAV and iCalendar parsing behind that boundary.
+The rest of the app should not know about Apple Calendar feed details. Define a calendar provider boundary that returns normalized read-only Events. The launch Apple implementation should fetch a publicly shared `webcal`/ICS feed server-side and parse iCalendar data behind that boundary. A future private CalDAV integration can replace the adapter if public feed sharing becomes unacceptable.
 
 Store:
 
@@ -137,9 +137,9 @@ Store:
 
 Store Event Enrichment separately from synced Events. Participants are Family App data, not Apple Calendar edits.
 
-### Calendar credentials stay server-side
+### Calendar feed URL stays server-side
 
-Apple Calendar credentials or app-specific passwords must never reach the browser. Store them as encrypted server-side secrets. Calendar sync should run from server code or a scheduled cron endpoint.
+The publicly shared Apple Calendar feed URL must never reach the browser because anyone with the link can read the calendar feed. Store the feed URL server-side and run calendar sync from server code or a scheduled cron endpoint. Do not store Apple credentials or app-specific passwords for launch.
 
 ### Prefer boring consistency over clever realtime
 
@@ -157,7 +157,7 @@ Host the Next.js app on Vercel:
 
 - Production deployment for family use on phones and computers
 - Preview deployments for pull requests or branches
-- Environment variables for Supabase and Apple Calendar sync secrets
+- Environment variables for Supabase and the server-side Apple Calendar feed URL
 - Cron endpoint for periodic read-only calendar sync
 
 ### Supabase
@@ -205,7 +205,8 @@ Use Playwright for full happy paths:
 - Keep server actions thin; move business rules into application/domain functions.
 - Do not compute Point Balance in UI code.
 - Do not update Point Balance outside the ledger transaction.
-- Do not expose Apple Calendar credentials to client code.
+- Do not expose the Apple Calendar feed URL to client code.
+- Do not store Apple Calendar credentials for launch.
 - Do not edit Apple Calendar from Family App in v1.
 - Do not create child email/password accounts in v1.
 - Do not add notifications, AI, messaging, attachments, streaks, shopping lists, or consequences during v1 slices.
@@ -219,7 +220,7 @@ Checked on 2026-06-23:
 - Next.js docs: App Router installation and deployment options.
 - Vercel docs: cron jobs for Vercel Functions.
 - Supabase docs: Auth, Postgres database, and Row Level Security.
-- Apple Support: app-specific passwords for third-party iCloud Mail, Calendar, and Contacts access.
+- Apple Calendar public sharing / `webcal` feed behavior.
 - Drizzle docs: schema, migrations, and typed queries.
 - Tailwind CSS docs: Next.js setup.
 - shadcn/ui docs: Next.js setup.

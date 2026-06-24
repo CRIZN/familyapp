@@ -28,7 +28,8 @@ documents, update the tree and document index below in the same change.
 |       |-- 0004-single-points-system.md
 |       |-- 0005-nextjs-supabase-vercel-stack.md
 |       |-- 0006-point-ledger-is-authoritative.md
-|       `-- 0007-parent-view-command-surface.md
+|       |-- 0007-parent-view-command-surface.md
+|       `-- 0008-private-single-household-production-launch.md
 |-- drizzle/
 |   |-- 0000_reflective_dracula.sql
 |   |-- 0001_bright_preak.sql
@@ -154,6 +155,11 @@ with any denormalized balance updates.
 **[docs/adr/0007-parent-view-command-surface.md](docs/adr/0007-parent-view-command-surface.md)**:
 Parent View is the Parent-facing daily command surface; durable management flows
 live in focused Parent workflow pages.
+
+**[docs/adr/0008-private-single-household-production-launch.md](docs/adr/0008-private-single-household-production-launch.md)**:
+Family App launches as a private production app for one Household with
+first-run token setup, Parent email allowlisting, Child PIN sessions, and a
+fresh Supabase-backed V1 schema.
 
 ## Language
 
