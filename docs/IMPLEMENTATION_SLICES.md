@@ -253,7 +253,7 @@ These slices move the completed V1 demo into a private production app for one Ho
 - Production release includes V1 slices 1-11 wired to Supabase and server actions, with live Apple Calendar feed fetching the only base feature allowed to follow after release.
 - Apple Calendar uses a public `webcal`/ICS feed URL stored server-side as Calendar Connection data; the URL is treated as a secret and is not echoed back to the client after save.
 
-### P1. Full V1 Supabase Schema, Constraints, and RLS
+### P1. Full V1 Supabase Schema, Constraints, and RLS - Done
 
 **Blocked by**: V1 Slice 11
 
