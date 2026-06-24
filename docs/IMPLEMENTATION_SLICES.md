@@ -286,7 +286,7 @@ Add Supabase Auth integration for Parent magic links and a server-rendered app g
 - [x] No locked or denied state exposes Household names, Parent identities, Child profiles, or PIN existence.
 - [x] Tests cover the auth gate decisions without relying on client-only hiding.
 
-### P3. First-Run Household Setup and Local Demo Removal
+### P3. First-Run Household Setup and Local Demo Removal - Done
 
 **Blocked by**: P2
 
@@ -294,12 +294,12 @@ Add Supabase Auth integration for Parent magic links and a server-rendered app g
 Replace `localStorage` Household setup with a server-backed first-run setup. A verified Supabase user can create the one production Household only when no Household exists and the submitted `FIRST_RUN_SETUP_TOKEN` matches the server-only environment variable.
 
 **Acceptance criteria**:
-- [ ] First-run setup requires an authenticated Supabase user and valid `FIRST_RUN_SETUP_TOKEN`.
-- [ ] Setup creates the Household, first Parent row for the authenticated email, initial Children, and hashed Child PINs in Supabase.
-- [ ] Setup is disabled once a Household exists.
-- [ ] Parent View loads Household data from server-side Drizzle queries.
-- [ ] `localStorage` Household persistence and demo reset are removed from production UI code.
-- [ ] Tests cover successful first-run setup, invalid token rejection, and setup lockout after Household creation.
+- [x] First-run setup requires an authenticated Supabase user and valid `FIRST_RUN_SETUP_TOKEN`.
+- [x] Setup creates the Household, first Parent row for the authenticated email, initial Children, and hashed Child PINs in Supabase.
+- [x] Setup is disabled once a Household exists.
+- [x] Parent View loads Household data from server-side Drizzle queries.
+- [x] `localStorage` Household persistence and demo reset are removed from production UI code.
+- [x] Tests cover successful first-run setup, invalid token rejection, and setup lockout after Household creation.
 
 ### P4. Parent Allowlist and Household Management
 

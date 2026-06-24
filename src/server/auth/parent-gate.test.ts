@@ -9,6 +9,7 @@ describe("parent app gate", () => {
     await expect(
       resolveParentAppGate({
         getUser: async () => null,
+        hasAnyHousehold: async () => true,
         isParentAllowlisted,
       }),
     ).resolves.toEqual({ status: "locked" });
@@ -26,6 +27,7 @@ describe("parent app gate", () => {
     await expect(
       resolveParentAppGate({
         getUser: async () => user,
+        hasAnyHousehold: async () => true,
         isParentAllowlisted,
       }),
     ).resolves.toEqual({
@@ -41,6 +43,7 @@ describe("parent app gate", () => {
     await expect(
       resolveParentAppGate({
         getUser: async () => ({ email: "visitor@example.com", id: "user-2" }),
+        hasAnyHousehold: async () => true,
         isParentAllowlisted: async () => false,
       }),
     ).resolves.toEqual({ status: "denied" });
@@ -50,11 +53,25 @@ describe("parent app gate", () => {
     await expect(
       resolveParentAppGate({
         getUser: async () => ({ email: "parent@example.com", id: "user-3" }),
+        hasAnyHousehold: async () => true,
         isParentAllowlisted: async () => {
           throw new Error("database unavailable");
         },
       }),
     ).resolves.toEqual({ status: "denied" });
   });
-});
 
+  it("allows authenticated first-run setup before any Household exists", async () => {
+    await expect(
+      resolveParentAppGate({
+        getUser: async () => ({ email: "First@Example.com", id: "user-4" }),
+        hasAnyHousehold: async () => false,
+        isParentAllowlisted: async () => false,
+      }),
+    ).resolves.toEqual({
+      email: "first@example.com",
+      status: "first_run",
+      userId: "user-4",
+    });
+  });
+});

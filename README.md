@@ -2,7 +2,7 @@
 
 Family App is a private household coordination app for one Household. It helps Parents see what is happening, what needs review, and what Children have earned, while giving Children a clear place to see today's work, submit progress, understand Points, and request Rewards.
 
-The current repo is a working V1 demo/prototype built as a responsive Next.js app. The domain behavior for the V1 slices is implemented and covered by Vitest tests. The UI currently stores demo Household state in browser `localStorage`; the Drizzle/Postgres schema and migrations exist as the intended production persistence foundation, but Supabase Auth, server actions, RLS, and live Apple Calendar integration are not wired yet.
+The current repo is moving from a V1 demo/prototype into a private production app. The domain behavior for the V1 slices is implemented and covered by Vitest tests. The Drizzle/Postgres schema, RLS migration, Supabase Auth gate, and server-backed first-run Household setup are wired; the remaining workflow mutations are being moved behind server-side authorization and transactional persistence slice by slice.
 
 ## Product Overview
 
@@ -24,8 +24,7 @@ V1 is intentionally motivating and transparent rather than punitive. Points are 
 
 ### Household Setup
 
-- Create a Household with at least one Parent and one Child.
-- Add Parent and Child profiles.
+- Create the production Household with the authenticated first Parent and at least one Child.
 - Create and update Child PINs.
 - Enter distinct Parent and Child views.
 
@@ -42,7 +41,6 @@ focused Parent workflow routes for durable management. It includes:
 - Focused workflows for Approvals, Chores, Goals, Rewards, Calendar, Points, Household, and Weekly Review.
 - Calendar workflow ownership of demo Apple Calendar configuration, read-only Event sync entry, Household Agenda, and Participant enrichment.
 - Chore, Goal, Reward, Point, Household, and Weekly Review management outside the Today screen.
-- Demo reset and Child View entry helpers.
 
 ### Child View
 
@@ -82,7 +80,7 @@ The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION
 - **UI**: Tailwind CSS, local UI primitives, lucide-react icons
 - **Domain tests**: Vitest
 - **Database schema and migrations**: Drizzle ORM / Drizzle Kit for Postgres
-- **Planned hosting and backend**: Vercel, Supabase Postgres, Supabase Auth
+- **Hosting and backend target**: Vercel, Supabase Postgres, Supabase Auth
 
 ## Repository Map
 
@@ -121,11 +119,11 @@ Then open `http://localhost:3000`.
 Useful routes:
 
 - `/` - landing page for the current app shell.
-- `/setup` - create demo Household state.
+- `/setup` - first-run production Household setup for the authenticated first Parent.
 - `/parent` - Parent View.
 - `/child` - Child View.
 
-Demo data is saved in browser `localStorage` under `familyapp.household.v1` and `familyapp.childSession.v1`. Use the Parent View reset action or clear browser storage to start over.
+Household setup writes to Postgres through Drizzle and requires `DATABASE_URL`, Supabase Auth configuration, and `FIRST_RUN_SETUP_TOKEN`.
 
 ## Development Commands
 
@@ -139,7 +137,7 @@ npm test            # Run Vitest once
 npm run test:watch  # Run Vitest in watch mode
 ```
 
-Drizzle is configured through `drizzle.config.ts` and reads `DATABASE_URL` when running Drizzle Kit commands.
+Drizzle is configured through `drizzle.config.ts` and the runtime database client reads `DATABASE_URL`.
 
 ## Engineering Notes
 
@@ -148,8 +146,8 @@ Drizzle is configured through `drizzle.config.ts` and reads `DATABASE_URL` when 
 - Review workflows use explicit statuses such as `pending`, `approved`, `needs_work`, `rejected`, `canceled`, and `fulfilled`.
 - Chores, Goals, and Rewards are archived instead of deleted so history remains explainable.
 - Calendar data is modeled as read-only synced Events plus separate Family App Event Enrichment.
-- Child PINs are scoped to the Household and should be hashed in production storage.
-- The current UI directly calls domain functions and persists locally; production work should move mutations behind server-side authorization and transactional persistence.
+- Child PINs are scoped to the Household and hashed in production storage.
+- Parent and Child workflow mutations still call domain functions in the client after initial server load; production work should move those mutations behind server-side authorization and transactional persistence.
 
 ## Important Docs
 

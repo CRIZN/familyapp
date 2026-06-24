@@ -27,7 +27,11 @@ import {
 } from "@/domain/chores";
 import type { GoalProgress, ProgressCheckInSummary } from "@/domain/goals";
 import { getChildGoalBoard, submitProgressCheckIn } from "@/domain/goals";
-import { getChildView, startChildSession } from "@/domain/household";
+import {
+  getChildView,
+  startChildSession,
+  type Household,
+} from "@/domain/household";
 import { getPointLedgerDisplay } from "@/domain/points";
 import type {
   ChildRewardCatalogItem,
@@ -48,28 +52,17 @@ import { Label } from "@/components/ui/label";
 import {
   clearChildSession,
   getChildSessionSnapshot,
-  getHouseholdSnapshot,
-  getHydratedSnapshot,
-  getServerHydratedSnapshot,
   getServerSnapshot,
-  saveHousehold,
   saveChildSession,
   subscribeChildSession,
-  subscribeHousehold,
-  subscribeHydration,
 } from "@/features/household/local-household-store";
 
-export function ChildViewPage() {
-  const hasLoaded = useSyncExternalStore(
-    subscribeHydration,
-    getHydratedSnapshot,
-    getServerHydratedSnapshot,
-  );
-  const household = useSyncExternalStore(
-    subscribeHousehold,
-    getHouseholdSnapshot,
-    getServerSnapshot,
-  );
+export function ChildViewPage({
+  initialHousehold,
+}: {
+  initialHousehold: Household | null;
+}) {
+  const [household, setHousehold] = useState<Household | null>(initialHousehold);
   const session = useSyncExternalStore(
     subscribeChildSession,
     getChildSessionSnapshot,
@@ -82,16 +75,6 @@ export function ChildViewPage() {
   >({});
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-
-  if (!hasLoaded) {
-    return (
-      <div className="mx-auto max-w-4xl px-4 py-10">
-        <div className="rounded-md border border-border bg-background p-6 shadow-panel">
-          <p className="text-sm text-muted-foreground">Loading Child View...</p>
-        </div>
-      </div>
-    );
-  }
 
   if (!household) {
     return (
@@ -528,7 +511,7 @@ export function ChildViewPage() {
         occurrenceDate: chore.dueDate,
         today: getTodayDateKey(),
       });
-      saveHousehold(updated);
+      setHousehold(updated);
       setMessage(`${chore.title} is waiting for Parent review.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not submit Chore.");
@@ -546,7 +529,7 @@ export function ChildViewPage() {
         childId: session.childId,
         goalId: goal.goalId,
       });
-      saveHousehold(updated);
+      setHousehold(updated);
       setMessage(`${goal.title} Progress Check-in is waiting for Parent review.`);
     } catch (caught) {
       setError(
@@ -581,7 +564,7 @@ export function ChildViewPage() {
         rewardId: reward.rewardId,
         points: Number(rewardContributionDrafts[reward.rewardId] ?? "0"),
       });
-      saveHousehold(updated);
+      setHousehold(updated);
       setRewardContributionDrafts({
         ...rewardContributionDrafts,
         [reward.rewardId]: "",
@@ -603,7 +586,7 @@ export function ChildViewPage() {
     setError(null);
     setMessage(null);
     try {
-      saveHousehold(
+      setHousehold(
         returnRewardContribution(household, contribution.contributionId),
       );
       setMessage(`${contribution.title} Points returned.`);
@@ -627,7 +610,7 @@ export function ChildViewPage() {
         childId: session.childId,
         rewardId: reward.rewardId,
       });
-      saveHousehold(updated);
+      setHousehold(updated);
       setMessage(`${reward.title} is waiting for Parent review.`);
     } catch (caught) {
       setError(
@@ -643,7 +626,7 @@ export function ChildViewPage() {
     setError(null);
     setMessage(null);
     try {
-      saveHousehold(cancelRewardRequest(household, request.requestId));
+      setHousehold(cancelRewardRequest(household, request.requestId));
       setMessage(`${request.title} request canceled.`);
     } catch (caught) {
       setError(

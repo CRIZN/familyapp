@@ -36,8 +36,22 @@ describe("parent workflow IA", () => {
       const routePath = item.href.replace("/parent/", "src/app/parent/");
       const source = readFileSync(`${routePath}/page.tsx`, "utf8");
 
-      expect(source).toContain(`<ParentViewPage workflow="${item.workflow}" />`);
+      expect(source).toContain(
+        `<ParentWorkflowRoute workflow="${item.workflow}" />`,
+      );
     }
+  });
+
+  it("loads Parent workflow Household data through the server route wrapper", () => {
+    const source = readFileSync(
+      "src/app/parent/parent-workflow-route.tsx",
+      "utf8",
+    );
+
+    expect(source).toContain("getCurrentParentHousehold");
+    expect(source).toContain(
+      "<ParentViewPage initialHousehold={household} workflow={workflow} />",
+    );
   });
 
   it("keeps Today agenda-first with management forms outside the Today branch", () => {

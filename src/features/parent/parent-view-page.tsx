@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, type ReactNode, useState, useSyncExternalStore } from "react";
+import { FormEvent, type ReactNode, useState } from "react";
 import {
   Archive,
   ArrowRight,
@@ -14,7 +14,6 @@ import {
   ListChecks,
   PauseCircle,
   Plus,
-  RotateCcw,
   ShieldCheck,
   SkipForward,
   Sparkles,
@@ -52,7 +51,7 @@ import {
   getChildGoalBoard,
   markProgressCheckInNeedsWork,
 } from "@/domain/goals";
-import { updateChildPin } from "@/domain/household";
+import { type Household, updateChildPin } from "@/domain/household";
 import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
 import {
   approveRewardRequest,
@@ -66,16 +65,6 @@ import {
 import { buttonVariants, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  clearHousehold,
-  getHouseholdSnapshot,
-  getHydratedSnapshot,
-  getServerHydratedSnapshot,
-  getServerSnapshot,
-  saveHousehold,
-  subscribeHousehold,
-  subscribeHydration,
-} from "@/features/household/local-household-store";
 
 export type ParentWorkflow =
   | "today"
@@ -114,20 +103,15 @@ type EventParticipantDraft = {
 };
 
 type ParentViewPageProps = {
+  initialHousehold: Household | null;
   workflow?: ParentWorkflow;
 };
 
-export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
-  const hasLoaded = useSyncExternalStore(
-    subscribeHydration,
-    getHydratedSnapshot,
-    getServerHydratedSnapshot,
-  );
-  const household = useSyncExternalStore(
-    subscribeHousehold,
-    getHouseholdSnapshot,
-    getServerSnapshot,
-  );
+export function ParentViewPage({
+  initialHousehold,
+  workflow = "today",
+}: ParentViewPageProps) {
+  const [household, setHousehold] = useState<Household | null>(initialHousehold);
   const [pinDrafts, setPinDrafts] = useState<Record<string, string>>({});
   const [choreTitle, setChoreTitle] = useState("");
   const [choreChildId, setChoreChildId] = useState("");
@@ -163,10 +147,6 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  if (!hasLoaded) {
-    return <ParentLoadingState />;
-  }
-
   if (!household) {
     return <ParentSetupState />;
   }
@@ -181,7 +161,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
         childId,
         pinDrafts[childId] ?? "",
       );
-      saveHousehold(updated);
+      setHousehold(updated);
       setPinDrafts({ ...pinDrafts, [childId]: "" });
       setMessage("Child PIN updated.");
     } catch (caught) {
@@ -213,7 +193,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
             ? null
             : { frequency: choreRoutine === "daily" ? "daily" : "weekly" },
       });
-      saveHousehold(updated);
+      setHousehold(updated);
       setChoreTitle("");
       setChorePointValue("1");
       setChoreDueDate(getTodayDateKey());
@@ -245,7 +225,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
       for (const rewardRequestId of rewardRequestIds) {
         updated = approveRewardRequest(updated, rewardRequestId);
       }
-      saveHousehold(updated);
+      setHousehold(updated);
       setSelectedApprovalIds([]);
       setMessage("Selected Approval Queue items approved.");
     }, "Could not approve selected items.");
@@ -261,7 +241,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
       for (const rewardRequestId of rewardRequestIds) {
         updated = rejectRewardRequest(updated, rewardRequestId);
       }
-      saveHousehold(updated);
+      setHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => !rewardRequestIds.includes(candidate)),
       );
@@ -278,7 +258,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
           : item.type === "progress_check_in"
             ? approveProgressCheckIns(household, [item.id])
             : approveRewardRequest(household, item.id);
-      saveHousehold(updated);
+      setHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== item.id),
       );
@@ -295,7 +275,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
           : item.type === "progress_check_in"
             ? markProgressCheckInNeedsWork(household, item.id)
             : rejectRewardRequest(household, item.id);
-      saveHousehold(updated);
+      setHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== item.id),
       );
@@ -310,7 +290,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   function skipOccurrence(chore: ChoreOccurrence) {
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         skipChoreOccurrence(household, {
           childId: chore.childId,
           choreId: chore.choreId,
@@ -328,7 +308,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     );
     if (!item || item.type !== "chore_submission") return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         skipChoreOccurrence(household, {
           childId: item.childId,
           choreId: item.choreId,
@@ -345,7 +325,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   function pauseExistingChore(choreId: string) {
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(pauseChore(household, choreId));
+      setHousehold(pauseChore(household, choreId));
       setMessage("Chore paused.");
     }, "Could not pause Chore.");
   }
@@ -353,7 +333,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   function archiveExistingChore(choreId: string) {
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(archiveChore(household, choreId));
+      setHousehold(archiveChore(household, choreId));
       setMessage("Chore archived.");
     }, "Could not archive Chore.");
   }
@@ -362,7 +342,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     event.preventDefault();
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         createGoal(household, {
           title: goalTitle,
           childId: goalChildId || household.children[0]?.id || "",
@@ -378,7 +358,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   function completeExistingGoal(goalId: string) {
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(completeGoal(household, goalId));
+      setHousehold(completeGoal(household, goalId));
       setMessage("Goal completed.");
     }, "Could not complete Goal.");
   }
@@ -386,7 +366,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   function archiveExistingGoal(goalId: string) {
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(archiveGoal(household, goalId));
+      setHousehold(archiveGoal(household, goalId));
       setMessage("Goal archived.");
     }, "Could not archive Goal.");
   }
@@ -395,7 +375,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     event.preventDefault();
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         awardBonusPoints(household, {
           childId: bonusChildId || household.children[0]?.id || "",
           points: Number(bonusPoints),
@@ -412,7 +392,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     event.preventDefault();
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         createPointAdjustment(household, {
           childId: adjustmentChildId || household.children[0]?.id || "",
           points: Number(adjustmentPoints),
@@ -429,7 +409,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     event.preventDefault();
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         createReward(household, {
           title: rewardTitle,
           pointCost: Number(rewardPointCost),
@@ -449,7 +429,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     const draft = rewardDrafts[rewardId];
     if (!existing) return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         updateReward(household, rewardId, {
           title: draft?.title ?? existing.title,
           pointCost: Number(draft?.pointCost ?? existing.pointCost),
@@ -468,7 +448,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   function archiveExistingReward(rewardId: string) {
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(archiveReward(household, rewardId));
+      setHousehold(archiveReward(household, rewardId));
       setMessage("Reward archived.");
     }, "Could not archive Reward.");
   }
@@ -476,7 +456,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
   function fulfillApprovedRewardRequest(requestId: string) {
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(fulfillRewardRequest(household, requestId));
+      setHousehold(fulfillRewardRequest(household, requestId));
       setMessage("Reward fulfilled.");
     }, "Could not fulfill Reward.");
   }
@@ -491,7 +471,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
         sourceUrl:
           calendarSourceUrl || household.calendarConnection?.sourceUrl || "",
       });
-      saveHousehold(updated);
+      setHousehold(updated);
       setCalendarName(updated.calendarConnection?.calendarName ?? "");
       setCalendarSourceUrl(updated.calendarConnection?.sourceUrl ?? "");
       setMessage("Apple Family Calendar connected.");
@@ -502,7 +482,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     event.preventDefault();
     if (!household) return;
     withParentAction(() => {
-      saveHousehold(
+      setHousehold(
         syncAppleCalendarEvents(household, [
           {
             appleEventId: createAppleEventId(
@@ -529,7 +509,7 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
     if (!household) return;
     withParentAction(() => {
       const draft = getEventParticipantDraft(event);
-      saveHousehold(
+      setHousehold(
         updateEventParticipants(household, {
           eventId: event.eventId,
           participantChildIds: draft.participantChildIds,
@@ -584,7 +564,6 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
       <ParentWorkflowHeader
         activeWorkflow={workflow}
         householdName={household.name}
-        onResetDemo={clearHousehold}
       />
       <StatusMessages error={error} message={message} />
 
@@ -826,11 +805,9 @@ export function ParentViewPage({ workflow = "today" }: ParentViewPageProps) {
 function ParentWorkflowHeader({
   activeWorkflow,
   householdName,
-  onResetDemo,
 }: {
   activeWorkflow: ParentWorkflow;
   householdName: string;
-  onResetDemo: () => void;
 }) {
   return (
     <div className="mb-6 space-y-4">
@@ -843,10 +820,6 @@ function ParentWorkflowHeader({
             {householdName}
           </h1>
         </div>
-        <Button type="button" variant="outline" onClick={onResetDemo}>
-          <RotateCcw aria-hidden="true" className="h-4 w-4" />
-          Reset demo state
-        </Button>
       </div>
       <nav
         aria-label="Parent workflows"
@@ -1294,7 +1267,7 @@ function ChildStatusSection({
   household,
   todayDateKey,
 }: {
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  household: Household;
   todayDateKey: string;
 }) {
   return (
@@ -1468,7 +1441,7 @@ function ChoreListSection({
   onArchive,
   onPause,
 }: {
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  household: Household;
   onArchive: (choreId: string) => void;
   onPause: (choreId: string) => void;
 }) {
@@ -1614,7 +1587,7 @@ function GoalListSection({
   onArchive,
   onComplete,
 }: {
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  household: Household;
   onArchive: (goalId: string) => void;
   onComplete: (goalId: string) => void;
 }) {
@@ -1745,7 +1718,7 @@ function RewardCatalogSection({
   onSave,
   rewardDrafts,
 }: {
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  household: Household;
   rewardDrafts: Record<string, { title: string; pointCost: string; type: string }>;
   onArchive: (rewardId: string) => void;
   onDraftChange: (
@@ -2211,7 +2184,7 @@ function PointAdjustmentForm({
 function PointLedgerSection({
   household,
 }: {
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  household: Household;
 }) {
   return (
     <Section
@@ -2260,7 +2233,7 @@ function HouseholdWorkflowSection({
   onSavePin,
   pinDrafts,
 }: {
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>;
+  household: Household;
   pinDrafts: Record<string, string>;
   onPinDraftChange: (childId: string, pin: string) => void;
   onSavePin: (childId: string) => void;
@@ -2517,16 +2490,6 @@ function WeeklyRewardPanel({
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function ParentLoadingState() {
-  return (
-    <div className="mx-auto max-w-4xl px-4 py-10">
-      <div className="rounded-md border border-border bg-background p-6 shadow-panel">
-        <p className="text-sm text-muted-foreground">Loading Parent View...</p>
-      </div>
     </div>
   );
 }
@@ -2807,7 +2770,7 @@ function createAppleEventId(title: string, date: string, time: string): string {
 }
 
 function getSelectedQueueItems(
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>,
+  household: Household,
   selectedApprovalIds: string[],
 ): ApprovalQueueItem[] {
   const selectedIds = new Set(selectedApprovalIds);
@@ -2860,7 +2823,7 @@ function QueueTypeBadge({ item }: { item: ApprovalQueueItem }) {
 }
 
 function getRewardRequestsByStatus(
-  household: NonNullable<ReturnType<typeof getHouseholdSnapshot>>,
+  household: Household,
   status: "approved" | "fulfilled",
 ) {
   return household.rewardRequests

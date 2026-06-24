@@ -1,14 +1,17 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { createDrizzleHouseholdRepository } from "@/server/household/repository";
 
 import { resolveParentAppGate, type ParentAppGate } from "./parent-gate";
 
 export async function getParentAppGate(): Promise<ParentAppGate> {
   let supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>;
+  let repository: ReturnType<typeof createDrizzleHouseholdRepository>;
 
   try {
     supabase = await createSupabaseServerClient();
+    repository = createDrizzleHouseholdRepository();
   } catch {
     return { status: "locked" };
   }
@@ -26,17 +29,8 @@ export async function getParentAppGate(): Promise<ParentAppGate> {
         id: data.user.id,
       };
     },
-    isParentAllowlisted: async () => {
-      const { data, error } = await supabase
-        .from("parents")
-        .select("id")
-        .limit(1);
-
-      if (error) {
-        return false;
-      }
-
-      return (data?.length ?? 0) > 0;
-    },
+    hasAnyHousehold: () => repository.hasAnyHousehold(),
+    isParentAllowlisted: async (email, userId) =>
+      (await repository.findHouseholdForParent(email, userId)) !== null,
   });
 }
