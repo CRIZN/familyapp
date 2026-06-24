@@ -7,6 +7,10 @@ import { getDatabase, type AppDatabase } from "@/server/db/client";
 import { children, households, parents } from "@/server/db/schema";
 
 export type HouseholdRepository = {
+  addAllowedParent: (
+    householdId: string,
+    input: { email: string; name: string },
+  ) => Promise<Household>;
   createFirstRunHousehold: (
     household: Household,
     firstParentAuthUserId: string,
@@ -16,12 +20,32 @@ export type HouseholdRepository = {
     authUserId: string,
   ) => Promise<Household | null>;
   hasAnyHousehold: () => Promise<boolean>;
+  updateChildPin: (
+    householdId: string,
+    childId: string,
+    input: { pinHash: string; pinSalt: string },
+  ) => Promise<Household>;
+  updateChildProfile: (
+    householdId: string,
+    childId: string,
+    input: { name: string },
+  ) => Promise<Household>;
 };
 
 export function createDrizzleHouseholdRepository(
   db: AppDatabase = getDatabase(),
 ): HouseholdRepository {
   return {
+    async addAllowedParent(householdId, input) {
+      await db.insert(parents).values({
+        email: input.email.trim().toLowerCase(),
+        householdId,
+        name: input.name.trim(),
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
     async createFirstRunHousehold(household, firstParentAuthUserId) {
       await db.transaction(async (tx) => {
         await tx.insert(households).values({
@@ -55,7 +79,8 @@ export function createDrizzleHouseholdRepository(
       });
     },
 
-    async findHouseholdForParent(email, authUserId) {
+    async findHouseholdForParent(email, _authUserId) {
+      void _authUserId;
       const normalizedEmail = email.trim().toLowerCase();
       const [parent] = await db
         .select({
@@ -65,7 +90,6 @@ export function createDrizzleHouseholdRepository(
         .where(
           and(
             eq(sql`lower(${parents.email})`, normalizedEmail),
-            eq(parents.authUserId, authUserId),
           ),
         )
         .limit(1);
@@ -81,7 +105,55 @@ export function createDrizzleHouseholdRepository(
       const existing = await db.select({ id: households.id }).from(households).limit(1);
       return existing.length > 0;
     },
+
+    async updateChildPin(householdId, childId, input) {
+      const updatedRows = await db
+        .update(children)
+        .set({
+          pinHash: input.pinHash,
+          pinSalt: input.pinSalt,
+          sessionVersion: sql`${children.sessionVersion} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(children.householdId, householdId), eq(children.id, childId)))
+        .returning({ id: children.id });
+
+      if (updatedRows.length === 0) {
+        throw new Error("Child not found in this Household.");
+      }
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async updateChildProfile(householdId, childId, input) {
+      const updatedRows = await db
+        .update(children)
+        .set({
+          name: input.name.trim(),
+          updatedAt: new Date(),
+        })
+        .where(and(eq(children.householdId, householdId), eq(children.id, childId)))
+        .returning({ id: children.id });
+
+      if (updatedRows.length === 0) {
+        throw new Error("Child not found in this Household.");
+      }
+
+      return requireHouseholdById(db, householdId);
+    },
   };
+}
+
+async function requireHouseholdById(
+  db: AppDatabase,
+  householdId: string,
+): Promise<Household> {
+  const household = await getHouseholdById(db, householdId);
+  if (!household) {
+    throw new Error("Household not found.");
+  }
+
+  return household;
 }
 
 async function getHouseholdById(
@@ -118,8 +190,8 @@ async function getHouseholdById(
     children: childRows.map((child) => ({
       id: child.id,
       name: child.name,
-      pinHash: child.pinHash,
-      pinSalt: child.pinSalt,
+      pinHash: "",
+      pinSalt: "",
       pointBalance: child.pointBalance,
       sessionVersion: child.sessionVersion,
     })),

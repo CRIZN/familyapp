@@ -51,7 +51,7 @@ import {
   getChildGoalBoard,
   markProgressCheckInNeedsWork,
 } from "@/domain/goals";
-import { type Household, updateChildPin } from "@/domain/household";
+import type { Household } from "@/domain/household";
 import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
 import {
   approveRewardRequest,
@@ -65,6 +65,11 @@ import {
 import { buttonVariants, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  addAllowedParentAction,
+  updateChildPinAction,
+  updateChildProfileAction,
+} from "@/server/household/actions";
 
 export type ParentWorkflow =
   | "today"
@@ -113,6 +118,11 @@ export function ParentViewPage({
 }: ParentViewPageProps) {
   const [household, setHousehold] = useState<Household | null>(initialHousehold);
   const [pinDrafts, setPinDrafts] = useState<Record<string, string>>({});
+  const [parentName, setParentName] = useState("");
+  const [parentEmail, setParentEmail] = useState("");
+  const [childNameDrafts, setChildNameDrafts] = useState<Record<string, string>>(
+    {},
+  );
   const [choreTitle, setChoreTitle] = useState("");
   const [choreChildId, setChoreChildId] = useState("");
   const [chorePointValue, setChorePointValue] = useState("1");
@@ -155,17 +165,51 @@ export function ParentViewPage({
     if (!household) return;
     setError(null);
     setMessage(null);
-    try {
-      const updated = await updateChildPin(
-        household,
-        childId,
-        pinDrafts[childId] ?? "",
-      );
-      setHousehold(updated);
+    const result = await updateChildPinAction({
+      childId,
+      pin: pinDrafts[childId] ?? "",
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
       setPinDrafts({ ...pinDrafts, [childId]: "" });
-      setMessage("Child PIN updated.");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not update PIN.");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
+  }
+
+  async function inviteParent(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    setMessage(null);
+    const result = await addAllowedParentAction({
+      email: parentEmail,
+      name: parentName,
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setParentEmail("");
+      setParentName("");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
+  }
+
+  async function saveChildProfile(childId: string) {
+    setError(null);
+    setMessage(null);
+    const child = household?.children.find((candidate) => candidate.id === childId);
+    const result = await updateChildProfileAction({
+      childId,
+      name: childNameDrafts[childId] ?? child?.name ?? "",
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setChildNameDrafts({ ...childNameDrafts, [childId]: "" });
+      setMessage(result.message);
+    } else {
+      setError(result.message);
     }
   }
 
@@ -787,10 +831,20 @@ export function ParentViewPage({
       {workflow === "household" ? (
         <HouseholdWorkflowSection
           household={household}
+          childNameDrafts={childNameDrafts}
+          parentEmail={parentEmail}
+          parentName={parentName}
           pinDrafts={pinDrafts}
+          onChildNameDraftChange={(childId, name) =>
+            setChildNameDrafts({ ...childNameDrafts, [childId]: name })
+          }
+          onInviteParent={inviteParent}
+          onParentEmailChange={setParentEmail}
+          onParentNameChange={setParentName}
           onPinDraftChange={(childId, pin) =>
             setPinDrafts({ ...pinDrafts, [childId]: pin })
           }
+          onSaveChildProfile={saveChildProfile}
           onSavePin={savePin}
         />
       ) : null}
@@ -2228,14 +2282,30 @@ function PointLedgerSection({
 }
 
 function HouseholdWorkflowSection({
+  childNameDrafts,
   household,
+  onChildNameDraftChange,
+  onInviteParent,
+  onParentEmailChange,
+  onParentNameChange,
   onPinDraftChange,
+  onSaveChildProfile,
   onSavePin,
+  parentEmail,
+  parentName,
   pinDrafts,
 }: {
+  childNameDrafts: Record<string, string>;
   household: Household;
+  parentEmail: string;
+  parentName: string;
   pinDrafts: Record<string, string>;
+  onChildNameDraftChange: (childId: string, name: string) => void;
+  onInviteParent: (event: FormEvent<HTMLFormElement>) => void;
+  onParentEmailChange: (email: string) => void;
+  onParentNameChange: (name: string) => void;
   onPinDraftChange: (childId: string, pin: string) => void;
+  onSaveChildProfile: (childId: string) => void;
   onSavePin: (childId: string) => void;
 }) {
   return (
@@ -2252,6 +2322,29 @@ function HouseholdWorkflowSection({
             </div>
           ))}
         </div>
+        <form className="mt-4 space-y-3" onSubmit={onInviteParent}>
+          <Field label="Parent name" id="new-parent-name">
+            <Input
+              className="mt-2"
+              id="new-parent-name"
+              value={parentName}
+              onChange={(event) => onParentNameChange(event.target.value)}
+            />
+          </Field>
+          <Field label="Parent email" id="new-parent-email">
+            <Input
+              className="mt-2"
+              id="new-parent-email"
+              type="email"
+              value={parentEmail}
+              onChange={(event) => onParentEmailChange(event.target.value)}
+            />
+          </Field>
+          <Button type="submit" variant="parent">
+            <Plus aria-hidden="true" className="h-4 w-4" />
+            Add Parent
+          </Button>
+        </form>
       </Section>
       <div className="lg:col-span-2">
         <Section
@@ -2261,36 +2354,54 @@ function HouseholdWorkflowSection({
           <div className="space-y-4">
             {household.children.map((child) => (
               <div
-                className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[1fr_12rem_auto]"
+                className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[1fr_auto]"
                 key={child.id}
               >
-                <div>
-                  <p className="font-medium">{child.name}</p>
+                <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
+                  <Field label="Child name" id={`${child.id}-name`}>
+                    <Input
+                      className="mt-2"
+                      id={`${child.id}-name`}
+                      value={childNameDrafts[child.id] ?? child.name}
+                      onChange={(event) =>
+                        onChildNameDraftChange(child.id, event.target.value)
+                      }
+                    />
+                  </Field>
+                  <Field label="New Child PIN" id={`${child.id}-pin`}>
+                    <Input
+                      className="mt-2"
+                      id={`${child.id}-pin`}
+                      inputMode="numeric"
+                      maxLength={8}
+                      value={pinDrafts[child.id] ?? ""}
+                      onChange={(event) =>
+                        onPinDraftChange(child.id, event.target.value)
+                      }
+                    />
+                  </Field>
                   <p className="text-sm text-muted-foreground">
                     {child.pointBalance} Points
+                    {child.sessionVersion ? ` - Session v${child.sessionVersion}` : ""}
                   </p>
                 </div>
-                <Field label="New Child PIN" id={`${child.id}-pin`}>
-                  <Input
-                    className="mt-2"
-                    id={`${child.id}-pin`}
-                    inputMode="numeric"
-                    maxLength={8}
-                    value={pinDrafts[child.id] ?? ""}
-                    onChange={(event) =>
-                      onPinDraftChange(child.id, event.target.value)
-                    }
-                  />
-                </Field>
-                <Button
-                  className="self-end"
-                  type="button"
-                  variant="parent"
-                  onClick={() => onSavePin(child.id)}
-                >
-                  <KeyRound aria-hidden="true" className="h-4 w-4" />
-                  Update PIN
-                </Button>
+                <div className="flex flex-wrap items-end gap-2 self-end">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => onSaveChildProfile(child.id)}
+                  >
+                    Save Profile
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="parent"
+                    onClick={() => onSavePin(child.id)}
+                  >
+                    <KeyRound aria-hidden="true" className="h-4 w-4" />
+                    Update PIN
+                  </Button>
+                </div>
               </div>
             ))}
           </div>

@@ -105,9 +105,18 @@ function createRepository(
   overrides: Partial<HouseholdRepository>,
 ): HouseholdRepository {
   return {
+    addAllowedParent: async () => {
+      throw new Error("not used");
+    },
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
+    updateChildPin: async () => {
+      throw new Error("not used");
+    },
+    updateChildProfile: async () => {
+      throw new Error("not used");
+    },
     ...overrides,
   };
 }
