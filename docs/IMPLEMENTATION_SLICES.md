@@ -301,7 +301,7 @@ Replace `localStorage` Household setup with a server-backed first-run setup. A v
 - [x] `localStorage` Household persistence and demo reset are removed from production UI code.
 - [x] Tests cover successful first-run setup, invalid token rejection, and setup lockout after Household creation.
 
-### P4. Parent Allowlist and Household Management
+### P4. Parent Allowlist and Household Management - Done
 
 **Blocked by**: P3
 
@@ -309,12 +309,12 @@ Replace `localStorage` Household setup with a server-backed first-run setup. A v
 Wire the Household workflow to server actions for Parent allowlist management, Child profile management, and Child PIN updates. Every Parent request must verify the authenticated Supabase email maps to an allowed Parent row.
 
 **Acceptance criteria**:
-- [ ] Parent rows can be created for exact invited email addresses.
-- [ ] Parent access is granted only when the authenticated Supabase email matches an allowed Parent row.
-- [ ] Child profile updates and PIN changes persist through Drizzle.
-- [ ] Child PINs are hashed server-side and never returned to the client.
-- [ ] Child PIN changes update the Child session invalidation field.
-- [ ] Tests cover allowlisted access, unallowlisted denial, and PIN update invalidation data.
+- [x] Parent rows can be created for exact invited email addresses.
+- [x] Parent access is granted only when the authenticated Supabase email matches an allowed Parent row.
+- [x] Child profile updates and PIN changes persist through Drizzle.
+- [x] Child PINs are hashed server-side and never returned to the client.
+- [x] Child PIN changes update the Child session invalidation field.
+- [x] Tests cover allowlisted access, unallowlisted denial, and PIN update invalidation data.
 
 ### P5. Child PIN Sessions and Child App Gate
 

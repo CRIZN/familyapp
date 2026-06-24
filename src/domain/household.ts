@@ -177,14 +177,12 @@ export async function updateChildPin(
   childId: string,
   pin: string,
 ): Promise<Household> {
-  assertValidPin(pin);
   const child = household.children.find((candidate) => candidate.id === childId);
   if (!child) {
     throw new Error("Child not found in this Household.");
   }
 
-  const pinSalt = createPinSalt();
-  const pinHash = await hashChildPin(pin, pinSalt);
+  const { pinHash, pinSalt } = await createChildPinCredentials(pin);
 
   return {
     ...household,
@@ -198,6 +196,19 @@ export async function updateChildPin(
         : candidate,
     ),
     updatedAt: new Date().toISOString(),
+  };
+}
+
+export async function createChildPinCredentials(pin: string): Promise<{
+  pinHash: string;
+  pinSalt: string;
+}> {
+  assertValidPin(pin);
+  const pinSalt = createPinSalt();
+
+  return {
+    pinHash: await hashChildPin(pin, pinSalt),
+    pinSalt,
   };
 }
 
