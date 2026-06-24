@@ -13,8 +13,11 @@ import {
 import {
   approveChoreSubmissionsForParent,
   approveProgressCheckInsForParent,
+  approveRewardRequestForParent,
+  fulfillRewardRequestForParent,
   markChoreSubmissionNeedsWorkForParent,
   markProgressCheckInNeedsWorkForParent,
+  rejectRewardRequestForParent,
   skipChoreOccurrenceForParent,
   type HouseholdApprovalResult,
 } from "./approvals";
@@ -236,6 +239,30 @@ export async function skipChoreOccurrenceAction(input: {
   );
 }
 
+export async function approveRewardRequestAction(input: {
+  requestId: string;
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    approveRewardRequestForParent(dependencies, input),
+  );
+}
+
+export async function rejectRewardRequestAction(input: {
+  requestId: string;
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    rejectRewardRequestForParent(dependencies, input),
+  );
+}
+
+export async function fulfillRewardRequestAction(input: {
+  requestId: string;
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    fulfillRewardRequestForParent(dependencies, input),
+  );
+}
+
 async function runHouseholdManagementAction(
   action: (
     dependencies: Parameters<typeof addAllowedParent>[0],
@@ -304,6 +331,7 @@ async function runHouseholdApprovalAction(
       revalidatePath("/parent/approvals");
       revalidatePath("/parent/goals");
       revalidatePath("/parent/points");
+      revalidatePath("/parent/rewards");
       revalidatePath("/child");
     }
 

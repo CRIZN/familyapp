@@ -138,6 +138,15 @@ function createRepository(
     saveProgressCheckInNeedsWork: async () => {
       throw new Error("not used");
     },
+    saveRewardRequestApproval: async () => {
+      throw new Error("not used");
+    },
+    saveRewardRequestFulfillment: async () => {
+      throw new Error("not used");
+    },
+    saveRewardRequestRejection: async () => {
+      throw new Error("not used");
+    },
     saveReward: async () => {
       throw new Error("not used");
     },

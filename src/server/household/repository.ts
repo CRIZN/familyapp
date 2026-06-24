@@ -23,7 +23,12 @@ import {
   skippedChoreOccurrences,
 } from "@/server/db/schema";
 
-import type { ChoreApprovalPersistence } from "./approvals";
+import type {
+  ChoreApprovalPersistence,
+  RewardRequestApprovalPersistence,
+  RewardRequestFulfillmentPersistence,
+  RewardRequestRejectionPersistence,
+} from "./approvals";
 
 type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
 
@@ -78,6 +83,18 @@ export type HouseholdRepository = {
   saveProgressCheckInNeedsWork: (
     householdId: string,
     input: { checkInId: string; reviewedAt: string },
+  ) => Promise<Household>;
+  saveRewardRequestApproval: (
+    householdId: string,
+    input: RewardRequestApprovalPersistence,
+  ) => Promise<Household>;
+  saveRewardRequestFulfillment: (
+    householdId: string,
+    input: RewardRequestFulfillmentPersistence,
+  ) => Promise<Household>;
+  saveRewardRequestRejection: (
+    householdId: string,
+    input: RewardRequestRejectionPersistence,
   ) => Promise<Household>;
   saveReward: (
     householdId: string,
@@ -427,6 +444,127 @@ export function createDrizzleHouseholdRepository(
       if (updatedRows.length === 0) {
         throw new Error("Only pending Progress Check-ins can be marked Needs Work.");
       }
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveRewardRequestApproval(householdId, input) {
+      await db.transaction(async (tx) => {
+        const updatedRows = await tx
+          .update(rewardRequests)
+          .set({
+            reviewedAt: input.rewardRequest.reviewedAt
+              ? new Date(input.rewardRequest.reviewedAt)
+              : new Date(),
+            status: "approved",
+          })
+          .where(
+            and(
+              eq(rewardRequests.householdId, householdId),
+              eq(rewardRequests.id, input.rewardRequest.id),
+              eq(rewardRequests.status, "pending"),
+            ),
+          )
+          .returning({ id: rewardRequests.id });
+
+        if (updatedRows.length === 0) {
+          throw new Error("Only pending Reward Requests can be approved.");
+        }
+
+        await applyPointEffects(tx, householdId, {
+          balanceChanges: [],
+          childWins: [],
+          pointLedger: input.pointLedger,
+        });
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveRewardRequestFulfillment(householdId, input) {
+      await db.transaction(async (tx) => {
+        const updatedRows = await tx
+          .update(rewardRequests)
+          .set({
+            fulfilledAt: input.rewardRequest.fulfilledAt
+              ? new Date(input.rewardRequest.fulfilledAt)
+              : new Date(),
+            status: "fulfilled",
+          })
+          .where(
+            and(
+              eq(rewardRequests.householdId, householdId),
+              eq(rewardRequests.id, input.rewardRequest.id),
+              eq(rewardRequests.status, "approved"),
+            ),
+          )
+          .returning({ id: rewardRequests.id });
+
+        if (updatedRows.length === 0) {
+          throw new Error("Only approved Reward Requests can be fulfilled.");
+        }
+
+        await applyPointEffects(tx, householdId, {
+          balanceChanges: [],
+          childWins: input.childWins,
+          pointLedger: [],
+        });
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveRewardRequestRejection(householdId, input) {
+      await db.transaction(async (tx) => {
+        const updatedRows = await tx
+          .update(rewardRequests)
+          .set({
+            reviewedAt: input.rewardRequest.reviewedAt
+              ? new Date(input.rewardRequest.reviewedAt)
+              : new Date(),
+            status: "rejected",
+          })
+          .where(
+            and(
+              eq(rewardRequests.householdId, householdId),
+              eq(rewardRequests.id, input.rewardRequest.id),
+              eq(rewardRequests.status, "pending"),
+            ),
+          )
+          .returning({ id: rewardRequests.id });
+
+        if (updatedRows.length === 0) {
+          throw new Error("Only pending Reward Requests can be rejected.");
+        }
+
+        for (const contribution of input.rewardContributions) {
+          const contributionRows = await tx
+            .update(rewardContributions)
+            .set({
+              status: "returned",
+              updatedAt: new Date(contribution.updatedAt),
+            })
+            .where(
+              and(
+                eq(rewardContributions.householdId, householdId),
+                eq(rewardContributions.id, contribution.id),
+                eq(rewardContributions.requestId, input.rewardRequest.id),
+                eq(rewardContributions.status, "requested"),
+              ),
+            )
+            .returning({ id: rewardContributions.id });
+
+          if (contributionRows.length === 0) {
+            throw new Error("Only requested Reward Contributions can be returned.");
+          }
+        }
+
+        await applyPointEffects(tx, householdId, {
+          balanceChanges: input.balanceChanges,
+          childWins: [],
+          pointLedger: input.pointLedger,
+        });
+      });
 
       return requireHouseholdById(db, householdId);
     },
