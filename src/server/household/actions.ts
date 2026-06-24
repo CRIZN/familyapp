@@ -11,6 +11,12 @@ import {
   type FirstRunSetupResult,
 } from "./first-run";
 import {
+  approveChoreSubmissionsForParent,
+  markChoreSubmissionNeedsWorkForParent,
+  skipChoreOccurrenceForParent,
+  type HouseholdApprovalResult,
+} from "./approvals";
+import {
   addAllowedParent,
   archiveChoreForParent,
   createChoreForParent,
@@ -125,6 +131,32 @@ export async function updateChildPinAction(input: {
   );
 }
 
+export async function approveChoreSubmissionsAction(input: {
+  submissionIds: string[];
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    approveChoreSubmissionsForParent(dependencies, input),
+  );
+}
+
+export async function markChoreSubmissionNeedsWorkAction(input: {
+  submissionId: string;
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    markChoreSubmissionNeedsWorkForParent(dependencies, input),
+  );
+}
+
+export async function skipChoreOccurrenceAction(input: {
+  childId: string;
+  choreId: string;
+  occurrenceDate: string;
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    skipChoreOccurrenceForParent(dependencies, input),
+  );
+}
+
 async function runHouseholdManagementAction(
   action: (
     dependencies: Parameters<typeof addAllowedParent>[0],
@@ -158,6 +190,45 @@ async function runHouseholdManagementAction(
   } catch (caught) {
     return {
       message: caught instanceof Error ? caught.message : "Household update failed.",
+      status: "error",
+    };
+  }
+}
+
+async function runHouseholdApprovalAction(
+  action: (
+    dependencies: Parameters<typeof approveChoreSubmissionsForParent>[0],
+  ) => Promise<HouseholdApprovalResult>,
+): Promise<HouseholdApprovalResult> {
+  try {
+    const result = await action({
+      getAuthenticatedParent: async () => {
+        const supabase = await createSupabaseServerClient();
+        const { data, error } = await supabase.auth.getUser();
+
+        if (error || !data.user) {
+          return null;
+        }
+
+        return {
+          email: data.user.email,
+          userId: data.user.id,
+        };
+      },
+      repository: createDrizzleHouseholdRepository(),
+    });
+
+    if (result.status === "ok") {
+      revalidatePath("/parent");
+      revalidatePath("/parent/approvals");
+      revalidatePath("/parent/points");
+      revalidatePath("/child");
+    }
+
+    return result;
+  } catch (caught) {
+    return {
+      message: caught instanceof Error ? caught.message : "Approval update failed.",
       status: "error",
     };
   }

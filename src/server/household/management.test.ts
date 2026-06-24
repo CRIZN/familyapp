@@ -324,11 +324,14 @@ function createRepository(
 ): HouseholdRepository {
   return {
     addAllowedParent: async () => household,
+    approveChoreSubmissions: async () => household,
     createChore: async () => household,
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async (email) =>
       email === "first@example.com" ? household : null,
     hasAnyHousehold: async () => true,
+    markChoreSubmissionNeedsWork: async () => household,
+    skipChoreOccurrence: async () => household,
     updateChildPin: async () => household,
     updateChildProfile: async () => household,
     updateChoreStatus: async () => household,

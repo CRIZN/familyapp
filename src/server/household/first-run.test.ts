@@ -108,12 +108,21 @@ function createRepository(
     addAllowedParent: async () => {
       throw new Error("not used");
     },
+    approveChoreSubmissions: async () => {
+      throw new Error("not used");
+    },
     createChore: async () => {
       throw new Error("not used");
     },
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
+    markChoreSubmissionNeedsWork: async () => {
+      throw new Error("not used");
+    },
+    skipChoreOccurrence: async () => {
+      throw new Error("not used");
+    },
     updateChildPin: async () => {
       throw new Error("not used");
     },
