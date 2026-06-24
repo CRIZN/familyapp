@@ -149,6 +149,80 @@ Useful routes:
 
 The first Parent signs in with a Supabase magic link, then visits `/setup` and enters `FIRST_RUN_SETUP_TOKEN` to create the Household. After that, Parent access is controlled by the Parent allowlist stored in Postgres. Children sign in through `/child` with Parent-managed PINs.
 
+## Production Setup
+
+The intended production stack is Vercel for the Next.js app, Supabase Postgres for storage, and Supabase Auth for Parent magic-link sign-in. The current production migration is partly complete: P1-P7 are done, while P8-P16 are still moving the remaining V1 workflows behind server-side persistence and authorization. Use this runbook for the private production environment, and complete the remaining production slices before treating the app as fully launch-ready.
+
+1. **Create the production Supabase project.**
+   - Create a fresh Supabase project for production.
+   - Copy the project URL and anonymous public API key.
+   - Copy the production Postgres connection string for `POSTGRES_URL`.
+   - Enable the backup level you want before real household use.
+
+2. **Configure Supabase Auth redirects.**
+   - In Supabase Auth URL settings, set the site URL to the deployed app origin, such as `https://familyapp.example`.
+   - Add this redirect URL to the allowlist:
+
+```txt
+https://familyapp.example/auth/callback
+```
+
+3. **Generate production secrets.**
+   - Create a long, random `FIRST_RUN_SETUP_TOKEN`; this is entered once at `/setup`.
+   - Create a stable `CHILD_SESSION_SECRET` with at least 32 random bytes; rotating it signs out Child sessions.
+
+4. **Configure Vercel environment variables.**
+   Set these variables for the production deployment:
+
+```bash
+POSTGRES_URL="postgres://..."
+NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
+NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
+NEXT_PUBLIC_SITE_URL="https://familyapp.example"
+FIRST_RUN_SETUP_TOKEN="replace-with-a-long-random-setup-token"
+CHILD_SESSION_SECRET="replace-with-at-least-32-random-bytes"
+```
+
+5. **Apply database migrations to production.**
+   Production Vercel deploys run migrations automatically before `next build`
+   through `npm run vercel-build`. Vercel is forced to use that command by
+   `vercel.json`, and the migration step only runs when `VERCEL_ENV=production`.
+   Missing `POSTGRES_URL` fails the production deploy instead of shipping an app
+   pointed at an unmigrated database.
+
+   For a one-off repair or first production bootstrap, you can still run Drizzle
+   Kit manually against the production database from a trusted shell:
+
+```bash
+export POSTGRES_URL="postgres://..."
+npm run db:migrate
+```
+
+   After the migrations apply, verify the Supabase tables exist and Row Level Security is enabled.
+
+6. **Deploy the app.**
+   - Connect the repository to Vercel.
+   - Use the checked-in Vercel build command, `npm run vercel-build`.
+   - Deploy to production after the environment variables are present.
+
+7. **Run the first Household setup.**
+   - Visit the production app and request a Parent magic link.
+   - Open the magic link as the first Parent.
+   - Visit `/setup`, enter `FIRST_RUN_SETUP_TOKEN`, create the Household, create the initial Child profiles, and set Child PINs.
+
+8. **Verify production access controls.**
+   - Confirm the first Parent can open `/parent`.
+   - Add any additional Parent emails from `/parent/household`, then confirm each invited Parent can sign in with a magic link.
+   - Confirm an unallowlisted authenticated email sees only the private-app denial screen.
+   - Confirm a Child can sign in at `/child` with the configured PIN.
+   - Confirm incorrect Child PINs do not reveal Household or Child details.
+
+9. **Finish with a production smoke test.**
+   - Create a Chore as a Parent.
+   - Confirm the Chore appears for the assigned Child.
+   - Submit the Chore from the Child view.
+   - Check the Parent attention and management surfaces that are already backed by Supabase for the current production slice set.
+
 ## Environment Variables
 
 | Variable | Required | Used by | Notes |
