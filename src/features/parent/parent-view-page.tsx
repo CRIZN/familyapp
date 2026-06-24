@@ -43,10 +43,7 @@ import {
 import type { Household } from "@/domain/household";
 import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
 import {
-  approveRewardRequest,
-  fulfillRewardRequest,
   getChildRewardBoard,
-  rejectRewardRequest,
 } from "@/domain/rewards";
 import { buttonVariants, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +52,7 @@ import {
   addAllowedParentAction,
   approveChoreSubmissionsAction,
   approveProgressCheckInsAction,
+  approveRewardRequestAction,
   archiveChoreAction,
   archiveGoalAction,
   archiveRewardAction,
@@ -62,9 +60,11 @@ import {
   createGoalAction,
   createRewardAction,
   completeGoalAction,
+  fulfillRewardRequestAction,
   markChoreSubmissionNeedsWorkAction,
   markProgressCheckInNeedsWorkAction,
   pauseChoreAction,
+  rejectRewardRequestAction,
   skipChoreOccurrenceAction,
   updateRewardAction,
   updateChildPinAction,
@@ -268,6 +268,7 @@ export function ParentViewPage({
       const rewardRequestIds = selectedItems
         .filter((item) => item.type === "reward_request")
         .map((item) => item.id);
+      const completedApprovalIds: string[] = [];
       if (choreSubmissionIds.length > 0) {
         const result = await approveChoreSubmissionsAction({
           submissionIds: choreSubmissionIds,
@@ -277,19 +278,37 @@ export function ParentViewPage({
           return;
         }
         updated = result.household;
+        completedApprovalIds.push(...choreSubmissionIds);
       }
       if (progressCheckInIds.length > 0) {
         const result = await approveProgressCheckInsAction({
           checkInIds: progressCheckInIds,
         });
         if (result.status === "error") {
+          setHousehold(updated);
+          setSelectedApprovalIds((current) =>
+            current.filter((candidate) => !completedApprovalIds.includes(candidate)),
+          );
           setError(result.message);
           return;
         }
         updated = result.household;
+        completedApprovalIds.push(...progressCheckInIds);
       }
       for (const rewardRequestId of rewardRequestIds) {
-        updated = approveRewardRequest(updated, rewardRequestId);
+        const result = await approveRewardRequestAction({
+          requestId: rewardRequestId,
+        });
+        if (result.status === "error") {
+          setHousehold(updated);
+          setSelectedApprovalIds((current) =>
+            current.filter((candidate) => !completedApprovalIds.includes(candidate)),
+          );
+          setError(result.message);
+          return;
+        }
+        updated = result.household;
+        completedApprovalIds.push(rewardRequestId);
       }
       setHousehold(updated);
       setSelectedApprovalIds([]);
@@ -301,22 +320,45 @@ export function ParentViewPage({
     }
   }
 
-  function rejectSelectedRewardRequests() {
+  async function rejectSelectedRewardRequests() {
     if (!household || selectedApprovalIds.length === 0) return;
-    withParentAction(() => {
+    setError(null);
+    setMessage(null);
+    try {
       const rewardRequestIds = getSelectedQueueItems(household, selectedApprovalIds)
         .filter((item) => item.type === "reward_request")
         .map((item) => item.id);
+      const completedRewardRequestIds: string[] = [];
       let updated = household;
       for (const rewardRequestId of rewardRequestIds) {
-        updated = rejectRewardRequest(updated, rewardRequestId);
+        const result = await rejectRewardRequestAction({
+          requestId: rewardRequestId,
+        });
+        if (result.status === "error") {
+          setHousehold(updated);
+          setSelectedApprovalIds((current) =>
+            current.filter(
+              (candidate) => !completedRewardRequestIds.includes(candidate),
+            ),
+          );
+          setError(result.message);
+          return;
+        }
+        updated = result.household;
+        completedRewardRequestIds.push(rewardRequestId);
       }
       setHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => !rewardRequestIds.includes(candidate)),
       );
       setMessage("Selected Reward Requests rejected.");
-    }, "Could not reject selected Reward Requests.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not reject selected Reward Requests.",
+      );
+    }
   }
 
   async function approveQueueItem(item: ApprovalQueueItem) {
@@ -345,7 +387,14 @@ export function ParentViewPage({
           }
           updated = result.household;
         } else {
-          updated = approveRewardRequest(household, item.id);
+          const result = await approveRewardRequestAction({
+            requestId: item.id,
+          });
+          if (result.status === "error") {
+            setError(result.message);
+            return;
+          }
+          updated = result.household;
         }
       }
       setHousehold(updated);
@@ -384,7 +433,14 @@ export function ParentViewPage({
           }
           updated = result.household;
         } else {
-          updated = rejectRewardRequest(household, item.id);
+          const result = await rejectRewardRequestAction({
+            requestId: item.id,
+          });
+          if (result.status === "error") {
+            setError(result.message);
+            return;
+          }
+          updated = result.household;
         }
       }
       setHousehold(updated);
@@ -615,12 +671,21 @@ export function ParentViewPage({
     }
   }
 
-  function fulfillApprovedRewardRequest(requestId: string) {
+  async function fulfillApprovedRewardRequest(requestId: string) {
     if (!household) return;
-    withParentAction(() => {
-      setHousehold(fulfillRewardRequest(household, requestId));
-      setMessage("Reward fulfilled.");
-    }, "Could not fulfill Reward.");
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await fulfillRewardRequestAction({ requestId });
+      if (result.status === "ok") {
+        setHousehold(result.household);
+        setMessage(result.message);
+      } else {
+        setError(result.message);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not fulfill Reward.");
+    }
   }
 
   function onConfigureCalendar(event: FormEvent<HTMLFormElement>) {

@@ -8,6 +8,13 @@ import {
   type SkippedChoreOccurrence,
 } from "@/domain/chores";
 import {
+  approveRewardRequest,
+  fulfillRewardRequest,
+  rejectRewardRequest,
+  type RewardContribution,
+  type RewardRequest,
+} from "@/domain/rewards";
+import {
   approveProgressCheckIns,
   markProgressCheckInNeedsWork,
   type ProgressCheckIn,
@@ -24,6 +31,23 @@ export type ChoreApprovalPersistence = {
   balanceChanges: Array<{ childId: string; delta: number }>;
   childWins: ChildWin[];
   pointLedger: PointLedgerEntry[];
+};
+
+export type RewardRequestApprovalPersistence = {
+  pointLedger: PointLedgerEntry[];
+  rewardRequest: RewardRequest;
+};
+
+export type RewardRequestRejectionPersistence = {
+  balanceChanges: Array<{ childId: string; delta: number }>;
+  pointLedger: PointLedgerEntry[];
+  rewardContributions: RewardContribution[];
+  rewardRequest: RewardRequest;
+};
+
+export type RewardRequestFulfillmentPersistence = {
+  childWins: ChildWin[];
+  rewardRequest: RewardRequest;
 };
 
 export type HouseholdApprovalRepository = {
@@ -51,6 +75,18 @@ export type HouseholdApprovalRepository = {
   saveProgressCheckInNeedsWork: (
     householdId: string,
     input: { checkInId: string; reviewedAt: string },
+  ) => Promise<Household>;
+  saveRewardRequestApproval: (
+    householdId: string,
+    input: RewardRequestApprovalPersistence,
+  ) => Promise<Household>;
+  saveRewardRequestFulfillment: (
+    householdId: string,
+    input: RewardRequestFulfillmentPersistence,
+  ) => Promise<Household>;
+  saveRewardRequestRejection: (
+    householdId: string,
+    input: RewardRequestRejectionPersistence,
   ) => Promise<Household>;
   skipChoreOccurrence: (
     householdId: string,
@@ -214,6 +250,89 @@ export async function markProgressCheckInNeedsWorkForParent(
   }
 }
 
+export async function approveRewardRequestForParent(
+  dependencies: HouseholdApprovalDependencies,
+  input: { requestId: string },
+): Promise<HouseholdApprovalResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updated = approveRewardRequest(authorization.household, input.requestId);
+    const household = await dependencies.repository.saveRewardRequestApproval(
+      authorization.household.id,
+      getRewardRequestApprovalPersistence(
+        authorization.household,
+        updated,
+        input.requestId,
+      ),
+    );
+
+    return { household, message: "Reward Request approved.", status: "ok" };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error ? caught.message : "Could not approve Reward Request.",
+      status: "error",
+    };
+  }
+}
+
+export async function rejectRewardRequestForParent(
+  dependencies: HouseholdApprovalDependencies,
+  input: { requestId: string },
+): Promise<HouseholdApprovalResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updated = rejectRewardRequest(authorization.household, input.requestId);
+    const household = await dependencies.repository.saveRewardRequestRejection(
+      authorization.household.id,
+      getRewardRequestRejectionPersistence(
+        authorization.household,
+        updated,
+        input.requestId,
+      ),
+    );
+
+    return { household, message: "Reward Request rejected.", status: "ok" };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error ? caught.message : "Could not reject Reward Request.",
+      status: "error",
+    };
+  }
+}
+
+export async function fulfillRewardRequestForParent(
+  dependencies: HouseholdApprovalDependencies,
+  input: { requestId: string },
+): Promise<HouseholdApprovalResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updated = fulfillRewardRequest(authorization.household, input.requestId);
+    const household = await dependencies.repository.saveRewardRequestFulfillment(
+      authorization.household.id,
+      getRewardRequestFulfillmentPersistence(
+        authorization.household,
+        updated,
+        input.requestId,
+      ),
+    );
+
+    return { household, message: "Reward fulfilled.", status: "ok" };
+  } catch (caught) {
+    return {
+      message: caught instanceof Error ? caught.message : "Could not fulfill Reward.",
+      status: "error",
+    };
+  }
+}
+
 export async function skipChoreOccurrenceForParent(
   dependencies: HouseholdApprovalDependencies,
   input: { childId: string; choreId: string; occurrenceDate: string },
@@ -350,6 +469,79 @@ function getProgressCheckInApprovalPersistence(
       (checkIn) => requestedIds.has(checkIn.id) && checkIn.status === "approved",
     ),
   };
+}
+
+function getRewardRequestApprovalPersistence(
+  before: Household,
+  after: Household,
+  requestId: string,
+): RewardRequestApprovalPersistence {
+  const rewardRequest = after.rewardRequests.find(
+    (request) => request.id === requestId && request.status === "approved",
+  );
+  if (!rewardRequest) {
+    throw new Error("Could not approve Reward Request.");
+  }
+  const beforeLedgerIds = new Set(before.pointLedger.map((entry) => entry.id));
+
+  return {
+    pointLedger: after.pointLedger.filter((entry) => !beforeLedgerIds.has(entry.id)),
+    rewardRequest,
+  };
+}
+
+function getRewardRequestRejectionPersistence(
+  before: Household,
+  after: Household,
+  requestId: string,
+): RewardRequestRejectionPersistence {
+  const rewardRequest = after.rewardRequests.find(
+    (request) => request.id === requestId && request.status === "rejected",
+  );
+  if (!rewardRequest) {
+    throw new Error("Could not reject Reward Request.");
+  }
+  const beforeLedgerIds = new Set(before.pointLedger.map((entry) => entry.id));
+
+  return {
+    balanceChanges: getBalanceChanges(before, after),
+    pointLedger: after.pointLedger.filter((entry) => !beforeLedgerIds.has(entry.id)),
+    rewardContributions: after.rewardContributions.filter(
+      (contribution) =>
+        contribution.requestId === requestId && contribution.status === "returned",
+    ),
+    rewardRequest,
+  };
+}
+
+function getRewardRequestFulfillmentPersistence(
+  before: Household,
+  after: Household,
+  requestId: string,
+): RewardRequestFulfillmentPersistence {
+  const rewardRequest = after.rewardRequests.find(
+    (request) => request.id === requestId && request.status === "fulfilled",
+  );
+  if (!rewardRequest) {
+    throw new Error("Could not fulfill Reward.");
+  }
+  const beforeWinIds = new Set(before.childWins.map((win) => win.id));
+
+  return {
+    childWins: after.childWins.filter((win) => !beforeWinIds.has(win.id)),
+    rewardRequest,
+  };
+}
+
+function getBalanceChanges(
+  before: Household,
+  after: Household,
+): Array<{ childId: string; delta: number }> {
+  return after.children.flatMap((child) => {
+    const previous = before.children.find((candidate) => candidate.id === child.id);
+    const delta = child.pointBalance - (previous?.pointBalance ?? child.pointBalance);
+    return delta === 0 ? [] : [{ childId: child.id, delta }];
+  });
 }
 
 function normalizeEmail(email: string | null | undefined): string | null {

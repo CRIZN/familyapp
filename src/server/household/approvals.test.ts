@@ -7,15 +7,22 @@ import {
 } from "@/domain/chores";
 import { createGoal, submitProgressCheckIn } from "@/domain/goals";
 import { createHousehold, type Household } from "@/domain/household";
+import { contributeToReward, createReward, requestReward } from "@/domain/rewards";
 
 import {
   approveChoreSubmissionsForParent,
   approveProgressCheckInsForParent,
+  approveRewardRequestForParent,
+  fulfillRewardRequestForParent,
   markChoreSubmissionNeedsWorkForParent,
   markProgressCheckInNeedsWorkForParent,
+  rejectRewardRequestForParent,
   skipChoreOccurrenceForParent,
   type ChoreApprovalPersistence,
   type HouseholdApprovalRepository,
+  type RewardRequestApprovalPersistence,
+  type RewardRequestFulfillmentPersistence,
+  type RewardRequestRejectionPersistence,
 } from "./approvals";
 
 describe("Household approval persistence", () => {
@@ -297,6 +304,160 @@ describe("Household approval persistence", () => {
     expect(saveProgressCheckInApproval).not.toHaveBeenCalled();
   });
 
+  it("approves Reward Requests with an approval ledger event", async () => {
+    const household = await createHouseholdWithPendingRewardRequest();
+    const request = household.rewardRequests[0]!;
+    const saveRewardRequestApproval = vi.fn(
+      async (_householdId: string, input: RewardRequestApprovalPersistence) => ({
+        ...household,
+        pointLedger: [...household.pointLedger, ...input.pointLedger],
+        rewardRequests: household.rewardRequests.map((candidate) =>
+          candidate.id === request.id ? input.rewardRequest : candidate,
+        ),
+      }),
+    );
+
+    const result = await approveRewardRequestForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, { saveRewardRequestApproval }),
+      },
+      { requestId: request.id },
+    );
+
+    expect(result.status).toBe("ok");
+    expect(saveRewardRequestApproval).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        pointLedger: [
+          expect.objectContaining({
+            delta: 0,
+            sourceId: request.id,
+            sourceType: "reward_request_approval_spend",
+          }),
+        ],
+        rewardRequest: expect.objectContaining({
+          id: request.id,
+          status: "approved",
+        }),
+      }),
+    );
+  });
+
+  it("rejects Reward Requests by returning reserved Points and requested contributions", async () => {
+    const household = await createHouseholdWithPendingRewardRequest();
+    const request = household.rewardRequests[0]!;
+    const saveRewardRequestRejection = vi.fn(
+      async (_householdId: string, input: RewardRequestRejectionPersistence) => ({
+        ...household,
+        children: household.children.map((child) =>
+          child.id === input.balanceChanges[0]?.childId
+            ? {
+                ...child,
+                pointBalance: child.pointBalance + input.balanceChanges[0]!.delta,
+              }
+            : child,
+        ),
+        pointLedger: [...household.pointLedger, ...input.pointLedger],
+        rewardContributions: input.rewardContributions,
+        rewardRequests: household.rewardRequests.map((candidate) =>
+          candidate.id === request.id ? input.rewardRequest : candidate,
+        ),
+      }),
+    );
+
+    const result = await rejectRewardRequestForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, { saveRewardRequestRejection }),
+      },
+      { requestId: request.id },
+    );
+
+    expect(result.status).toBe("ok");
+    expect(saveRewardRequestRejection).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        balanceChanges: [{ childId: household.children[0]!.id, delta: 6 }],
+        pointLedger: [
+          expect.objectContaining({
+            delta: 6,
+            sourceId: request.id,
+            sourceType: "reward_request_return",
+          }),
+        ],
+        rewardContributions: [
+          expect.objectContaining({
+            requestId: request.id,
+            status: "returned",
+          }),
+        ],
+        rewardRequest: expect.objectContaining({
+          id: request.id,
+          status: "rejected",
+        }),
+      }),
+    );
+  });
+
+  it("fulfills approved Reward Requests with a separate Child Win", async () => {
+    const pending = await createHouseholdWithPendingRewardRequest();
+    const approved = {
+      ...pending,
+      rewardRequests: pending.rewardRequests.map((request) => ({
+        ...request,
+        reviewedAt: "2026-06-24T00:00:00.000Z",
+        status: "approved" as const,
+      })),
+    };
+    const request = approved.rewardRequests[0]!;
+    const saveRewardRequestFulfillment = vi.fn(
+      async (_householdId: string, input: RewardRequestFulfillmentPersistence) => ({
+        ...approved,
+        childWins: [...approved.childWins, ...input.childWins],
+        rewardRequests: approved.rewardRequests.map((candidate) =>
+          candidate.id === request.id ? input.rewardRequest : candidate,
+        ),
+      }),
+    );
+
+    const result = await fulfillRewardRequestForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(approved, { saveRewardRequestFulfillment }),
+      },
+      { requestId: request.id },
+    );
+
+    expect(result.status).toBe("ok");
+    expect(saveRewardRequestFulfillment).toHaveBeenCalledWith(
+      approved.id,
+      expect.objectContaining({
+        childWins: [
+          expect.objectContaining({
+            childId: approved.children[0]!.id,
+            sourceId: request.id,
+            sourceType: "reward",
+            title: "Choose dinner",
+          }),
+        ],
+        rewardRequest: expect.objectContaining({
+          id: request.id,
+          status: "fulfilled",
+        }),
+      }),
+    );
+  });
+
   it("persists skipped Chore occurrences without awarding Points", async () => {
     const household = await createHouseholdWithSubmittedChore();
     const chore = household.chores[0]!;
@@ -431,6 +592,37 @@ async function createHouseholdWithSubmittedProgress(): Promise<Household> {
   });
 }
 
+async function createHouseholdWithPendingRewardRequest(): Promise<Household> {
+  const household = await createHousehold({
+    children: [{ name: "Ada", pin: "1234" }],
+    householdName: "Clozcasa",
+    parents: [{ email: "first@example.com", name: "First" }],
+  });
+  const withBalance = {
+    ...household,
+    children: household.children.map((child) => ({
+      ...child,
+      pointBalance: 10,
+    })),
+  };
+  const withReward = createReward(withBalance, {
+    pointCost: 6,
+    title: "Choose dinner",
+    type: "experience",
+  });
+  const withContribution = contributeToReward(withReward, {
+    childId: withReward.children[0]!.id,
+    points: 2,
+    rewardId: withReward.rewards[0]!.id,
+  });
+
+  return requestReward(withContribution, {
+    childId: withContribution.children[0]!.id,
+    rewardId: withContribution.rewards[0]!.id,
+    requestedAt: "2026-06-23T12:00:00.000Z",
+  });
+}
+
 function createRepository(
   household: Household,
   overrides: Partial<HouseholdApprovalRepository> = {},
@@ -442,6 +634,9 @@ function createRepository(
     markChoreSubmissionNeedsWork: async () => household,
     saveProgressCheckInApproval: async () => household,
     saveProgressCheckInNeedsWork: async () => household,
+    saveRewardRequestApproval: async () => household,
+    saveRewardRequestFulfillment: async () => household,
+    saveRewardRequestRejection: async () => household,
     skipChoreOccurrence: async () => household,
     ...overrides,
   };

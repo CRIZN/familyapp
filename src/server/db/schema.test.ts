@@ -20,6 +20,21 @@ const migration = readFileSync(
   join(process.cwd(), "drizzle/0004_p1_full_v1_schema_rls.sql"),
   "utf8",
 );
+const p11Migration = readFileSync(
+  join(process.cwd(), "drizzle/0005_p11_reward_approval_ledger.sql"),
+  "utf8",
+);
+const migrationJournal = JSON.parse(
+  readFileSync(join(process.cwd(), "drizzle/meta/_journal.json"), "utf8"),
+) as { entries: Array<{ tag: string }> };
+const p11Snapshot = JSON.parse(
+  readFileSync(join(process.cwd(), "drizzle/meta/0005_snapshot.json"), "utf8"),
+) as {
+  tables: Record<
+    string,
+    { checkConstraints?: Record<string, { value: string }> }
+  >;
+};
 
 const householdScopedTables = [
   "calendar_connections",
@@ -85,6 +100,16 @@ describe("production database schema", () => {
       `CREATE TYPE "public"."point_ledger_source_type" AS ENUM`,
     );
     expect(migration).toContain("reward_request_approval_spend");
+    expect(p11Migration).toContain(
+      `"source_type" = 'reward_request_approval_spend'`,
+    );
+    expect(migrationJournal.entries).toContainEqual(
+      expect.objectContaining({ tag: "0005_p11_reward_approval_ledger" }),
+    );
+    expect(
+      p11Snapshot.tables["public.point_ledger"]?.checkConstraints
+        ?.point_ledger_delta_non_zero?.value,
+    ).toContain("reward_request_approval_spend");
     expect(migration).toContain(
       `ALTER TABLE "point_ledger" ALTER COLUMN "source_type" SET DATA TYPE "public"."point_ledger_source_type"`,
     );

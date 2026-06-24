@@ -36,6 +36,13 @@
       "when": 1782268932845,
       "tag": "0004_p1_full_v1_schema_rls",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1782322140000,
+      "tag": "0005_p11_reward_approval_ledger",
+      "breakpoints": true
     }
   ]
 }

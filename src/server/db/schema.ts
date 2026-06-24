@@ -593,7 +593,10 @@ export const pointLedger = pgTable(
       columns: [table.householdId, table.childId],
       foreignColumns: [children.householdId, children.id],
     }),
-    deltaNonZero: check("point_ledger_delta_non_zero", sql`${table.delta} <> 0`),
+    deltaNonZero: check(
+      "point_ledger_delta_non_zero",
+      sql`${table.delta} <> 0 OR ${table.sourceType} = 'reward_request_approval_spend'`,
+    ),
     descriptionNotBlank: check(
       "point_ledger_description_not_blank",
       sql`length(trim(${table.description})) > 0`,

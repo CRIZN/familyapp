@@ -405,7 +405,7 @@ Wire Reward Catalog management plus Child Reward Contributions, contribution ret
 - [x] Cancellation returns Reserved Points.
 - [x] Tests cover Reward Catalog persistence, contributions, returns, reservations, cancellation, and ledger entries.
 
-### P11. Reward Approval and Fulfillment Persistence
+### P11. Reward Approval and Fulfillment Persistence - Done
 
 **Blocked by**: P10
 
@@ -413,12 +413,12 @@ Wire Reward Catalog management plus Child Reward Contributions, contribution ret
 Wire Reward Request review and fulfillment through the Approval Queue and Rewards workflow.
 
 **Acceptance criteria**:
-- [ ] Approval Queue visually distinguishes Reward Requests.
-- [ ] Parent approval spends Reserved Points and creates ledger entries atomically.
-- [ ] Rejection returns Reserved Points.
-- [ ] Fulfillment is tracked separately after approval.
-- [ ] Rewards workflow shows unfulfilled Rewards and fulfillment history from Supabase.
-- [ ] Tests cover approval, rejection, fulfillment, balance changes, and ledger entries.
+- [x] Approval Queue visually distinguishes Reward Requests.
+- [x] Parent approval spends Reserved Points and creates ledger entries atomically.
+- [x] Rejection returns Reserved Points.
+- [x] Fulfillment is tracked separately after approval.
+- [x] Rewards workflow shows unfulfilled Rewards and fulfillment history from Supabase.
+- [x] Tests cover approval, rejection, fulfillment, balance changes, and ledger entries.
 
 ### P12. Bonus Points, Point Adjustments, Ledger, and Wins Persistence
 
