@@ -162,6 +162,11 @@ describe("Parent Briefing", () => {
       "handle-overdue-chores",
       "fulfill-rewards",
     ]);
+    expect(briefing.suggestedActions.map((action) => action.href)).toEqual([
+      "/parent/approvals",
+      "/parent/chores",
+      "/parent/rewards",
+    ]);
   });
 
   it("returns an empty Briefing when nothing needs attention", async () => {

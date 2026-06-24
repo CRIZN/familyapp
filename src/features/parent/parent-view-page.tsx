@@ -47,6 +47,7 @@ import {
 import { buttonVariants, Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getAppDateKey } from "@/lib/date-key";
 import {
   addAllowedParentAction,
   approveChoreSubmissionsAction,
@@ -1150,7 +1151,7 @@ function NeedsAttentionSection({
             briefing.suggestedActions.map((action) => (
               <Link
                 className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm transition-colors hover:bg-muted"
-                href={toWorkflowHref(action.href)}
+                href={action.href}
                 key={action.id}
               >
                 <span>
@@ -3034,7 +3035,7 @@ function BriefingLine({ label, value }: { label: string; value: number }) {
 }
 
 function getTodayDateKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getAppDateKey();
 }
 
 function getTomorrowDateKey(today: string): string {
@@ -3166,13 +3167,6 @@ export function getChildStatusWorkflowLink(input: {
     return { href: "/parent/chores", label: "Open Chores" };
   }
   return { href: "/parent/points", label: "Open Points" };
-}
-
-function toWorkflowHref(anchorHref: string): string {
-  if (anchorHref === "#approval-queue") return "/parent/approvals";
-  if (anchorHref === "#due-chores") return "/parent/chores";
-  if (anchorHref === "#reward-fulfillment") return "/parent/rewards";
-  return "/parent";
 }
 
 function toRewardType(value: string) {
