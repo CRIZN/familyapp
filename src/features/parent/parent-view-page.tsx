@@ -26,9 +26,7 @@ import { getParentBriefing } from "@/domain/briefing";
 import { getParentWeeklyReview } from "@/domain/weekly-review";
 import type { AgendaEvent } from "@/domain/calendar";
 import {
-  configureAppleCalendar,
   getParentAgenda,
-  syncAppleCalendarEvents,
   updateEventParticipants,
 } from "@/domain/calendar";
 import type { ApprovalQueueItem, ChoreOccurrence } from "@/domain/chores";
@@ -57,6 +55,7 @@ import {
   archiveGoalAction,
   archiveRewardAction,
   awardBonusPointsAction,
+  configureCalendarAction,
   createChoreAction,
   createGoalAction,
   createPointAdjustmentAction,
@@ -141,11 +140,6 @@ export function ParentViewPage({
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [calendarName, setCalendarName] = useState("");
   const [calendarSourceUrl, setCalendarSourceUrl] = useState("");
-  const [eventTitle, setEventTitle] = useState("");
-  const [eventDate, setEventDate] = useState(getTodayDateKey());
-  const [eventStartTime, setEventStartTime] = useState("09:00");
-  const [eventEndTime, setEventEndTime] = useState("10:00");
-  const [eventLocation, setEventLocation] = useState("");
   const [eventParticipantDrafts, setEventParticipantDrafts] = useState<
     Record<string, EventParticipantDraft>
   >({});
@@ -696,48 +690,23 @@ export function ParentViewPage({
     }
   }
 
-  function onConfigureCalendar(event: FormEvent<HTMLFormElement>) {
+  async function onConfigureCalendar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
-    withParentAction(() => {
-      const updated = configureAppleCalendar(household, {
-        calendarName:
-          calendarName || household.calendarConnection?.calendarName || "",
-        sourceUrl:
-          calendarSourceUrl || household.calendarConnection?.sourceUrl || "",
-      });
-      setHousehold(updated);
-      setCalendarName(updated.calendarConnection?.calendarName ?? "");
-      setCalendarSourceUrl(updated.calendarConnection?.sourceUrl ?? "");
-      setMessage("Apple Family Calendar connected.");
-    }, "Could not configure Apple Calendar.");
-  }
-
-  function onSyncCalendarEvent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(
-        syncAppleCalendarEvents(household, [
-          {
-            appleEventId: createAppleEventId(
-              eventTitle,
-              eventDate,
-              eventStartTime,
-            ),
-            title: eventTitle,
-            startsAt: toAppleDateTime(eventDate, eventStartTime),
-            endsAt: toAppleDateTime(eventDate, eventEndTime),
-            location: eventLocation,
-          },
-        ]),
-      );
-      setEventTitle("");
-      setEventStartTime("09:00");
-      setEventEndTime("10:00");
-      setEventLocation("");
-      setMessage("Apple Calendar Event synced.");
-    }, "Could not sync Event.");
+    setError(null);
+    setMessage(null);
+    const result = await configureCalendarAction({
+      calendarName: calendarName || household.calendarConnection?.calendarName || "",
+      sourceUrl: calendarSourceUrl,
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setCalendarName(result.household.calendarConnection?.calendarName ?? "");
+      setCalendarSourceUrl("");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   function saveEventParticipants(event: AgendaEvent) {
@@ -791,8 +760,7 @@ export function ParentViewPage({
     approvalQueue.every((item) => selectedApprovalIds.includes(item.id));
   const calendarNameValue =
     calendarName || household.calendarConnection?.calendarName || "";
-  const calendarSourceUrlValue =
-    calendarSourceUrl || household.calendarConnection?.sourceUrl || "";
+  const calendarSourceUrlValue = calendarSourceUrl;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -958,23 +926,10 @@ export function ParentViewPage({
           <CalendarConnectionForm
             calendarName={calendarNameValue}
             sourceUrl={calendarSourceUrlValue}
+            isConnected={Boolean(household.calendarConnection)}
             onCalendarNameChange={setCalendarName}
             onSourceUrlChange={setCalendarSourceUrl}
             onSubmit={onConfigureCalendar}
-          />
-          <SyncEventForm
-            canSync={Boolean(household.calendarConnection)}
-            date={eventDate}
-            endTime={eventEndTime}
-            location={eventLocation}
-            startTime={eventStartTime}
-            title={eventTitle}
-            onDateChange={setEventDate}
-            onEndTimeChange={setEventEndTime}
-            onLocationChange={setEventLocation}
-            onStartTimeChange={setEventStartTime}
-            onSubmit={onSyncCalendarEvent}
-            onTitleChange={setEventTitle}
           />
           <div className="lg:col-span-2">
             <HouseholdAgendaSection
@@ -1101,7 +1056,7 @@ function TodayAgendaSection({ eventDays }: { eventDays: ReturnType<typeof getPar
         <EmptyState
           icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
           title="No Events today or tomorrow."
-          detail="Connected Apple Calendar Events will show up here when they are near."
+          detail="Saved Calendar metadata is ready for post-release feed sync."
           href="/parent/calendar"
           action="Open Calendar"
         />
@@ -2071,12 +2026,14 @@ function RewardCatalogSection({
 
 function CalendarConnectionForm({
   calendarName,
+  isConnected,
   onCalendarNameChange,
   onSourceUrlChange,
   onSubmit,
   sourceUrl,
 }: {
   calendarName: string;
+  isConnected: boolean;
   sourceUrl: string;
   onCalendarNameChange: (value: string) => void;
   onSourceUrlChange: (value: string) => void;
@@ -2088,6 +2045,21 @@ function CalendarConnectionForm({
       title="Apple Calendar"
       onSubmit={onSubmit}
     >
+      {isConnected ? (
+        <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm">
+          <p className="font-medium">Calendar metadata saved.</p>
+          <p className="text-muted-foreground">
+            The feed URL is stored server-side and is not displayed after save.
+          </p>
+        </div>
+      ) : (
+        <div className="mb-4 rounded-md border border-border bg-muted p-3 text-sm">
+          <p className="font-medium">No Calendar connected yet.</p>
+          <p className="text-muted-foreground">
+            Save the public Apple Calendar URL to prepare post-release sync.
+          </p>
+        </div>
+      )}
       <Field label="Calendar name" id="calendar-name">
         <Input
           className="mt-2"
@@ -2103,100 +2075,12 @@ function CalendarConnectionForm({
           id="calendar-source"
           value={sourceUrl}
           onChange={(event) => onSourceUrlChange(event.target.value)}
-          placeholder="webcal://..."
+          placeholder={isConnected ? "Paste a new URL to replace it" : "webcal://..."}
         />
       </Field>
       <Button className="mt-4" type="submit" variant="parent">
         <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
         Save Calendar
-      </Button>
-    </FormSection>
-  );
-}
-
-function SyncEventForm({
-  canSync,
-  date,
-  endTime,
-  location,
-  onDateChange,
-  onEndTimeChange,
-  onLocationChange,
-  onStartTimeChange,
-  onSubmit,
-  onTitleChange,
-  startTime,
-  title,
-}: {
-  canSync: boolean;
-  date: string;
-  endTime: string;
-  location: string;
-  startTime: string;
-  title: string;
-  onDateChange: (value: string) => void;
-  onEndTimeChange: (value: string) => void;
-  onLocationChange: (value: string) => void;
-  onStartTimeChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onTitleChange: (value: string) => void;
-}) {
-  return (
-    <FormSection
-      icon={<CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />}
-      title="Sync Apple Event"
-      onSubmit={onSubmit}
-    >
-      <Field label="Event" id="event-title">
-        <Input
-          className="mt-2"
-          id="event-title"
-          value={title}
-          onChange={(event) => onTitleChange(event.target.value)}
-          placeholder="Soccer practice"
-        />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Date" id="event-date">
-          <Input
-            className="mt-2"
-            id="event-date"
-            type="date"
-            value={date}
-            onChange={(event) => onDateChange(event.target.value)}
-          />
-        </Field>
-        <Field label="Starts" id="event-start">
-          <Input
-            className="mt-2"
-            id="event-start"
-            type="time"
-            value={startTime}
-            onChange={(event) => onStartTimeChange(event.target.value)}
-          />
-        </Field>
-        <Field label="Ends" id="event-end">
-          <Input
-            className="mt-2"
-            id="event-end"
-            type="time"
-            value={endTime}
-            onChange={(event) => onEndTimeChange(event.target.value)}
-          />
-        </Field>
-      </div>
-      <Field label="Location" id="event-location">
-        <Input
-          className="mt-2"
-          id="event-location"
-          value={location}
-          onChange={(event) => onLocationChange(event.target.value)}
-          placeholder="Field 2"
-        />
-      </Field>
-      <Button className="mt-4" type="submit" variant="parent" disabled={!canSync}>
-        <Plus aria-hidden="true" className="h-4 w-4" />
-        Sync Event
       </Button>
     </FormSection>
   );
@@ -2223,8 +2107,8 @@ function HouseholdAgendaSection({
       {agenda.length === 0 ? (
         <EmptyState
           icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
-          title="No synced Events yet."
-          detail="Save the Apple Calendar connection, then sync a read-only Event for the Household Agenda."
+          title="No Calendar Events yet."
+          detail="Save the Apple Calendar connection now; feed sync arrives after release."
         />
       ) : (
         <div className="space-y-4">
@@ -2672,8 +2556,8 @@ function WeeklyEventsPanel({
       {review.eventDays.length === 0 ? (
         <EmptyState
           icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
-          title="No synced Events in the upcoming week."
-          detail="Save the Apple Calendar connection and sync Events to fill the week."
+          title="No Calendar Events in the upcoming week."
+          detail="Saved Calendar metadata is ready for post-release feed sync."
           href="/parent/calendar"
           action="Open Calendar"
         />
@@ -3056,19 +2940,6 @@ function formatTime(value: string): string {
     hour: "numeric",
     minute: "2-digit",
   }).format(new Date(value));
-}
-
-function toAppleDateTime(date: string, time: string): string {
-  return new Date(`${date}T${time}:00.000`).toISOString();
-}
-
-function createAppleEventId(title: string, date: string, time: string): string {
-  const normalizedTitle = title
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return `apple-${date}-${time}-${normalizedTitle || "event"}`;
 }
 
 function getSelectedQueueItems(

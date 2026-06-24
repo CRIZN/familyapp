@@ -3,11 +3,13 @@ import "server-only";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Chore, ChoreSubmission, SkippedChoreOccurrence } from "@/domain/chores";
+import type { CalendarConnection } from "@/domain/calendar";
 import type { Goal, ProgressCheckIn } from "@/domain/goals";
 import type { ChildWin, Household, PointLedgerEntry } from "@/domain/household";
 import type { Reward, RewardContribution, RewardRequest } from "@/domain/rewards";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
+  calendarConnections,
   childWins,
   children,
   choreSubmissions,
@@ -34,6 +36,7 @@ type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
 
 export type PersistedHouseholdRows = {
   household: typeof households.$inferSelect;
+  calendarConnection: typeof calendarConnections.$inferSelect | null;
   parents: Array<typeof parents.$inferSelect>;
   children: Array<typeof children.$inferSelect>;
   chores: Array<typeof chores.$inferSelect>;
@@ -60,6 +63,10 @@ export type HouseholdRepository = {
   createChore: (householdId: string, chore: Chore) => Promise<Household>;
   createGoal: (householdId: string, goal: Goal) => Promise<Household>;
   createReward: (householdId: string, reward: Reward) => Promise<Household>;
+  saveCalendarConnection: (
+    householdId: string,
+    connection: CalendarConnection,
+  ) => Promise<Household>;
   createFirstRunHousehold: (
     household: Household,
     firstParentAuthUserId: string,
@@ -348,6 +355,36 @@ export function createDrizzleHouseholdRepository(
     async hasAnyHousehold() {
       const existing = await db.select({ id: households.id }).from(households).limit(1);
       return existing.length > 0;
+    },
+
+    async saveCalendarConnection(householdId, connection) {
+      await db.transaction(async (tx) => {
+        await tx
+          .insert(calendarConnections)
+          .values({
+            calendarName: connection.calendarName,
+            connectedAt: new Date(connection.connectedAt),
+            householdId,
+            id: connection.id,
+            publicFeedUrl: connection.sourceUrl,
+            updatedAt: new Date(connection.updatedAt),
+          })
+          .onConflictDoUpdate({
+            target: calendarConnections.householdId,
+            set: {
+              calendarName: connection.calendarName,
+              publicFeedUrl: connection.sourceUrl,
+              updatedAt: new Date(connection.updatedAt),
+            },
+          });
+
+        await tx
+          .update(households)
+          .set({ updatedAt: new Date(connection.updatedAt) })
+          .where(eq(households.id, householdId));
+      });
+
+      return requireHouseholdById(db, householdId);
     },
 
     async markChoreSubmissionNeedsWork(householdId, input) {
@@ -773,6 +810,7 @@ async function getHouseholdById(
   }
 
   const [
+    calendarConnectionRows,
     parentRows,
     childRows,
     choreRows,
@@ -786,6 +824,11 @@ async function getHouseholdById(
     ledgerRows,
     winRows,
   ] = await Promise.all([
+    db
+      .select()
+      .from(calendarConnections)
+      .where(eq(calendarConnections.householdId, household.id))
+      .limit(1),
     db
       .select()
       .from(parents)
@@ -849,6 +892,7 @@ async function getHouseholdById(
   ]);
 
   return mapPersistedHouseholdRows({
+    calendarConnection: calendarConnectionRows[0] ?? null,
     childWins: winRows,
     children: childRows,
     choreSubmissions: submissionRows,
@@ -867,7 +911,15 @@ async function getHouseholdById(
 
 export function mapPersistedHouseholdRows(rows: PersistedHouseholdRows): Household {
   return {
-    calendarConnection: null,
+    calendarConnection: rows.calendarConnection
+      ? {
+          calendarName: rows.calendarConnection.calendarName,
+          connectedAt: rows.calendarConnection.connectedAt.toISOString(),
+          id: rows.calendarConnection.id,
+          sourceUrl: rows.calendarConnection.publicFeedUrl,
+          updatedAt: rows.calendarConnection.updatedAt.toISOString(),
+        }
+      : null,
     calendarEvents: [],
     childWins: rows.childWins.map(mapChildWinRow),
     children: rows.children.map((child) => ({

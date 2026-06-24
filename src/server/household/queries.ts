@@ -2,6 +2,7 @@ import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 
+import { toClientSafeHousehold } from "./client-household";
 import { createDrizzleHouseholdRepository } from "./repository";
 
 export async function getCurrentParentHousehold() {
@@ -13,10 +14,11 @@ export async function getCurrentParentHousehold() {
       return null;
     }
 
-    return createDrizzleHouseholdRepository().findHouseholdForParent(
+    const household = await createDrizzleHouseholdRepository().findHouseholdForParent(
       data.user.email,
       data.user.id,
     );
+    return household ? toClientSafeHousehold(household) : null;
   } catch {
     return null;
   }
