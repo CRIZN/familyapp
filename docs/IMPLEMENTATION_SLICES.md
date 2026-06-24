@@ -360,7 +360,7 @@ Wire Child View Chore boards and Chore Submission actions through Child session 
 - [x] Child session authorization prevents access to another Child's Chores.
 - [x] Tests cover Child ownership, submission persistence, and Overdue behavior.
 
-### P8. Chore Approval Queue and Point Ledger Persistence
+### P8. Chore Approval Queue and Point Ledger Persistence - Done
 
 **Blocked by**: P7
 
@@ -368,12 +368,12 @@ Wire Child View Chore boards and Chore Submission actions through Child session 
 Wire the Approval Queue for Chore Submissions, including Approve, Needs Work, Skip, and batch-friendly approval with Point Ledger and Point Balance updates in one database transaction.
 
 **Acceptance criteria**:
-- [ ] Parent Approval Queue shows pending Chore Submissions from Supabase.
-- [ ] Approving Chore Submissions creates Point Ledger entries and updates Point Balance atomically.
-- [ ] Needs Work and Skip persist without awarding Points.
-- [ ] Batch approval works for multiple Chore Submissions.
-- [ ] Server actions enforce Parent allowlist authorization.
-- [ ] Tests cover transaction safety, ledger entries, balance updates, Needs Work, Skip, and batch approval.
+- [x] Parent Approval Queue shows pending Chore Submissions from Supabase.
+- [x] Approving Chore Submissions creates Point Ledger entries and updates Point Balance atomically.
+- [x] Needs Work and Skip persist without awarding Points.
+- [x] Batch approval works for multiple Chore Submissions.
+- [x] Server actions enforce Parent allowlist authorization.
+- [x] Tests cover transaction safety, ledger entries, balance updates, Needs Work, Skip, and batch approval.
 
 ### P9. Goals and Progress Check-ins Persistence
 

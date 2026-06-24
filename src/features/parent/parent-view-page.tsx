@@ -33,12 +33,9 @@ import {
 } from "@/domain/calendar";
 import type { ApprovalQueueItem, ChoreOccurrence } from "@/domain/chores";
 import {
-  approveChoreSubmissions,
   getApprovalQueue,
   getChildChoreBoard,
   getRoutineLabel,
-  markChoreSubmissionNeedsWork,
-  skipChoreOccurrence,
 } from "@/domain/chores";
 import {
   approveProgressCheckIns,
@@ -64,9 +61,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   addAllowedParentAction,
+  approveChoreSubmissionsAction,
   archiveChoreAction,
   createChoreAction,
+  markChoreSubmissionNeedsWorkAction,
   pauseChoreAction,
+  skipChoreOccurrenceAction,
   updateChildPinAction,
   updateChildProfileAction,
 } from "@/server/household/actions";
@@ -252,9 +252,11 @@ export function ParentViewPage({
     }
   }
 
-  function approveSelectedSubmissions() {
+  async function approveSelectedSubmissions() {
     if (!household || selectedApprovalIds.length === 0) return;
-    withParentAction(() => {
+    setError(null);
+    setMessage(null);
+    try {
       const selectedItems = getSelectedQueueItems(household, selectedApprovalIds);
       let updated = household;
       const choreSubmissionIds = selectedItems
@@ -267,7 +269,14 @@ export function ParentViewPage({
         .filter((item) => item.type === "reward_request")
         .map((item) => item.id);
       if (choreSubmissionIds.length > 0) {
-        updated = approveChoreSubmissions(updated, choreSubmissionIds);
+        const result = await approveChoreSubmissionsAction({
+          submissionIds: choreSubmissionIds,
+        });
+        if (result.status === "error") {
+          setError(result.message);
+          return;
+        }
+        updated = result.household;
       }
       if (progressCheckInIds.length > 0) {
         updated = approveProgressCheckIns(updated, progressCheckInIds);
@@ -278,7 +287,11 @@ export function ParentViewPage({
       setHousehold(updated);
       setSelectedApprovalIds([]);
       setMessage("Selected Approval Queue items approved.");
-    }, "Could not approve selected items.");
+    } catch (caught) {
+      setError(
+        caught instanceof Error ? caught.message : "Could not approve selected items.",
+      );
+    }
   }
 
   function rejectSelectedRewardRequests() {
@@ -299,32 +312,58 @@ export function ParentViewPage({
     }, "Could not reject selected Reward Requests.");
   }
 
-  function approveQueueItem(item: ApprovalQueueItem) {
+  async function approveQueueItem(item: ApprovalQueueItem) {
     if (!household) return;
-    withParentAction(() => {
-      const updated =
-        item.type === "chore_submission"
-          ? approveChoreSubmissions(household, [item.id])
-          : item.type === "progress_check_in"
+    setError(null);
+    setMessage(null);
+    try {
+      let updated = household;
+      if (item.type === "chore_submission") {
+        const result = await approveChoreSubmissionsAction({
+          submissionIds: [item.id],
+        });
+        if (result.status === "error") {
+          setError(result.message);
+          return;
+        }
+        updated = result.household;
+      } else {
+        updated =
+          item.type === "progress_check_in"
             ? approveProgressCheckIns(household, [item.id])
             : approveRewardRequest(household, item.id);
+      }
       setHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== item.id),
       );
       setMessage(`${getApprovalQueueItemLabel(item)} approved.`);
-    }, "Could not approve item.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not approve item.");
+    }
   }
 
-  function markNeedsWork(item: ApprovalQueueItem) {
+  async function markNeedsWork(item: ApprovalQueueItem) {
     if (!household) return;
-    withParentAction(() => {
-      const updated =
-        item.type === "chore_submission"
-          ? markChoreSubmissionNeedsWork(household, item.id)
-          : item.type === "progress_check_in"
+    setError(null);
+    setMessage(null);
+    try {
+      let updated = household;
+      if (item.type === "chore_submission") {
+        const result = await markChoreSubmissionNeedsWorkAction({
+          submissionId: item.id,
+        });
+        if (result.status === "error") {
+          setError(result.message);
+          return;
+        }
+        updated = result.household;
+      } else {
+        updated =
+          item.type === "progress_check_in"
             ? markProgressCheckInNeedsWork(household, item.id)
             : rejectRewardRequest(household, item.id);
+      }
       setHousehold(updated);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== item.id),
@@ -334,42 +373,62 @@ export function ParentViewPage({
           ? "Reward Request rejected."
           : `${getApprovalQueueItemLabel(item)} marked Needs Work.`,
       );
-    }, "Could not update Approval Queue item.");
-  }
-
-  function skipOccurrence(chore: ChoreOccurrence) {
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(
-        skipChoreOccurrence(household, {
-          childId: chore.childId,
-          choreId: chore.choreId,
-          occurrenceDate: chore.dueDate,
-        }),
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Could not update Approval Queue item.",
       );
-      setMessage("Chore occurrence skipped.");
-    }, "Could not skip Chore.");
+    }
   }
 
-  function skipSubmissionOccurrence(submissionId: string) {
+  async function skipOccurrence(chore: ChoreOccurrence) {
+    if (!household) return;
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await skipChoreOccurrenceAction({
+        childId: chore.childId,
+        choreId: chore.choreId,
+        occurrenceDate: chore.dueDate,
+      });
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
+      setMessage(result.message);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not skip Chore.");
+    }
+  }
+
+  async function skipSubmissionOccurrence(submissionId: string) {
     if (!household) return;
     const item = getApprovalQueue(household).find(
       (candidate) => candidate.id === submissionId,
     );
     if (!item || item.type !== "chore_submission") return;
-    withParentAction(() => {
-      setHousehold(
-        skipChoreOccurrence(household, {
-          childId: item.childId,
-          choreId: item.choreId,
-          occurrenceDate: item.occurrenceDate,
-        }),
-      );
+    setError(null);
+    setMessage(null);
+    try {
+      const result = await skipChoreOccurrenceAction({
+        childId: item.childId,
+        choreId: item.choreId,
+        occurrenceDate: item.occurrenceDate,
+      });
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
       setSelectedApprovalIds((current) =>
         current.filter((candidate) => candidate !== submissionId),
       );
-      setMessage("Chore occurrence skipped.");
-    }, "Could not skip Chore.");
+      setMessage(result.message);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not skip Chore.");
+    }
   }
 
   async function pauseExistingChore(choreId: string) {
