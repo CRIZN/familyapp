@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { getChildPointLedger, getChildWins } from "@/domain/chores";
 import { createHousehold, type Household } from "@/domain/household";
+import { getPointLedgerDisplay } from "@/domain/points";
 
 import {
   addAllowedParent,
@@ -11,7 +13,9 @@ import {
   updateChildProfile,
   archiveGoalForParent,
   archiveRewardForParent,
+  awardBonusPointsForParent,
   completeGoalForParent,
+  createPointAdjustmentForParent,
   createGoalForParent,
   createRewardForParent,
   updateRewardForParent,
@@ -367,6 +371,166 @@ describe("Household management", () => {
     );
   });
 
+  it("awards Bonus Points and records Point Adjustments through authoritative ledger persistence", async () => {
+    const household = await createTestHousehold();
+    const child = household.children[0]!;
+    const savePointEffectsMock = vi.fn(async (_householdId, input) => ({
+      ...household,
+      childWins: [
+        {
+          childId: child.id,
+          description: "Approved Chore",
+          earnedAt: "2026-06-23T10:00:00.000Z",
+          id: "win-1",
+          sourceId: "source-1",
+          sourceType: "chore" as const,
+          title: "Unload dishwasher",
+        },
+      ],
+      children: household.children.map((candidate) =>
+        candidate.id === input.balanceChanges[0]?.childId
+          ? {
+              ...candidate,
+              pointBalance: candidate.pointBalance + input.balanceChanges[0]!.delta,
+            }
+          : candidate,
+      ),
+      pointLedger: input.pointLedger,
+    }));
+
+    const bonused = await awardBonusPointsForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, {
+          savePointEffects: savePointEffectsMock,
+        }),
+      },
+      { childId: child.id, points: 4, reason: "Kindness at breakfast" },
+    );
+
+    expect(bonused.status).toBe("ok");
+    expect(savePointEffectsMock).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        balanceChanges: [{ childId: child.id, delta: 4 }],
+        pointLedger: [
+          expect.objectContaining({
+            delta: 4,
+            description: "Bonus Points: Kindness at breakfast",
+            sourceType: "bonus_points",
+          }),
+        ],
+      }),
+    );
+    expect(
+      bonused.status === "ok"
+        ? getChildPointLedger(bonused.household, child.id).map(getPointLedgerDisplay)
+        : [],
+    ).toEqual([
+      { label: "Bonus Points", explanation: "Kindness at breakfast" },
+    ]);
+    expect(
+      bonused.status === "ok" ? getChildWins(bonused.household, child.id) : [],
+    ).toEqual([expect.objectContaining({ title: "Unload dishwasher" })]);
+
+    const withBalance =
+      bonused.status === "ok" ? bonused.household : { ...household };
+    const adjustmentMock = vi.fn(async (_householdId, input) => ({
+      ...withBalance,
+      children: withBalance.children.map((candidate) =>
+        candidate.id === input.balanceChanges[0]?.childId
+          ? {
+              ...candidate,
+              pointBalance: candidate.pointBalance + input.balanceChanges[0]!.delta,
+            }
+          : candidate,
+      ),
+      pointLedger: [...withBalance.pointLedger, ...input.pointLedger],
+    }));
+
+    const adjusted = await createPointAdjustmentForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(withBalance, {
+          savePointEffects: adjustmentMock,
+        }),
+      },
+      { childId: child.id, points: -2, reason: "Corrected duplicate entry" },
+    );
+
+    expect(adjusted.status).toBe("ok");
+    expect(adjustmentMock).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        balanceChanges: [{ childId: child.id, delta: -2 }],
+        pointLedger: [
+          expect.objectContaining({
+            delta: -2,
+            description: "Point Adjustment correction: Corrected duplicate entry",
+            sourceType: "point_adjustment",
+          }),
+        ],
+      }),
+    );
+    expect(
+      adjusted.status === "ok"
+        ? adjusted.household.children.find((candidate) => candidate.id === child.id)
+            ?.pointBalance
+        : null,
+    ).toBe(2);
+  });
+
+  it("requires Point Adjustment reasons before persistence and enforces Parent allowlist", async () => {
+    const household = await createTestHousehold();
+    const child = household.children[0]!;
+    const savePointEffectsMock = vi.fn();
+
+    const missingReason = await createPointAdjustmentForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, {
+          savePointEffects: savePointEffectsMock,
+        }),
+      },
+      { childId: child.id, points: 3, reason: " " },
+    );
+
+    expect(missingReason).toEqual({
+      message: "Point Adjustments need a reason.",
+      status: "error",
+    });
+    expect(savePointEffectsMock).not.toHaveBeenCalled();
+
+    const denied = await awardBonusPointsForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "visitor@example.com",
+          userId: "user-2",
+        }),
+        repository: createRepository(household, {
+          findHouseholdForParent: async () => null,
+          savePointEffects: savePointEffectsMock,
+        }),
+      },
+      { childId: child.id, points: 1, reason: "Helpful" },
+    );
+
+    expect(denied).toEqual({
+      message: "This Parent email is not allowed for the Household.",
+      status: "error",
+    });
+    expect(savePointEffectsMock).not.toHaveBeenCalled();
+  });
+
   it("creates, updates, and archives Rewards through the repository", async () => {
     const household = await createTestHousehold();
     const createRewardMock = vi.fn(async (_householdId, reward) => ({
@@ -521,6 +685,7 @@ function createRepository(
     saveGoalStatus: async () => household,
     saveProgressCheckInApproval: async () => household,
     saveProgressCheckInNeedsWork: async () => household,
+    savePointEffects: async () => household,
     saveRewardRequestApproval: async () => household,
     saveRewardRequestFulfillment: async () => household,
     saveRewardRequestRejection: async () => household,

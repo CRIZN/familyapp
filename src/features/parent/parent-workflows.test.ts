@@ -118,6 +118,18 @@ describe("parent workflow IA", () => {
     expect(source).not.toContain("archiveChore(household");
   });
 
+  it("routes Parent Points management through server actions", () => {
+    const source = readFileSync(
+      "src/features/parent/parent-view-page.tsx",
+      "utf8",
+    );
+
+    expect(source).toContain("awardBonusPointsAction");
+    expect(source).toContain("createPointAdjustmentAction");
+    expect(source).not.toContain("awardBonusPoints(household");
+    expect(source).not.toContain("createPointAdjustment(household");
+  });
+
   it("flags ambiguous or missing Event Participants for Parent attention", () => {
     expect(
       eventNeedsParentAttention({
