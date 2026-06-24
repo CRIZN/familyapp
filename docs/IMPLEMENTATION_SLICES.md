@@ -253,7 +253,7 @@ These slices move the completed V1 demo into a private production app for one Ho
 - Production release includes V1 slices 1-11 wired to Supabase and server actions, with live Apple Calendar feed fetching the only base feature allowed to follow after release.
 - Apple Calendar uses a public `webcal`/ICS feed URL stored server-side as Calendar Connection data; the URL is treated as a secret and is not echoed back to the client after save.
 
-### P1. Full V1 Supabase Schema, Constraints, and RLS
+### P1. Full V1 Supabase Schema, Constraints, and RLS - Done
 
 **Blocked by**: V1 Slice 11
 
@@ -271,7 +271,7 @@ Create or harden the complete V1 Drizzle/Supabase schema for a fresh production 
 - [ ] RLS policies enforce Parent email allowlist access and Child-session scoped access where applicable.
 - [ ] Tests or migration checks verify the schema, constraints, and RLS policy shape.
 
-### P2. Supabase Auth Gate and Locked App Shell
+### P2. Supabase Auth Gate and Locked App Shell - Done
 
 **Blocked by**: P1
 
@@ -279,12 +279,12 @@ Create or harden the complete V1 Drizzle/Supabase schema for a fresh production 
 Add Supabase Auth integration for Parent magic links and a server-rendered app gate. Anonymous visitors and authenticated-but-unallowlisted users must see only generic private-app screens with no Household details.
 
 **Acceptance criteria**:
-- [ ] Supabase client/server helpers are configured for Next.js App Router.
-- [ ] Parent sign-in uses email magic links.
-- [ ] Anonymous users see only a locked sign-in screen.
-- [ ] Authenticated users whose email is not allowlisted see a generic private-app denial.
-- [ ] No locked or denied state exposes Household names, Parent identities, Child profiles, or PIN existence.
-- [ ] Tests cover the auth gate decisions without relying on client-only hiding.
+- [x] Supabase client/server helpers are configured for Next.js App Router.
+- [x] Parent sign-in uses email magic links.
+- [x] Anonymous users see only a locked sign-in screen.
+- [x] Authenticated users whose email is not allowlisted see a generic private-app denial.
+- [x] No locked or denied state exposes Household names, Parent identities, Child profiles, or PIN existence.
+- [x] Tests cover the auth gate decisions without relying on client-only hiding.
 
 ### P3. First-Run Household Setup and Local Demo Removal
 
