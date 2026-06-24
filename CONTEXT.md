@@ -91,7 +91,30 @@ documents, update the tree and document index below in the same change.
 |   |       |-- parent-view-page.tsx
 |   |       `-- parent-workflows.test.ts
 |   |-- lib/utils.ts
-|   `-- server/db/schema.ts
+|   `-- server/
+|       |-- auth/
+|       |   |-- actions.ts
+|       |   |-- parent-access.ts
+|       |   |-- parent-gate.test.ts
+|       |   `-- parent-gate.ts
+|       |-- child/
+|       |   |-- actions.ts
+|       |   |-- queries.ts
+|       |   |-- repository.ts
+|       |   |-- session.test.ts
+|       |   `-- session.ts
+|       |-- db/
+|       |   |-- client.ts
+|       |   |-- schema.test.ts
+|       |   `-- schema.ts
+|       `-- household/
+|           |-- actions.ts
+|           |-- first-run.test.ts
+|           |-- first-run.ts
+|           |-- management.test.ts
+|           |-- management.ts
+|           |-- queries.ts
+|           `-- repository.ts
 |-- package.json
 |-- package-lock.json
 |-- next.config.ts
