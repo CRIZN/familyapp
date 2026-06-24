@@ -10,6 +10,8 @@ import {
   signInChildWithPin,
   writeChildSessionCookie,
 } from "./session";
+import { submitChoreForChild, type ChildChoreResult } from "./chores";
+import { getCurrentChildSession } from "./queries";
 
 export type ChildSignInActionState = {
   message: string | null;
@@ -47,4 +49,32 @@ export async function logoutChildAction(): Promise<void> {
   clearChildSessionCookie(await cookies());
   revalidatePath("/child");
   redirect("/child");
+}
+
+export async function submitChildChoreAction(input: {
+  choreId: string;
+  occurrenceDate: string;
+}): Promise<ChildChoreResult> {
+  try {
+    const result = await submitChoreForChild(
+      {
+        getAuthenticatedChild: getCurrentChildSession,
+        repository: createDrizzleChildAppRepository(),
+      },
+      input,
+    );
+
+    if (result.status === "ok") {
+      revalidatePath("/child");
+      revalidatePath("/parent");
+      revalidatePath("/parent/approvals");
+    }
+
+    return result;
+  } catch (caught) {
+    return {
+      message: caught instanceof Error ? caught.message : "Could not submit Chore.",
+      status: "error",
+    };
+  }
 }

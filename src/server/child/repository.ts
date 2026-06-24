@@ -2,10 +2,18 @@ import "server-only";
 
 import { and, asc, eq } from "drizzle-orm";
 
+import type { ChoreSubmission } from "@/domain/chores";
 import type { Household } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
-import { children, households } from "@/server/db/schema";
+import {
+  children,
+  choreSubmissions,
+  chores,
+  households,
+  skippedChoreOccurrences,
+} from "@/server/db/schema";
 
+import type { ChildChoreRepository } from "./chores";
 import type { ChildSessionRepository } from "./session";
 
 export type ChildSignInOptions = {
@@ -13,9 +21,10 @@ export type ChildSignInOptions = {
   householdId: string;
 };
 
-export type ChildAppRepository = ChildSessionRepository & {
-  getChildSignInOptions: () => Promise<ChildSignInOptions | null>;
-};
+export type ChildAppRepository = ChildSessionRepository &
+  ChildChoreRepository & {
+    getChildSignInOptions: () => Promise<ChildSignInOptions | null>;
+  };
 
 export function createDrizzleChildAppRepository(
   db: AppDatabase = getDatabase(),
@@ -63,10 +72,32 @@ export function createDrizzleChildAppRepository(
       return getChildScopedHousehold(db, {
         childId: child.id,
         householdId: child.householdId,
-        name: child.name,
-        pointBalance: child.pointBalance,
         sessionVersion: child.sessionVersion,
       });
+    },
+
+    async createChoreSubmission(session, submission) {
+      await db.insert(choreSubmissions).values({
+        childId: session.childId,
+        choreId: submission.choreId,
+        householdId: session.householdId,
+        id: submission.id,
+        occurrenceDate: submission.occurrenceDate,
+        status: submission.status,
+        submittedAt: new Date(submission.submittedAt),
+      });
+
+      const household = await getChildScopedHousehold(db, {
+        childId: session.childId,
+        householdId: session.householdId,
+        sessionVersion: session.sessionVersion,
+      });
+
+      if (!household) {
+        throw new Error("Child session expired.");
+      }
+
+      return household;
     },
 
     async getChildSignInOptions() {
@@ -98,20 +129,63 @@ async function getChildScopedHousehold(
   child: {
     childId: string;
     householdId: string;
-    name: string;
-    pointBalance: number;
     sessionVersion: number;
   },
 ): Promise<Household | null> {
-  const [household] = await db
-    .select()
-    .from(households)
-    .where(eq(households.id, child.householdId))
-    .limit(1);
+  const [householdRows, childRows] = await Promise.all([
+    db
+      .select()
+      .from(households)
+      .where(eq(households.id, child.householdId))
+      .limit(1),
+    db
+      .select()
+      .from(children)
+      .where(
+        and(
+          eq(children.householdId, child.householdId),
+          eq(children.id, child.childId),
+          eq(children.sessionVersion, child.sessionVersion),
+        ),
+      )
+      .limit(1),
+  ]);
+  const household = householdRows[0];
+  const childRow = childRows[0];
 
-  if (!household) {
+  if (!household || !childRow) {
     return null;
   }
+
+  const [choreRows, submissionRows, skippedRows] = await Promise.all([
+    db
+      .select()
+      .from(chores)
+      .where(
+        and(eq(chores.householdId, child.householdId), eq(chores.childId, child.childId)),
+      )
+      .orderBy(asc(chores.dueDate), asc(chores.createdAt)),
+    db
+      .select()
+      .from(choreSubmissions)
+      .where(
+        and(
+          eq(choreSubmissions.householdId, child.householdId),
+          eq(choreSubmissions.childId, child.childId),
+        ),
+      )
+      .orderBy(asc(choreSubmissions.occurrenceDate), asc(choreSubmissions.submittedAt)),
+    db
+      .select()
+      .from(skippedChoreOccurrences)
+      .where(
+        and(
+          eq(skippedChoreOccurrences.householdId, child.householdId),
+          eq(skippedChoreOccurrences.childId, child.childId),
+        ),
+      )
+      .orderBy(asc(skippedChoreOccurrences.occurrenceDate)),
+  ]);
 
   return {
     calendarConnection: null,
@@ -119,16 +193,28 @@ async function getChildScopedHousehold(
     childWins: [],
     children: [
       {
-        id: child.childId,
-        name: child.name,
+        id: childRow.id,
+        name: childRow.name,
         pinHash: "",
         pinSalt: "",
-        pointBalance: child.pointBalance,
-        sessionVersion: child.sessionVersion,
+        pointBalance: childRow.pointBalance,
+        sessionVersion: childRow.sessionVersion,
       },
     ],
-    choreSubmissions: [],
-    chores: [],
+    choreSubmissions: submissionRows.map(mapChoreSubmissionRow),
+    chores: choreRows.map((chore) => ({
+      childId: chore.childId,
+      createdAt: chore.createdAt.toISOString(),
+      dueDate: chore.dueDate,
+      id: chore.id,
+      pointValue: chore.pointValue,
+      routine: chore.routineFrequency
+        ? { frequency: chore.routineFrequency }
+        : null,
+      status: chore.status,
+      title: chore.title,
+      updatedAt: chore.updatedAt.toISOString(),
+    })),
     createdAt: household.createdAt.toISOString(),
     eventEnrichments: [],
     goals: [],
@@ -140,7 +226,27 @@ async function getChildScopedHousehold(
     rewardContributions: [],
     rewardRequests: [],
     rewards: [],
-    skippedChoreOccurrences: [],
+    skippedChoreOccurrences: skippedRows.map((occurrence) => ({
+      childId: occurrence.childId,
+      choreId: occurrence.choreId,
+      id: occurrence.id,
+      occurrenceDate: occurrence.occurrenceDate,
+      skippedAt: occurrence.skippedAt.toISOString(),
+    })),
     updatedAt: household.updatedAt.toISOString(),
+  };
+}
+
+function mapChoreSubmissionRow(
+  submission: typeof choreSubmissions.$inferSelect,
+): ChoreSubmission {
+  return {
+    childId: submission.childId,
+    choreId: submission.choreId,
+    id: submission.id,
+    occurrenceDate: submission.occurrenceDate,
+    reviewedAt: submission.reviewedAt?.toISOString(),
+    status: submission.status,
+    submittedAt: submission.submittedAt.toISOString(),
   };
 }

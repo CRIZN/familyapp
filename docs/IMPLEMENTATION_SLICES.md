@@ -346,7 +346,7 @@ Wire the Chores workflow for Parent-created and Parent-managed Chores through se
 - [x] Domain tests still cover Chore validation and recurrence behavior.
 - [x] Integration tests cover Parent Chore creation and management persistence.
 
-### P7. Child Chore Board and Submission Persistence
+### P7. Child Chore Board and Submission Persistence - Done
 
 **Blocked by**: P6
 
@@ -354,11 +354,11 @@ Wire the Chores workflow for Parent-created and Parent-managed Chores through se
 Wire Child View Chore boards and Chore Submission actions through Child session authorization and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Child View shows today, upcoming, overdue, and pending-review Chores from Supabase.
-- [ ] Children can submit only their own due or Overdue Chores.
-- [ ] Chore Submissions persist with occurrence dates and pending status.
-- [ ] Child session authorization prevents access to another Child's Chores.
-- [ ] Tests cover Child ownership, submission persistence, and Overdue behavior.
+- [x] Child View shows today, upcoming, overdue, and pending-review Chores from Supabase.
+- [x] Children can submit only their own due or Overdue Chores.
+- [x] Chore Submissions persist with occurrence dates and pending status.
+- [x] Child session authorization prevents access to another Child's Chores.
+- [x] Tests cover Child ownership, submission persistence, and Overdue behavior.
 
 ### P8. Chore Approval Queue and Point Ledger Persistence
 

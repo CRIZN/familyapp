@@ -23,7 +23,6 @@ import {
   getChildChoreBoard,
   getChildPointLedger,
   getChildWins,
-  submitChore,
 } from "@/domain/chores";
 import type { GoalProgress, ProgressCheckInSummary } from "@/domain/goals";
 import { getChildGoalBoard, submitProgressCheckIn } from "@/domain/goals";
@@ -51,6 +50,7 @@ import { Label } from "@/components/ui/label";
 import {
   logoutChildAction,
   signInChildAction,
+  submitChildChoreAction,
   type ChildSignInActionState,
 } from "@/server/child/actions";
 
@@ -94,6 +94,9 @@ export function ChildViewPage({
   >({});
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [submittingChoreKey, setSubmittingChoreKey] = useState<string | null>(
+    null,
+  );
 
   if (!session || !household) {
     if (!signInOptions || signInOptions.children.length === 0) {
@@ -234,6 +237,9 @@ export function ChildViewPage({
                   chore={chore}
                   key={`${chore.choreId}-${chore.dueDate}`}
                   tone="overdue"
+                  isSubmitting={
+                    submittingChoreKey === `${chore.choreId}:${chore.dueDate}`
+                  }
                   onSubmit={() => submitDueChore(chore)}
                 />
               ))}
@@ -242,6 +248,9 @@ export function ChildViewPage({
                   chore={chore}
                   key={`${chore.choreId}-${chore.dueDate}`}
                   tone="today"
+                  isSubmitting={
+                    submittingChoreKey === `${chore.choreId}:${chore.dueDate}`
+                  }
                   onSubmit={() => submitDueChore(chore)}
                 />
               ))}
@@ -579,23 +588,29 @@ export function ChildViewPage({
     );
   }
 
-  function submitDueChore(chore: ChoreOccurrence) {
+  async function submitDueChore(chore: ChoreOccurrence) {
     if (!household || !session) {
       return;
     }
     setError(null);
     setMessage(null);
+    const choreKey = `${chore.choreId}:${chore.dueDate}`;
+    setSubmittingChoreKey(choreKey);
     try {
-      const updated = submitChore(household, {
-        childId: session.childId,
+      const result = await submitChildChoreAction({
         choreId: chore.choreId,
         occurrenceDate: chore.dueDate,
-        today: getTodayDateKey(),
       });
-      setHousehold(updated);
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
       setMessage(`${chore.title} is waiting for Parent review.`);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not submit Chore.");
+    } finally {
+      setSubmittingChoreKey(null);
     }
   }
 
@@ -719,10 +734,12 @@ export function ChildViewPage({
 }
 
 function ChoreCard({
+  isSubmitting = false,
   chore,
   tone,
   onSubmit,
 }: {
+  isSubmitting?: boolean;
   chore: ChoreOccurrence;
   tone: "overdue" | "today" | "pending" | "upcoming";
   onSubmit?: () => void;
@@ -745,9 +762,14 @@ function ChoreCard({
           </p>
         </div>
         {onSubmit ? (
-          <Button type="button" variant="child" onClick={onSubmit}>
+          <Button
+            disabled={isSubmitting}
+            type="button"
+            variant="child"
+            onClick={onSubmit}
+          >
             <CheckCircle2 aria-hidden="true" className="h-4 w-4" />
-            Submit
+            {isSubmitting ? "Submitting" : "Submit"}
           </Button>
         ) : null}
       </div>
