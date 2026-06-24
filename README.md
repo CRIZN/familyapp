@@ -118,7 +118,7 @@ npm install
 Create a local `.env.local` for development, or configure the same values as server environment variables in Vercel or your deployment platform:
 
 ```bash
-DATABASE_URL="postgres://..."
+POSTGRES_URL="postgres://..."
 NEXT_PUBLIC_SUPABASE_URL="https://your-project-ref.supabase.co"
 NEXT_PUBLIC_SUPABASE_ANON_KEY="your-supabase-anon-key"
 NEXT_PUBLIC_SITE_URL="http://localhost:3000"
@@ -153,7 +153,7 @@ The first Parent signs in with a Supabase magic link, then visits `/setup` and e
 
 | Variable | Required | Used by | Notes |
 | --- | --- | --- | --- |
-| `DATABASE_URL` | Yes | Runtime server code and Drizzle Kit | Supabase Postgres connection string. The runtime database client throws `Missing DATABASE_URL.` when absent. |
+| `POSTGRES_URL` | Yes | Runtime server code and Drizzle Kit | Postgres connection string. Vercel Postgres generates this automatically. The runtime database client throws `Missing POSTGRES_URL.` when absent. |
 | `NEXT_PUBLIC_SUPABASE_URL` | Yes | Supabase browser/server clients | Supabase project URL. Despite the `NEXT_PUBLIC_` prefix, it must be present in the server environment too. |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Yes | Supabase browser/server clients | Supabase anonymous key. Missing this or the Supabase URL causes Parent sign-in to report `Sign-in is not configured yet.` |
 | `NEXT_PUBLIC_SITE_URL` | Recommended | Parent magic-link redirect creation | Canonical app origin. In production this should be the deployed HTTPS origin. If missing, the app falls back to `VERCEL_URL`, then `http://localhost:3000`. |
@@ -176,7 +176,7 @@ npm test            # Run Vitest once
 npm run test:watch  # Run Vitest in watch mode
 ```
 
-Drizzle is configured through `drizzle.config.ts` and the runtime database client reads `DATABASE_URL`.
+Drizzle is configured through `drizzle.config.ts` and the runtime database client reads `POSTGRES_URL`.
 
 ## Engineering Notes
 

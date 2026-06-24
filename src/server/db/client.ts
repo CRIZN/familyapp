@@ -19,11 +19,11 @@ export function getDatabase(env: NodeJS.ProcessEnv = process.env): AppDatabase {
 }
 
 function createDatabase(env: NodeJS.ProcessEnv) {
-  const databaseUrl = env.DATABASE_URL?.trim();
-  if (!databaseUrl) {
-    throw new Error("Missing DATABASE_URL.");
+  const postgresUrl = env.POSTGRES_URL?.trim();
+  if (!postgresUrl) {
+    throw new Error("Missing POSTGRES_URL.");
   }
 
-  const client = postgres(databaseUrl, { prepare: false });
+  const client = postgres(postgresUrl, { prepare: false });
   return drizzle(client, { schema });
 }
