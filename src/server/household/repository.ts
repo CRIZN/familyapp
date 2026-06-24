@@ -3,6 +3,7 @@ import "server-only";
 import { and, asc, eq, sql } from "drizzle-orm";
 
 import type { Chore, ChoreSubmission, SkippedChoreOccurrence } from "@/domain/chores";
+import type { Goal, ProgressCheckIn } from "@/domain/goals";
 import type { ChildWin, Household, PointLedgerEntry } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
@@ -10,13 +11,17 @@ import {
   children,
   choreSubmissions,
   chores,
+  goals,
   households,
   parents,
   pointLedger,
+  progressCheckIns,
   skippedChoreOccurrences,
 } from "@/server/db/schema";
 
 import type { ChoreApprovalPersistence } from "./approvals";
+
+type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
 
 export type HouseholdRepository = {
   addAllowedParent: (
@@ -28,6 +33,7 @@ export type HouseholdRepository = {
     input: ChoreApprovalPersistence,
   ) => Promise<Household>;
   createChore: (householdId: string, chore: Chore) => Promise<Household>;
+  createGoal: (householdId: string, goal: Goal) => Promise<Household>;
   createFirstRunHousehold: (
     household: Household,
     firstParentAuthUserId: string,
@@ -40,6 +46,33 @@ export type HouseholdRepository = {
   markChoreSubmissionNeedsWork: (
     householdId: string,
     input: { reviewedAt: string; submissionId: string },
+  ) => Promise<Household>;
+  saveGoalCompletion: (
+    householdId: string,
+    input: {
+      balanceChanges: Array<{ childId: string; delta: number }>;
+      childWins: ChildWin[];
+      goal: Goal;
+      pointLedger: PointLedgerEntry[];
+    },
+  ) => Promise<Household>;
+  saveGoalStatus: (
+    householdId: string,
+    goalId: string,
+    input: Pick<Goal, "status" | "updatedAt">,
+  ) => Promise<Household>;
+  saveProgressCheckInApproval: (
+    householdId: string,
+    input: {
+      balanceChanges: Array<{ childId: string; delta: number }>;
+      childWins: ChildWin[];
+      pointLedger: PointLedgerEntry[];
+      progressCheckIns: ProgressCheckIn[];
+    },
+  ) => Promise<Household>;
+  saveProgressCheckInNeedsWork: (
+    householdId: string,
+    input: { checkInId: string; reviewedAt: string },
   ) => Promise<Household>;
   skipChoreOccurrence: (
     householdId: string,
@@ -176,6 +209,21 @@ export function createDrizzleHouseholdRepository(
       return requireHouseholdById(db, householdId);
     },
 
+    async createGoal(householdId, goal) {
+      await db.insert(goals).values({
+        childId: goal.childId,
+        createdAt: new Date(goal.createdAt),
+        householdId,
+        id: goal.id,
+        pointValue: goal.pointValue,
+        status: goal.status,
+        title: goal.title,
+        updatedAt: new Date(goal.updatedAt),
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
     async createFirstRunHousehold(household, firstParentAuthUserId) {
       await db.transaction(async (tx) => {
         await tx.insert(households).values({
@@ -254,6 +302,105 @@ export function createDrizzleHouseholdRepository(
 
       if (updatedRows.length === 0) {
         throw new Error("Only pending Chore Submissions can be marked Needs Work.");
+      }
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveGoalCompletion(householdId, input) {
+      await db.transaction(async (tx) => {
+        const updatedRows = await tx
+          .update(goals)
+          .set({
+            completedAt: input.goal.completedAt
+              ? new Date(input.goal.completedAt)
+              : new Date(),
+            status: "completed",
+            updatedAt: new Date(input.goal.updatedAt),
+          })
+          .where(
+            and(
+              eq(goals.householdId, householdId),
+              eq(goals.id, input.goal.id),
+              eq(goals.status, "active"),
+            ),
+          )
+          .returning({ id: goals.id });
+
+        if (updatedRows.length === 0) {
+          throw new Error("Only active Goals can be completed.");
+        }
+
+        await applyPointEffects(tx, householdId, input);
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveGoalStatus(householdId, goalId, input) {
+      const updatedRows = await db
+        .update(goals)
+        .set({
+          status: input.status,
+          updatedAt: new Date(input.updatedAt),
+        })
+        .where(and(eq(goals.householdId, householdId), eq(goals.id, goalId)))
+        .returning({ id: goals.id });
+
+      if (updatedRows.length === 0) {
+        throw new Error("Goal not found.");
+      }
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveProgressCheckInApproval(householdId, input) {
+      await db.transaction(async (tx) => {
+        for (const checkIn of input.progressCheckIns) {
+          const updatedRows = await tx
+            .update(progressCheckIns)
+            .set({
+              reviewedAt: checkIn.reviewedAt ? new Date(checkIn.reviewedAt) : new Date(),
+              status: "approved",
+            })
+            .where(
+              and(
+                eq(progressCheckIns.householdId, householdId),
+                eq(progressCheckIns.id, checkIn.id),
+                eq(progressCheckIns.status, "pending"),
+              ),
+            )
+            .returning({ id: progressCheckIns.id });
+
+          if (updatedRows.length === 0) {
+            throw new Error("Only pending Progress Check-ins can be approved.");
+          }
+        }
+
+        await applyPointEffects(tx, householdId, input);
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveProgressCheckInNeedsWork(householdId, input) {
+      const updatedRows = await db
+        .update(progressCheckIns)
+        .set({
+          reviewedAt: new Date(input.reviewedAt),
+          status: "needs_work",
+        })
+        .where(
+          and(
+            eq(progressCheckIns.householdId, householdId),
+            eq(progressCheckIns.id, input.checkInId),
+            eq(progressCheckIns.status, "pending"),
+          ),
+        )
+        .returning({ id: progressCheckIns.id });
+
+      if (updatedRows.length === 0) {
+        throw new Error("Only pending Progress Check-ins can be marked Needs Work.");
       }
 
       return requireHouseholdById(db, householdId);
@@ -339,6 +486,63 @@ async function requireHouseholdById(
   return household;
 }
 
+async function applyPointEffects(
+  tx: AppTransaction,
+  householdId: string,
+  input: {
+    balanceChanges: Array<{ childId: string; delta: number }>;
+    childWins: ChildWin[];
+    pointLedger: PointLedgerEntry[];
+  },
+): Promise<void> {
+  for (const balanceChange of input.balanceChanges) {
+    await tx
+      .update(children)
+      .set({
+        pointBalance: sql`${children.pointBalance} + ${balanceChange.delta}`,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(children.householdId, householdId),
+          eq(children.id, balanceChange.childId),
+        ),
+      );
+  }
+
+  if (input.pointLedger.length > 0) {
+    await tx.insert(pointLedger).values(
+      input.pointLedger.map((entry) => ({
+        childId: entry.childId,
+        createdAt: new Date(entry.createdAt),
+        delta: entry.delta,
+        description: entry.description,
+        householdId,
+        id: entry.id,
+        sourceId: entry.sourceId,
+        sourceType: entry.sourceType,
+      })),
+    );
+  }
+
+  if (input.childWins.length > 0) {
+    await tx.insert(childWins).values(
+      input.childWins.map((win) => ({
+        childId: win.childId,
+        description: win.description,
+        earnedAt: new Date(win.earnedAt),
+        householdId,
+        id: win.id,
+        sourceId: win.sourceId,
+        sourceType: win.sourceType,
+        title: win.title,
+      })),
+    );
+  }
+
+  await tx.update(households).set({ updatedAt: new Date() }).where(eq(households.id, householdId));
+}
+
 async function getHouseholdById(
   db: AppDatabase,
   householdId: string,
@@ -359,6 +563,8 @@ async function getHouseholdById(
     choreRows,
     submissionRows,
     skippedRows,
+    goalRows,
+    progressRows,
     ledgerRows,
     winRows,
   ] = await Promise.all([
@@ -387,6 +593,16 @@ async function getHouseholdById(
       .from(skippedChoreOccurrences)
       .where(eq(skippedChoreOccurrences.householdId, household.id))
       .orderBy(asc(skippedChoreOccurrences.occurrenceDate)),
+    db
+      .select()
+      .from(goals)
+      .where(eq(goals.householdId, household.id))
+      .orderBy(asc(goals.createdAt)),
+    db
+      .select()
+      .from(progressCheckIns)
+      .where(eq(progressCheckIns.householdId, household.id))
+      .orderBy(asc(progressCheckIns.submittedAt)),
     db
       .select()
       .from(pointLedger)
@@ -427,7 +643,7 @@ async function getHouseholdById(
     })),
     createdAt: household.createdAt.toISOString(),
     eventEnrichments: [],
-    goals: [],
+    goals: goalRows.map(mapGoalRow),
     id: household.id,
     name: household.name,
     parents: parentRows.map((parent) => ({
@@ -436,7 +652,7 @@ async function getHouseholdById(
       name: parent.name,
     })),
     pointLedger: ledgerRows.map(mapPointLedgerRow),
-    progressCheckIns: [],
+    progressCheckIns: progressRows.map(mapProgressCheckInRow),
     rewardContributions: [],
     rewardRequests: [],
     rewards: [],
@@ -468,6 +684,32 @@ function mapSkippedChoreOccurrenceRow(
     id: occurrence.id,
     occurrenceDate: occurrence.occurrenceDate,
     skippedAt: occurrence.skippedAt.toISOString(),
+  };
+}
+
+function mapGoalRow(goal: typeof goals.$inferSelect): Goal {
+  return {
+    childId: goal.childId,
+    completedAt: goal.completedAt?.toISOString(),
+    createdAt: goal.createdAt.toISOString(),
+    id: goal.id,
+    pointValue: goal.pointValue,
+    status: goal.status,
+    title: goal.title,
+    updatedAt: goal.updatedAt.toISOString(),
+  };
+}
+
+function mapProgressCheckInRow(
+  checkIn: typeof progressCheckIns.$inferSelect,
+): ProgressCheckIn {
+  return {
+    childId: checkIn.childId,
+    goalId: checkIn.goalId,
+    id: checkIn.id,
+    reviewedAt: checkIn.reviewedAt?.toISOString(),
+    status: checkIn.status,
+    submittedAt: checkIn.submittedAt.toISOString(),
   };
 }
 

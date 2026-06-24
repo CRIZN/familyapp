@@ -12,14 +12,19 @@ import {
 } from "./first-run";
 import {
   approveChoreSubmissionsForParent,
+  approveProgressCheckInsForParent,
   markChoreSubmissionNeedsWorkForParent,
+  markProgressCheckInNeedsWorkForParent,
   skipChoreOccurrenceForParent,
   type HouseholdApprovalResult,
 } from "./approvals";
 import {
   addAllowedParent,
   archiveChoreForParent,
+  archiveGoalForParent,
+  completeGoalForParent,
   createChoreForParent,
+  createGoalForParent,
   pauseChoreForParent,
   updateChildPinForParent,
   updateChildProfile,
@@ -131,6 +136,32 @@ export async function updateChildPinAction(input: {
   );
 }
 
+export async function createGoalAction(input: {
+  childId: string;
+  pointValue: number;
+  title: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    createGoalForParent(dependencies, input),
+  );
+}
+
+export async function archiveGoalAction(input: {
+  goalId: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    archiveGoalForParent(dependencies, input),
+  );
+}
+
+export async function completeGoalAction(input: {
+  goalId: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    completeGoalForParent(dependencies, input),
+  );
+}
+
 export async function approveChoreSubmissionsAction(input: {
   submissionIds: string[];
 }): Promise<HouseholdApprovalResult> {
@@ -144,6 +175,22 @@ export async function markChoreSubmissionNeedsWorkAction(input: {
 }): Promise<HouseholdApprovalResult> {
   return runHouseholdApprovalAction((dependencies) =>
     markChoreSubmissionNeedsWorkForParent(dependencies, input),
+  );
+}
+
+export async function approveProgressCheckInsAction(input: {
+  checkInIds: string[];
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    approveProgressCheckInsForParent(dependencies, input),
+  );
+}
+
+export async function markProgressCheckInNeedsWorkAction(input: {
+  checkInId: string;
+}): Promise<HouseholdApprovalResult> {
+  return runHouseholdApprovalAction((dependencies) =>
+    markProgressCheckInNeedsWorkForParent(dependencies, input),
   );
 }
 
@@ -183,6 +230,7 @@ async function runHouseholdManagementAction(
     if (result.status === "ok") {
       revalidatePath("/parent");
       revalidatePath("/parent/chores");
+      revalidatePath("/parent/goals");
       revalidatePath("/child");
     }
 
@@ -221,6 +269,7 @@ async function runHouseholdApprovalAction(
     if (result.status === "ok") {
       revalidatePath("/parent");
       revalidatePath("/parent/approvals");
+      revalidatePath("/parent/goals");
       revalidatePath("/parent/points");
       revalidatePath("/child");
     }

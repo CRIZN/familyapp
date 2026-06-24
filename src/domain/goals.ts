@@ -153,6 +153,9 @@ export function submitProgressCheckIn(
   if (goal.status !== "active") {
     throw new Error("Only active Goals can receive Progress Check-ins.");
   }
+  if (getGoalRemainingPoints(normalized, goal) === 0) {
+    throw new Error("This Goal has already earned all available Points.");
+  }
   const alreadyPending = normalized.progressCheckIns.some(
     (checkIn) =>
       checkIn.goalId === goal.id &&
@@ -266,6 +269,9 @@ export function approveProgressCheckIns(
       throw new Error("Goal not found.");
     }
     const remainingPoints = getGoalRemainingPoints(normalized, goal);
+    if (remainingPoints === 0) {
+      throw new Error("This Goal has already earned all available Points.");
+    }
     return {
       checkIn,
       goal,

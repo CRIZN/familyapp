@@ -114,10 +114,25 @@ function createRepository(
     createChore: async () => {
       throw new Error("not used");
     },
+    createGoal: async () => {
+      throw new Error("not used");
+    },
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
     markChoreSubmissionNeedsWork: async () => {
+      throw new Error("not used");
+    },
+    saveGoalCompletion: async () => {
+      throw new Error("not used");
+    },
+    saveGoalStatus: async () => {
+      throw new Error("not used");
+    },
+    saveProgressCheckInApproval: async () => {
+      throw new Error("not used");
+    },
+    saveProgressCheckInNeedsWork: async () => {
       throw new Error("not used");
     },
     skipChoreOccurrence: async () => {

@@ -11,6 +11,7 @@ import {
   writeChildSessionCookie,
 } from "./session";
 import { submitChoreForChild, type ChildChoreResult } from "./chores";
+import { submitProgressCheckInForChild, type ChildGoalResult } from "./goals";
 import { getCurrentChildSession } from "./queries";
 
 export type ChildSignInActionState = {
@@ -74,6 +75,37 @@ export async function submitChildChoreAction(input: {
   } catch (caught) {
     return {
       message: caught instanceof Error ? caught.message : "Could not submit Chore.",
+      status: "error",
+    };
+  }
+}
+
+export async function submitChildProgressCheckInAction(input: {
+  goalId: string;
+}): Promise<ChildGoalResult> {
+  try {
+    const result = await submitProgressCheckInForChild(
+      {
+        getAuthenticatedChild: getCurrentChildSession,
+        repository: createDrizzleChildAppRepository(),
+      },
+      input,
+    );
+
+    if (result.status === "ok") {
+      revalidatePath("/child");
+      revalidatePath("/parent");
+      revalidatePath("/parent/approvals");
+      revalidatePath("/parent/goals");
+    }
+
+    return result;
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error
+          ? caught.message
+          : "Could not submit Progress Check-in.",
       status: "error",
     };
   }

@@ -5,8 +5,15 @@ import {
   type Routine,
 } from "@/domain/chores";
 import {
+  archiveGoal,
+  completeGoal,
+  createGoal,
+} from "@/domain/goals";
+import {
   createChildPinCredentials,
+  type ChildWin,
   type Household,
+  type PointLedgerEntry,
 } from "@/domain/household";
 
 import type { HouseholdRepository } from "./repository";
@@ -50,6 +57,31 @@ export async function createChoreForParent(
   );
 
   return { household, message: "Chore created.", status: "ok" };
+}
+
+export async function createGoalForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: {
+    childId: string;
+    pointValue: number;
+    title: string;
+  },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = createGoal(authorization.household, input);
+  const createdGoal = updatedHousehold.goals.at(-1);
+  if (!createdGoal) {
+    return { message: "Could not create Goal.", status: "error" };
+  }
+
+  const household = await dependencies.repository.createGoal(
+    authorization.household.id,
+    createdGoal,
+  );
+
+  return { household, message: "Goal created.", status: "ok" };
 }
 
 export async function addAllowedParent(
@@ -133,6 +165,64 @@ export async function archiveChoreForParent(
   );
 }
 
+export async function archiveGoalForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { goalId: string },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = archiveGoal(authorization.household, input.goalId);
+  const updatedGoal = updatedHousehold.goals.find(
+    (goal) => goal.id === input.goalId,
+  );
+  if (!updatedGoal) {
+    return { message: "Goal not found.", status: "error" };
+  }
+
+  const household = await dependencies.repository.saveGoalStatus(
+    authorization.household.id,
+    input.goalId,
+    {
+      status: updatedGoal.status,
+      updatedAt: updatedGoal.updatedAt,
+    },
+  );
+
+  return { household, message: "Goal archived.", status: "ok" };
+}
+
+export async function completeGoalForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { goalId: string },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = completeGoal(authorization.household, input.goalId);
+  const completedGoal = updatedHousehold.goals.find(
+    (goal) => goal.id === input.goalId,
+  );
+  if (!completedGoal) {
+    return { message: "Goal not found.", status: "error" };
+  }
+
+  const household = await dependencies.repository.saveGoalCompletion(
+    authorization.household.id,
+    {
+      balanceChanges: getBalanceChanges(
+        authorization.household,
+        updatedHousehold,
+      ),
+      childWins: getNewWins(authorization.household, updatedHousehold),
+      goal: completedGoal,
+      pointLedger: getNewLedgerEntries(authorization.household, updatedHousehold),
+    },
+  );
+
+  return { household, message: "Goal completed.", status: "ok" };
+}
+
 async function updateParentChoreStatus(
   dependencies: HouseholdManagementDependencies,
   choreId: string,
@@ -191,4 +281,28 @@ async function authorizeParent(
 function normalizeEmail(email: string | null | undefined): string | null {
   const normalized = email?.trim().toLowerCase();
   return normalized ? normalized : null;
+}
+
+function getBalanceChanges(
+  before: Household,
+  after: Household,
+): Array<{ childId: string; delta: number }> {
+  return after.children.flatMap((child) => {
+    const previous = before.children.find((candidate) => candidate.id === child.id);
+    const delta = child.pointBalance - (previous?.pointBalance ?? child.pointBalance);
+    return delta === 0 ? [] : [{ childId: child.id, delta }];
+  });
+}
+
+function getNewLedgerEntries(
+  before: Household,
+  after: Household,
+): PointLedgerEntry[] {
+  const beforeIds = new Set(before.pointLedger.map((entry) => entry.id));
+  return after.pointLedger.filter((entry) => !beforeIds.has(entry.id));
+}
+
+function getNewWins(before: Household, after: Household): ChildWin[] {
+  const beforeIds = new Set(before.childWins.map((win) => win.id));
+  return after.childWins.filter((win) => !beforeIds.has(win.id));
 }

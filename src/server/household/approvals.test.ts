@@ -5,11 +5,14 @@ import {
   submitChore,
   type SkippedChoreOccurrence,
 } from "@/domain/chores";
+import { createGoal, submitProgressCheckIn } from "@/domain/goals";
 import { createHousehold, type Household } from "@/domain/household";
 
 import {
   approveChoreSubmissionsForParent,
+  approveProgressCheckInsForParent,
   markChoreSubmissionNeedsWorkForParent,
+  markProgressCheckInNeedsWorkForParent,
   skipChoreOccurrenceForParent,
   type ChoreApprovalPersistence,
   type HouseholdApprovalRepository,
@@ -160,6 +163,140 @@ describe("Household approval persistence", () => {
     );
   });
 
+  it("approves Progress Check-ins with ledger entries and Wins", async () => {
+    const household = await createHouseholdWithSubmittedProgress();
+    const checkIn = household.progressCheckIns[0]!;
+    const saveProgressCheckInApproval = vi.fn(async (_householdId, input) => ({
+      ...household,
+      children: household.children.map((child) =>
+        child.id === input.balanceChanges[0]?.childId
+          ? {
+              ...child,
+              pointBalance: child.pointBalance + input.balanceChanges[0]!.delta,
+            }
+          : child,
+      ),
+      childWins: input.childWins,
+      pointLedger: input.pointLedger,
+      progressCheckIns: household.progressCheckIns.map((candidate) =>
+        candidate.id === checkIn.id
+          ? { ...candidate, status: "approved" as const }
+          : candidate,
+      ),
+    }));
+
+    const result = await approveProgressCheckInsForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, { saveProgressCheckInApproval }),
+      },
+      { checkInIds: [checkIn.id] },
+    );
+
+    expect(result.status).toBe("ok");
+    expect(saveProgressCheckInApproval).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        balanceChanges: [{ childId: household.children[0]!.id, delta: 1 }],
+        pointLedger: [
+          expect.objectContaining({
+            delta: 1,
+            sourceId: checkIn.id,
+            sourceType: "progress_check_in_approval",
+          }),
+        ],
+        progressCheckIns: [
+          expect.objectContaining({ id: checkIn.id, status: "approved" }),
+        ],
+      }),
+    );
+  });
+
+  it("marks a Progress Check-in Needs Work without awarding Points", async () => {
+    const household = await createHouseholdWithSubmittedProgress();
+    const checkIn = household.progressCheckIns[0]!;
+    const saveProgressCheckInNeedsWork = vi.fn(async () => ({
+      ...household,
+      progressCheckIns: household.progressCheckIns.map((candidate) =>
+        candidate.id === checkIn.id
+          ? { ...candidate, status: "needs_work" as const }
+          : candidate,
+      ),
+    }));
+
+    const result = await markProgressCheckInNeedsWorkForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, { saveProgressCheckInNeedsWork }),
+      },
+      { checkInId: checkIn.id },
+    );
+
+    expect(result.status).toBe("ok");
+    expect(saveProgressCheckInNeedsWork).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({ checkInId: checkIn.id }),
+    );
+  });
+
+  it("rejects approving stale zero-point Progress Check-ins", async () => {
+    const household = await createHouseholdWithSubmittedProgress();
+    const child = household.children[0]!;
+    const goal = household.goals[0]!;
+    const checkIn = household.progressCheckIns[0]!;
+    const fullyAwarded = {
+      ...household,
+      pointLedger: [
+        {
+          childId: child.id,
+          createdAt: "2026-06-24T00:00:00.000Z",
+          delta: goal.pointValue,
+          description: "Approved Progress Check-in: Read daily",
+          id: "ledger-1",
+          sourceId: "older-check-in",
+          sourceType: "progress_check_in_approval" as const,
+        },
+      ],
+      progressCheckIns: [
+        ...household.progressCheckIns,
+        {
+          childId: child.id,
+          goalId: goal.id,
+          id: "older-check-in",
+          reviewedAt: "2026-06-24T00:00:00.000Z",
+          status: "approved" as const,
+          submittedAt: "2026-06-23T00:00:00.000Z",
+        },
+      ],
+    };
+    const saveProgressCheckInApproval = vi.fn();
+
+    const result = await approveProgressCheckInsForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(fullyAwarded, {
+          saveProgressCheckInApproval,
+        }),
+      },
+      { checkInIds: [checkIn.id] },
+    );
+
+    expect(result).toEqual({
+      message: "This Goal has already earned all available Points.",
+      status: "error",
+    });
+    expect(saveProgressCheckInApproval).not.toHaveBeenCalled();
+  });
+
   it("persists skipped Chore occurrences without awarding Points", async () => {
     const household = await createHouseholdWithSubmittedChore();
     const chore = household.chores[0]!;
@@ -276,6 +413,24 @@ async function createHouseholdWithSubmittedChores(): Promise<Household> {
   });
 }
 
+async function createHouseholdWithSubmittedProgress(): Promise<Household> {
+  const household = await createHousehold({
+    children: [{ name: "Ada", pin: "1234" }],
+    householdName: "Clozcasa",
+    parents: [{ email: "first@example.com", name: "First" }],
+  });
+  const withGoal = createGoal(household, {
+    childId: household.children[0]!.id,
+    pointValue: 5,
+    title: "Read daily",
+  });
+
+  return submitProgressCheckIn(withGoal, {
+    childId: household.children[0]!.id,
+    goalId: withGoal.goals[0]!.id,
+  });
+}
+
 function createRepository(
   household: Household,
   overrides: Partial<HouseholdApprovalRepository> = {},
@@ -285,6 +440,8 @@ function createRepository(
     findHouseholdForParent: async (email) =>
       email === "first@example.com" ? household : null,
     markChoreSubmissionNeedsWork: async () => household,
+    saveProgressCheckInApproval: async () => household,
+    saveProgressCheckInNeedsWork: async () => household,
     skipChoreOccurrence: async () => household,
     ...overrides,
   };

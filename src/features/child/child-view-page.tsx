@@ -25,7 +25,7 @@ import {
   getChildWins,
 } from "@/domain/chores";
 import type { GoalProgress, ProgressCheckInSummary } from "@/domain/goals";
-import { getChildGoalBoard, submitProgressCheckIn } from "@/domain/goals";
+import { getChildGoalBoard } from "@/domain/goals";
 import {
   getChildView,
   type Household,
@@ -51,6 +51,7 @@ import {
   logoutChildAction,
   signInChildAction,
   submitChildChoreAction,
+  submitChildProgressCheckInAction,
   type ChildSignInActionState,
 } from "@/server/child/actions";
 
@@ -614,18 +615,21 @@ export function ChildViewPage({
     }
   }
 
-  function submitGoalProgress(goal: GoalProgress) {
+  async function submitGoalProgress(goal: GoalProgress) {
     if (!household || !session) {
       return;
     }
     setError(null);
     setMessage(null);
     try {
-      const updated = submitProgressCheckIn(household, {
-        childId: session.childId,
+      const result = await submitChildProgressCheckInAction({
         goalId: goal.goalId,
       });
-      setHousehold(updated);
+      if (result.status === "error") {
+        setError(result.message);
+        return;
+      }
+      setHousehold(result.household);
       setMessage(`${goal.title} Progress Check-in is waiting for Parent review.`);
     } catch (caught) {
       setError(
