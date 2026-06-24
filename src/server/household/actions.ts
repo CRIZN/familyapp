@@ -12,6 +12,9 @@ import {
 } from "./first-run";
 import {
   addAllowedParent,
+  archiveChoreForParent,
+  createChoreForParent,
+  pauseChoreForParent,
   updateChildPinForParent,
   updateChildProfile,
   type HouseholdManagementResult,
@@ -76,6 +79,34 @@ export async function addAllowedParentAction(input: {
   );
 }
 
+export async function createChoreAction(input: {
+  childId: string;
+  dueDate: string;
+  pointValue: number;
+  routine: { frequency: "daily" | "weekly" } | null;
+  title: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    createChoreForParent(dependencies, input),
+  );
+}
+
+export async function pauseChoreAction(input: {
+  choreId: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    pauseChoreForParent(dependencies, input),
+  );
+}
+
+export async function archiveChoreAction(input: {
+  choreId: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    archiveChoreForParent(dependencies, input),
+  );
+}
+
 export async function updateChildProfileAction(input: {
   childId: string;
   name: string;
@@ -119,6 +150,7 @@ async function runHouseholdManagementAction(
 
     if (result.status === "ok") {
       revalidatePath("/parent");
+      revalidatePath("/parent/chores");
       revalidatePath("/child");
     }
 

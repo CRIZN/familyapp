@@ -104,6 +104,20 @@ describe("parent workflow IA", () => {
     expect(source).toContain("<PointAdjustmentForm");
   });
 
+  it("routes Parent Chore management through server actions", () => {
+    const source = readFileSync(
+      "src/features/parent/parent-view-page.tsx",
+      "utf8",
+    );
+
+    expect(source).toContain("createChoreAction");
+    expect(source).toContain("pauseChoreAction");
+    expect(source).toContain("archiveChoreAction");
+    expect(source).not.toContain("createChore(household");
+    expect(source).not.toContain("pauseChore(household");
+    expect(source).not.toContain("archiveChore(household");
+  });
+
   it("flags ambiguous or missing Event Participants for Parent attention", () => {
     expect(
       eventNeedsParentAttention({

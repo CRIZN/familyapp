@@ -34,13 +34,10 @@ import {
 import type { ApprovalQueueItem, ChoreOccurrence } from "@/domain/chores";
 import {
   approveChoreSubmissions,
-  archiveChore,
-  createChore,
   getApprovalQueue,
   getChildChoreBoard,
   getRoutineLabel,
   markChoreSubmissionNeedsWork,
-  pauseChore,
   skipChoreOccurrence,
 } from "@/domain/chores";
 import {
@@ -67,6 +64,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   addAllowedParentAction,
+  archiveChoreAction,
+  createChoreAction,
+  pauseChoreAction,
   updateChildPinAction,
   updateChildProfileAction,
 } from "@/server/household/actions";
@@ -223,27 +223,33 @@ export function ParentViewPage({
     }
   }
 
-  function onCreateChore(event: FormEvent<HTMLFormElement>) {
+  async function onCreateChore(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
-    withParentAction(() => {
-      const updated = createChore(household, {
-        title: choreTitle,
-        childId: choreChildId || household.children[0]?.id || "",
-        pointValue: Number(chorePointValue),
-        dueDate: choreDueDate,
-        routine:
-          choreRoutine === "none"
-            ? null
-            : { frequency: choreRoutine === "daily" ? "daily" : "weekly" },
-      });
-      setHousehold(updated);
+
+    setError(null);
+    setMessage(null);
+    const result = await createChoreAction({
+      title: choreTitle,
+      childId: choreChildId || household.children[0]?.id || "",
+      pointValue: Number(chorePointValue),
+      dueDate: choreDueDate,
+      routine:
+        choreRoutine === "none"
+          ? null
+          : { frequency: choreRoutine === "daily" ? "daily" : "weekly" },
+    });
+
+    if (result.status === "ok") {
+      setHousehold(result.household);
       setChoreTitle("");
       setChorePointValue("1");
       setChoreDueDate(getTodayDateKey());
       setChoreRoutine("none");
-      setMessage("Chore created.");
-    }, "Could not create Chore.");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   function approveSelectedSubmissions() {
@@ -366,20 +372,28 @@ export function ParentViewPage({
     }, "Could not skip Chore.");
   }
 
-  function pauseExistingChore(choreId: string) {
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(pauseChore(household, choreId));
-      setMessage("Chore paused.");
-    }, "Could not pause Chore.");
+  async function pauseExistingChore(choreId: string) {
+    setError(null);
+    setMessage(null);
+    const result = await pauseChoreAction({ choreId });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
-  function archiveExistingChore(choreId: string) {
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(archiveChore(household, choreId));
-      setMessage("Chore archived.");
-    }, "Could not archive Chore.");
+  async function archiveExistingChore(choreId: string) {
+    setError(null);
+    setMessage(null);
+    const result = await archiveChoreAction({ choreId });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   function onCreateGoal(event: FormEvent<HTMLFormElement>) {
