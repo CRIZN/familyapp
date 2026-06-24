@@ -464,7 +464,7 @@ Wire the Calendar workflow enough for production release without live Apple feed
 - [x] Event Enrichment UI handles an empty agenda gracefully.
 - [x] Tests cover feed URL write-only behavior and Parent authorization.
 
-### P15. Production Release Hardening
+### P15. Production Release Hardening - Done
 
 **Blocked by**: P1-P14
 
@@ -472,12 +472,12 @@ Wire the Calendar workflow enough for production release without live Apple feed
 Prepare the private production release on Vercel and Supabase with operational checks, release smoke tests, and rollback-safe configuration.
 
 **Acceptance criteria**:
-- [ ] Required environment variables are documented, including Supabase values, `FIRST_RUN_SETUP_TOKEN`, and Child session signing secret.
-- [ ] Vercel production deployment is configured for the Next.js app.
-- [ ] Supabase production project has migrations applied, RLS enabled, and backups configured.
-- [ ] Playwright covers the production happy path across Parent magic-link setup, Child PIN sign-in, Chore approval, Points, Rewards, and Weekly Review.
-- [ ] A release checklist covers first-run setup, Parent allowlist verification, Child PIN verification, and private-app denial states.
-- [ ] No production UI path reads or writes demo `localStorage` Household state.
+- [x] Required environment variables are documented, including Supabase values, `FIRST_RUN_SETUP_TOKEN`, and Child session signing secret.
+- [x] Vercel production deployment is configured for the Next.js app.
+- [x] Supabase production project has migrations applied, RLS enabled, and backups configured.
+- [x] Playwright covers the production happy path across Parent magic-link setup, Child PIN sign-in, Chore approval, Points, Rewards, and Weekly Review.
+- [x] A release checklist covers first-run setup, Parent allowlist verification, Child PIN verification, and private-app denial states.
+- [x] No production UI path reads or writes demo `localStorage` Household state.
 
 ### P16. Post-Release Apple Calendar Feed Sync
 
