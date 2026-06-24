@@ -7,6 +7,11 @@ import {
   type ChoreSubmission,
   type SkippedChoreOccurrence,
 } from "@/domain/chores";
+import {
+  approveProgressCheckIns,
+  markProgressCheckInNeedsWork,
+  type ProgressCheckIn,
+} from "@/domain/goals";
 import type { ChildWin, Household, PointLedgerEntry } from "@/domain/household";
 
 export type ParentApprovalUser = {
@@ -33,6 +38,19 @@ export type HouseholdApprovalRepository = {
   markChoreSubmissionNeedsWork: (
     householdId: string,
     input: { reviewedAt: string; submissionId: string },
+  ) => Promise<Household>;
+  saveProgressCheckInApproval: (
+    householdId: string,
+    input: {
+      balanceChanges: Array<{ childId: string; delta: number }>;
+      childWins: ChildWin[];
+      pointLedger: PointLedgerEntry[];
+      progressCheckIns: ProgressCheckIn[];
+    },
+  ) => Promise<Household>;
+  saveProgressCheckInNeedsWork: (
+    householdId: string,
+    input: { checkInId: string; reviewedAt: string },
   ) => Promise<Household>;
   skipChoreOccurrence: (
     householdId: string,
@@ -115,6 +133,82 @@ export async function markChoreSubmissionNeedsWorkForParent(
         caught instanceof Error
           ? caught.message
           : "Could not mark Chore Submission Needs Work.",
+      status: "error",
+    };
+  }
+}
+
+export async function approveProgressCheckInsForParent(
+  dependencies: HouseholdApprovalDependencies,
+  input: { checkInIds: string[] },
+): Promise<HouseholdApprovalResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updated = approveProgressCheckIns(
+      authorization.household,
+      input.checkInIds,
+    );
+    const household = await dependencies.repository.saveProgressCheckInApproval(
+      authorization.household.id,
+      getProgressCheckInApprovalPersistence(
+        authorization.household,
+        updated,
+        input.checkInIds,
+      ),
+    );
+
+    return { household, message: "Progress Check-ins approved.", status: "ok" };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error
+          ? caught.message
+          : "Could not approve Progress Check-ins.",
+      status: "error",
+    };
+  }
+}
+
+export async function markProgressCheckInNeedsWorkForParent(
+  dependencies: HouseholdApprovalDependencies,
+  input: { checkInId: string },
+): Promise<HouseholdApprovalResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updated = markProgressCheckInNeedsWork(
+      authorization.household,
+      input.checkInId,
+    );
+    const reviewedCheckIn = updated.progressCheckIns.find(
+      (checkIn) => checkIn.id === input.checkInId,
+    );
+    if (!reviewedCheckIn?.reviewedAt) {
+      return { message: "Could not update Progress Check-in.", status: "error" };
+    }
+
+    const household = await dependencies.repository.saveProgressCheckInNeedsWork(
+      authorization.household.id,
+      {
+        checkInId: input.checkInId,
+        reviewedAt: reviewedCheckIn.reviewedAt,
+      },
+    );
+
+    return {
+      household,
+      message: "Progress Check-in marked Needs Work.",
+      status: "ok",
+    };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error
+          ? caught.message
+          : "Could not mark Progress Check-in Needs Work.",
       status: "error",
     };
   }
@@ -228,6 +322,34 @@ function findSkippedOccurrence(
         occurrence.occurrenceDate === input.occurrenceDate,
     ) ?? null
   );
+}
+
+function getProgressCheckInApprovalPersistence(
+  before: Household,
+  after: Household,
+  checkInIds: string[],
+): {
+  balanceChanges: Array<{ childId: string; delta: number }>;
+  childWins: ChildWin[];
+  pointLedger: PointLedgerEntry[];
+  progressCheckIns: ProgressCheckIn[];
+} {
+  const requestedIds = new Set(checkInIds);
+  const beforeLedgerIds = new Set(before.pointLedger.map((entry) => entry.id));
+  const beforeWinIds = new Set(before.childWins.map((win) => win.id));
+
+  return {
+    balanceChanges: after.children.flatMap((child) => {
+      const previous = before.children.find((candidate) => candidate.id === child.id);
+      const delta = child.pointBalance - (previous?.pointBalance ?? child.pointBalance);
+      return delta === 0 ? [] : [{ childId: child.id, delta }];
+    }),
+    childWins: after.childWins.filter((win) => !beforeWinIds.has(win.id)),
+    pointLedger: after.pointLedger.filter((entry) => !beforeLedgerIds.has(entry.id)),
+    progressCheckIns: after.progressCheckIns.filter(
+      (checkIn) => requestedIds.has(checkIn.id) && checkIn.status === "approved",
+    ),
+  };
 }
 
 function normalizeEmail(email: string | null | undefined): string | null {

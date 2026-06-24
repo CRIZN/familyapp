@@ -3,17 +3,24 @@ import "server-only";
 import { and, asc, eq } from "drizzle-orm";
 
 import type { ChoreSubmission } from "@/domain/chores";
+import type { Goal, ProgressCheckIn } from "@/domain/goals";
+import type { ChildWin, PointLedgerEntry } from "@/domain/household";
 import type { Household } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
   children,
+  childWins,
   choreSubmissions,
   chores,
+  goals,
   households,
+  pointLedger,
+  progressCheckIns,
   skippedChoreOccurrences,
 } from "@/server/db/schema";
 
 import type { ChildChoreRepository } from "./chores";
+import type { ChildGoalRepository } from "./goals";
 import type { ChildSessionRepository } from "./session";
 
 export type ChildSignInOptions = {
@@ -22,7 +29,8 @@ export type ChildSignInOptions = {
 };
 
 export type ChildAppRepository = ChildSessionRepository &
-  ChildChoreRepository & {
+  ChildChoreRepository &
+  ChildGoalRepository & {
     getChildSignInOptions: () => Promise<ChildSignInOptions | null>;
   };
 
@@ -100,6 +108,29 @@ export function createDrizzleChildAppRepository(
       return household;
     },
 
+    async createProgressCheckIn(session, checkIn) {
+      await db.insert(progressCheckIns).values({
+        childId: session.childId,
+        goalId: checkIn.goalId,
+        householdId: session.householdId,
+        id: checkIn.id,
+        status: checkIn.status,
+        submittedAt: new Date(checkIn.submittedAt),
+      });
+
+      const household = await getChildScopedHousehold(db, {
+        childId: session.childId,
+        householdId: session.householdId,
+        sessionVersion: session.sessionVersion,
+      });
+
+      if (!household) {
+        throw new Error("Child session expired.");
+      }
+
+      return household;
+    },
+
     async getChildSignInOptions() {
       const [household] = await db
         .select({ id: households.id })
@@ -157,7 +188,15 @@ async function getChildScopedHousehold(
     return null;
   }
 
-  const [choreRows, submissionRows, skippedRows] = await Promise.all([
+  const [
+    choreRows,
+    submissionRows,
+    skippedRows,
+    goalRows,
+    progressRows,
+    ledgerRows,
+    winRows,
+  ] = await Promise.all([
     db
       .select()
       .from(chores)
@@ -185,12 +224,49 @@ async function getChildScopedHousehold(
         ),
       )
       .orderBy(asc(skippedChoreOccurrences.occurrenceDate)),
+    db
+      .select()
+      .from(goals)
+      .where(
+        and(eq(goals.householdId, child.householdId), eq(goals.childId, child.childId)),
+      )
+      .orderBy(asc(goals.createdAt)),
+    db
+      .select()
+      .from(progressCheckIns)
+      .where(
+        and(
+          eq(progressCheckIns.householdId, child.householdId),
+          eq(progressCheckIns.childId, child.childId),
+        ),
+      )
+      .orderBy(asc(progressCheckIns.submittedAt)),
+    db
+      .select()
+      .from(pointLedger)
+      .where(
+        and(
+          eq(pointLedger.householdId, child.householdId),
+          eq(pointLedger.childId, child.childId),
+        ),
+      )
+      .orderBy(asc(pointLedger.createdAt)),
+    db
+      .select()
+      .from(childWins)
+      .where(
+        and(
+          eq(childWins.householdId, child.householdId),
+          eq(childWins.childId, child.childId),
+        ),
+      )
+      .orderBy(asc(childWins.earnedAt)),
   ]);
 
   return {
     calendarConnection: null,
     calendarEvents: [],
-    childWins: [],
+    childWins: winRows.map(mapChildWinRow),
     children: [
       {
         id: childRow.id,
@@ -217,12 +293,12 @@ async function getChildScopedHousehold(
     })),
     createdAt: household.createdAt.toISOString(),
     eventEnrichments: [],
-    goals: [],
+    goals: goalRows.map(mapGoalRow),
     id: household.id,
     name: household.name,
     parents: [],
-    pointLedger: [],
-    progressCheckIns: [],
+    pointLedger: ledgerRows.map(mapPointLedgerRow),
+    progressCheckIns: progressRows.map(mapProgressCheckInRow),
     rewardContributions: [],
     rewardRequests: [],
     rewards: [],
@@ -234,6 +310,58 @@ async function getChildScopedHousehold(
       skippedAt: occurrence.skippedAt.toISOString(),
     })),
     updatedAt: household.updatedAt.toISOString(),
+  };
+}
+
+function mapGoalRow(goal: typeof goals.$inferSelect): Goal {
+  return {
+    childId: goal.childId,
+    completedAt: goal.completedAt?.toISOString(),
+    createdAt: goal.createdAt.toISOString(),
+    id: goal.id,
+    pointValue: goal.pointValue,
+    status: goal.status,
+    title: goal.title,
+    updatedAt: goal.updatedAt.toISOString(),
+  };
+}
+
+function mapProgressCheckInRow(
+  checkIn: typeof progressCheckIns.$inferSelect,
+): ProgressCheckIn {
+  return {
+    childId: checkIn.childId,
+    goalId: checkIn.goalId,
+    id: checkIn.id,
+    reviewedAt: checkIn.reviewedAt?.toISOString(),
+    status: checkIn.status,
+    submittedAt: checkIn.submittedAt.toISOString(),
+  };
+}
+
+function mapPointLedgerRow(
+  entry: typeof pointLedger.$inferSelect,
+): PointLedgerEntry {
+  return {
+    childId: entry.childId,
+    createdAt: entry.createdAt.toISOString(),
+    delta: entry.delta,
+    description: entry.description,
+    id: entry.id,
+    sourceId: entry.sourceId,
+    sourceType: entry.sourceType,
+  };
+}
+
+function mapChildWinRow(win: typeof childWins.$inferSelect): ChildWin {
+  return {
+    childId: win.childId,
+    description: win.description,
+    earnedAt: win.earnedAt.toISOString(),
+    id: win.id,
+    sourceId: win.sourceId,
+    sourceType: win.sourceType,
+    title: win.title,
   };
 }
 

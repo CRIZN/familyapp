@@ -375,7 +375,7 @@ Wire the Approval Queue for Chore Submissions, including Approve, Needs Work, Sk
 - [x] Server actions enforce Parent allowlist authorization.
 - [x] Tests cover transaction safety, ledger entries, balance updates, Needs Work, Skip, and batch approval.
 
-### P9. Goals and Progress Check-ins Persistence
+### P9. Goals and Progress Check-ins Persistence - Done
 
 **Blocked by**: P8
 
@@ -383,12 +383,12 @@ Wire the Approval Queue for Chore Submissions, including Approve, Needs Work, Sk
 Wire Goals, Progress Check-ins, Goal approval outcomes, and Goal Completion through server actions and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Parents can create, complete, and Archive Goals for one Child.
-- [ ] Children can submit Progress Check-ins for their own active Goals.
-- [ ] Approval Queue distinguishes Progress Check-ins from Chore Submissions.
-- [ ] Approved Progress Check-ins and Goal Completion create Point Ledger entries and Wins atomically.
-- [ ] Needs Work persists without awarding Points.
-- [ ] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
+- [x] Parents can create, complete, and Archive Goals for one Child.
+- [x] Children can submit Progress Check-ins for their own active Goals.
+- [x] Approval Queue distinguishes Progress Check-ins from Chore Submissions.
+- [x] Approved Progress Check-ins and Goal Completion create Point Ledger entries and Wins atomically.
+- [x] Needs Work persists without awarding Points.
+- [x] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
 
 ### P10. Reward Catalog and Child Reward Actions Persistence
 

@@ -9,6 +9,9 @@ import {
   pauseChoreForParent,
   updateChildPinForParent,
   updateChildProfile,
+  archiveGoalForParent,
+  completeGoalForParent,
+  createGoalForParent,
 } from "./management";
 import type { HouseholdRepository } from "./repository";
 
@@ -268,6 +271,99 @@ describe("Household management", () => {
     });
   });
 
+  it("creates, completes, and archives Goals through the repository", async () => {
+    const household = await createTestHousehold();
+    const child = household.children[0]!;
+    const createGoalMock = vi.fn(async (_householdId, goal) => ({
+      ...household,
+      goals: [...household.goals, goal],
+    }));
+
+    const created = await createGoalForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, { createGoal: createGoalMock }),
+      },
+      { childId: child.id, pointValue: 5, title: " Read daily " },
+    );
+
+    expect(created.status).toBe("ok");
+    expect(createGoalMock).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        childId: child.id,
+        pointValue: 5,
+        status: "active",
+        title: "Read daily",
+      }),
+    );
+
+    const withGoal =
+      created.status === "ok"
+        ? created.household
+        : { ...household, goals: [] };
+    const goal = withGoal.goals[0]!;
+    const saveGoalCompletionMock = vi.fn(async () => ({
+      ...withGoal,
+      goals: [{ ...goal, status: "completed" as const }],
+    }));
+    const completed = await completeGoalForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(withGoal, {
+          saveGoalCompletion: saveGoalCompletionMock,
+        }),
+      },
+      { goalId: goal.id },
+    );
+
+    expect(completed.status).toBe("ok");
+    expect(saveGoalCompletionMock).toHaveBeenCalledWith(
+      household.id,
+      expect.objectContaining({
+        balanceChanges: [{ childId: child.id, delta: 5 }],
+        goal: expect.objectContaining({ id: goal.id, status: "completed" }),
+        pointLedger: [
+          expect.objectContaining({
+            delta: 5,
+            sourceId: goal.id,
+            sourceType: "goal_completion",
+          }),
+        ],
+      }),
+    );
+
+    const saveGoalStatusMock = vi.fn(async () => ({
+      ...withGoal,
+      goals: [{ ...goal, status: "archived" as const }],
+    }));
+    const archived = await archiveGoalForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(withGoal, {
+          saveGoalStatus: saveGoalStatusMock,
+        }),
+      },
+      { goalId: goal.id },
+    );
+
+    expect(archived.status).toBe("ok");
+    expect(saveGoalStatusMock).toHaveBeenCalledWith(
+      household.id,
+      goal.id,
+      expect.objectContaining({ status: "archived" }),
+    );
+  });
+
   it("hashes Child PIN updates server-side and returns invalidation data", async () => {
     const household = await createTestHousehold();
     const child = household.children[0]!;
@@ -326,11 +422,16 @@ function createRepository(
     addAllowedParent: async () => household,
     approveChoreSubmissions: async () => household,
     createChore: async () => household,
+    createGoal: async () => household,
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async (email) =>
       email === "first@example.com" ? household : null,
     hasAnyHousehold: async () => true,
     markChoreSubmissionNeedsWork: async () => household,
+    saveGoalCompletion: async () => household,
+    saveGoalStatus: async () => household,
+    saveProgressCheckInApproval: async () => household,
+    saveProgressCheckInNeedsWork: async () => household,
     skipChoreOccurrence: async () => household,
     updateChildPin: async () => household,
     updateChildProfile: async () => household,

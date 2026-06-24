@@ -38,12 +38,7 @@ import {
   getRoutineLabel,
 } from "@/domain/chores";
 import {
-  approveProgressCheckIns,
-  archiveGoal,
-  completeGoal,
-  createGoal,
   getChildGoalBoard,
-  markProgressCheckInNeedsWork,
 } from "@/domain/goals";
 import type { Household } from "@/domain/household";
 import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
@@ -62,9 +57,14 @@ import { Label } from "@/components/ui/label";
 import {
   addAllowedParentAction,
   approveChoreSubmissionsAction,
+  approveProgressCheckInsAction,
   archiveChoreAction,
+  archiveGoalAction,
   createChoreAction,
+  createGoalAction,
+  completeGoalAction,
   markChoreSubmissionNeedsWorkAction,
+  markProgressCheckInNeedsWorkAction,
   pauseChoreAction,
   skipChoreOccurrenceAction,
   updateChildPinAction,
@@ -279,7 +279,14 @@ export function ParentViewPage({
         updated = result.household;
       }
       if (progressCheckInIds.length > 0) {
-        updated = approveProgressCheckIns(updated, progressCheckInIds);
+        const result = await approveProgressCheckInsAction({
+          checkInIds: progressCheckInIds,
+        });
+        if (result.status === "error") {
+          setError(result.message);
+          return;
+        }
+        updated = result.household;
       }
       for (const rewardRequestId of rewardRequestIds) {
         updated = approveRewardRequest(updated, rewardRequestId);
@@ -328,10 +335,18 @@ export function ParentViewPage({
         }
         updated = result.household;
       } else {
-        updated =
-          item.type === "progress_check_in"
-            ? approveProgressCheckIns(household, [item.id])
-            : approveRewardRequest(household, item.id);
+        if (item.type === "progress_check_in") {
+          const result = await approveProgressCheckInsAction({
+            checkInIds: [item.id],
+          });
+          if (result.status === "error") {
+            setError(result.message);
+            return;
+          }
+          updated = result.household;
+        } else {
+          updated = approveRewardRequest(household, item.id);
+        }
       }
       setHousehold(updated);
       setSelectedApprovalIds((current) =>
@@ -359,10 +374,18 @@ export function ParentViewPage({
         }
         updated = result.household;
       } else {
-        updated =
-          item.type === "progress_check_in"
-            ? markProgressCheckInNeedsWork(household, item.id)
-            : rejectRewardRequest(household, item.id);
+        if (item.type === "progress_check_in") {
+          const result = await markProgressCheckInNeedsWorkAction({
+            checkInId: item.id,
+          });
+          if (result.status === "error") {
+            setError(result.message);
+            return;
+          }
+          updated = result.household;
+        } else {
+          updated = rejectRewardRequest(household, item.id);
+        }
       }
       setHousehold(updated);
       setSelectedApprovalIds((current) =>
@@ -455,37 +478,48 @@ export function ParentViewPage({
     }
   }
 
-  function onCreateGoal(event: FormEvent<HTMLFormElement>) {
+  async function onCreateGoal(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
-    withParentAction(() => {
-      setHousehold(
-        createGoal(household, {
-          title: goalTitle,
-          childId: goalChildId || household.children[0]?.id || "",
-          pointValue: Number(goalPointValue),
-        }),
-      );
+    setError(null);
+    setMessage(null);
+    const result = await createGoalAction({
+      title: goalTitle,
+      childId: goalChildId || household.children[0]?.id || "",
+      pointValue: Number(goalPointValue),
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
       setGoalTitle("");
       setGoalPointValue("5");
-      setMessage("Goal created.");
-    }, "Could not create Goal.");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
-  function completeExistingGoal(goalId: string) {
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(completeGoal(household, goalId));
-      setMessage("Goal completed.");
-    }, "Could not complete Goal.");
+  async function completeExistingGoal(goalId: string) {
+    setError(null);
+    setMessage(null);
+    const result = await completeGoalAction({ goalId });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
-  function archiveExistingGoal(goalId: string) {
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(archiveGoal(household, goalId));
-      setMessage("Goal archived.");
-    }, "Could not archive Goal.");
+  async function archiveExistingGoal(goalId: string) {
+    setError(null);
+    setMessage(null);
+    const result = await archiveGoalAction({ goalId });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   function onAwardBonusPoints(event: FormEvent<HTMLFormElement>) {
