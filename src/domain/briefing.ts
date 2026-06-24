@@ -37,7 +37,7 @@ export type SuggestedAction = {
   id: "review-approval-queue" | "handle-overdue-chores" | "fulfill-rewards";
   label: string;
   detail: string;
-  href: "#approval-queue" | "#due-chores" | "#reward-fulfillment";
+  href: "/parent/approvals" | "/parent/chores" | "/parent/rewards";
 };
 
 export function getParentBriefing(
@@ -147,7 +147,7 @@ function getSuggestedActions(input: {
       detail: `${input.approvalSummary.total} item${pluralize(
         input.approvalSummary.total,
       )} waiting`,
-      href: "#approval-queue",
+      href: "/parent/approvals",
     });
   }
   if (input.overdueChores.length > 0) {
@@ -157,7 +157,7 @@ function getSuggestedActions(input: {
       detail: `${input.overdueChores.length} Chore${pluralize(
         input.overdueChores.length,
       )} overdue`,
-      href: "#due-chores",
+      href: "/parent/chores",
     });
   }
   if (input.unfulfilledRewards.length > 0) {
@@ -167,7 +167,7 @@ function getSuggestedActions(input: {
       detail: `${input.unfulfilledRewards.length} Reward${pluralize(
         input.unfulfilledRewards.length,
       )} approved`,
-      href: "#reward-fulfillment",
+      href: "/parent/rewards",
     });
   }
   return actions;

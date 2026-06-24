@@ -80,6 +80,19 @@ describe("parent workflow IA", () => {
     expect(source).toContain('href="/parent/rewards"');
   });
 
+  it("derives Parent Today and Weekly Review aggregation from the loaded Household", () => {
+    const source = readFileSync(
+      "src/features/parent/parent-view-page.tsx",
+      "utf8",
+    );
+
+    expect(source).toContain("getParentBriefing(household, todayDateKey)");
+    expect(source).toContain("getParentWeeklyReview(household, todayDateKey)");
+    expect(source).toContain("<NeedsAttentionSection briefing={parentBriefing} />");
+    expect(source).toContain("<ChildStatusSection household={household}");
+    expect(source).toContain("<WeeklyReviewSection review={parentWeeklyReview} />");
+  });
+
   it("keeps creation and management surfaces in focused workflows", () => {
     const source = readFileSync(
       "src/features/parent/parent-view-page.tsx",

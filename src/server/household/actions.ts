@@ -314,6 +314,7 @@ async function runHouseholdManagementAction(
       revalidatePath("/parent/goals");
       revalidatePath("/parent/points");
       revalidatePath("/parent/rewards");
+      revalidatePath("/parent/weekly-review");
       revalidatePath("/child");
     }
 
@@ -352,9 +353,11 @@ async function runHouseholdApprovalAction(
     if (result.status === "ok") {
       revalidatePath("/parent");
       revalidatePath("/parent/approvals");
+      revalidatePath("/parent/chores");
       revalidatePath("/parent/goals");
       revalidatePath("/parent/points");
       revalidatePath("/parent/rewards");
+      revalidatePath("/parent/weekly-review");
       revalidatePath("/child");
     }
 

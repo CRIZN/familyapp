@@ -32,6 +32,22 @@ import type {
 
 type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
 
+export type PersistedHouseholdRows = {
+  household: typeof households.$inferSelect;
+  parents: Array<typeof parents.$inferSelect>;
+  children: Array<typeof children.$inferSelect>;
+  chores: Array<typeof chores.$inferSelect>;
+  choreSubmissions: Array<typeof choreSubmissions.$inferSelect>;
+  skippedChoreOccurrences: Array<typeof skippedChoreOccurrences.$inferSelect>;
+  goals: Array<typeof goals.$inferSelect>;
+  progressCheckIns: Array<typeof progressCheckIns.$inferSelect>;
+  rewards: Array<typeof rewards.$inferSelect>;
+  rewardContributions: Array<typeof rewardContributions.$inferSelect>;
+  rewardRequests: Array<typeof rewardRequests.$inferSelect>;
+  pointLedger: Array<typeof pointLedger.$inferSelect>;
+  childWins: Array<typeof childWins.$inferSelect>;
+};
+
 export type HouseholdRepository = {
   addAllowedParent: (
     householdId: string,
@@ -832,11 +848,29 @@ async function getHouseholdById(
       .orderBy(asc(childWins.earnedAt)),
   ]);
 
+  return mapPersistedHouseholdRows({
+    childWins: winRows,
+    children: childRows,
+    choreSubmissions: submissionRows,
+    chores: choreRows,
+    goals: goalRows,
+    household,
+    parents: parentRows,
+    pointLedger: ledgerRows,
+    progressCheckIns: progressRows,
+    rewardContributions: contributionRows,
+    rewardRequests: requestRows,
+    rewards: rewardRows,
+    skippedChoreOccurrences: skippedRows,
+  });
+}
+
+export function mapPersistedHouseholdRows(rows: PersistedHouseholdRows): Household {
   return {
     calendarConnection: null,
     calendarEvents: [],
-    childWins: winRows.map(mapChildWinRow),
-    children: childRows.map((child) => ({
+    childWins: rows.childWins.map(mapChildWinRow),
+    children: rows.children.map((child) => ({
       id: child.id,
       name: child.name,
       pinHash: "",
@@ -844,8 +878,8 @@ async function getHouseholdById(
       pointBalance: child.pointBalance,
       sessionVersion: child.sessionVersion,
     })),
-    choreSubmissions: submissionRows.map(mapChoreSubmissionRow),
-    chores: choreRows.map((chore) => ({
+    choreSubmissions: rows.choreSubmissions.map(mapChoreSubmissionRow),
+    chores: rows.chores.map((chore) => ({
       childId: chore.childId,
       createdAt: chore.createdAt.toISOString(),
       dueDate: chore.dueDate,
@@ -858,23 +892,25 @@ async function getHouseholdById(
       title: chore.title,
       updatedAt: chore.updatedAt.toISOString(),
     })),
-    createdAt: household.createdAt.toISOString(),
+    createdAt: rows.household.createdAt.toISOString(),
     eventEnrichments: [],
-    goals: goalRows.map(mapGoalRow),
-    id: household.id,
-    name: household.name,
-    parents: parentRows.map((parent) => ({
+    goals: rows.goals.map(mapGoalRow),
+    id: rows.household.id,
+    name: rows.household.name,
+    parents: rows.parents.map((parent) => ({
       email: parent.email,
       id: parent.id,
       name: parent.name,
     })),
-    pointLedger: ledgerRows.map(mapPointLedgerRow),
-    progressCheckIns: progressRows.map(mapProgressCheckInRow),
-    rewardContributions: contributionRows.map(mapRewardContributionRow),
-    rewardRequests: requestRows.map(mapRewardRequestRow),
-    rewards: rewardRows.map(mapRewardRow),
-    skippedChoreOccurrences: skippedRows.map(mapSkippedChoreOccurrenceRow),
-    updatedAt: household.updatedAt.toISOString(),
+    pointLedger: rows.pointLedger.map(mapPointLedgerRow),
+    progressCheckIns: rows.progressCheckIns.map(mapProgressCheckInRow),
+    rewardContributions: rows.rewardContributions.map(mapRewardContributionRow),
+    rewardRequests: rows.rewardRequests.map(mapRewardRequestRow),
+    rewards: rows.rewards.map(mapRewardRow),
+    skippedChoreOccurrences: rows.skippedChoreOccurrences.map(
+      mapSkippedChoreOccurrenceRow,
+    ),
+    updatedAt: rows.household.updatedAt.toISOString(),
   };
 }
 

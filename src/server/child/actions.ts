@@ -76,6 +76,7 @@ export async function submitChildChoreAction(input: {
       revalidatePath("/child");
       revalidatePath("/parent");
       revalidatePath("/parent/approvals");
+      revalidatePath("/parent/weekly-review");
     }
 
     return result;
@@ -104,6 +105,7 @@ export async function submitChildProgressCheckInAction(input: {
       revalidatePath("/parent");
       revalidatePath("/parent/approvals");
       revalidatePath("/parent/goals");
+      revalidatePath("/parent/weekly-review");
     }
 
     return result;
@@ -167,6 +169,7 @@ async function runChildRewardAction(
       revalidatePath("/parent");
       revalidatePath("/parent/rewards");
       revalidatePath("/parent/approvals");
+      revalidatePath("/parent/weekly-review");
     }
 
     return result;

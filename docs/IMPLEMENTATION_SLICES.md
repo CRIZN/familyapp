@@ -435,7 +435,7 @@ Wire Bonus Points, Point Adjustments, Point Ledger displays, and Wins displays t
 - [x] Server actions enforce Parent allowlist authorization.
 - [x] Tests cover Bonus Points, required adjustment reasons, negative corrections, ledger visibility, and Wins visibility.
 
-### P13. Parent Today, Briefing, and Weekly Review Production Aggregation
+### P13. Parent Today, Briefing, and Weekly Review Production Aggregation - Done
 
 **Blocked by**: P9, P12
 
@@ -443,12 +443,12 @@ Wire Bonus Points, Point Adjustments, Point Ledger displays, and Wins displays t
 Wire Parent Today, Needs Attention, Child Status summaries, Briefing, Suggested Actions, and Weekly Review to server-backed aggregation over Supabase data.
 
 **Acceptance criteria**:
-- [ ] Parent Today loads agenda-independent attention data from Supabase.
-- [ ] Approval Queue preview, Chores Needing Parent Handling, Reward Fulfillment, and Child Status summaries are server-backed.
-- [ ] Briefing Suggested Actions link to focused Parent workflows.
-- [ ] Weekly Review summarizes Chores, Goals, Point Balances, pending Reward Requests, and unfulfilled Rewards from Supabase.
-- [ ] Empty states remain useful when no data exists.
-- [ ] Tests cover aggregation rules and empty states over persisted data.
+- [x] Parent Today loads agenda-independent attention data from Supabase.
+- [x] Approval Queue preview, Chores Needing Parent Handling, Reward Fulfillment, and Child Status summaries are server-backed.
+- [x] Briefing Suggested Actions link to focused Parent workflows.
+- [x] Weekly Review summarizes Chores, Goals, Point Balances, pending Reward Requests, and unfulfilled Rewards from Supabase.
+- [x] Empty states remain useful when no data exists.
+- [x] Tests cover aggregation rules and empty states over persisted data.
 
 ### P14. Calendar Connection Metadata Without Live Feed Sync
 

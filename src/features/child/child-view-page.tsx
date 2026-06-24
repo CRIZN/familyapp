@@ -41,6 +41,7 @@ import { Button } from "@/components/ui/button";
 import { buttonVariants } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getAppDateKey } from "@/lib/date-key";
 import {
   cancelRewardRequestAction,
   contributeToRewardAction,
@@ -987,7 +988,7 @@ function ProgressCheckInCard({
 }
 
 function getTodayDateKey(): string {
-  return new Date().toISOString().slice(0, 10);
+  return getAppDateKey();
 }
 
 function formatDate(dateKey: string): string {
