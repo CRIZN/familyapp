@@ -8,6 +8,8 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "test:e2e:install": "playwright install --with-deps chromium",
+    "test:e2e": "playwright test",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -26,6 +28,7 @@
     "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@testing-library/jest-dom": "^6.6.3",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.2",

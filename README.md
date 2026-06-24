@@ -2,7 +2,7 @@
 
 Family App is a private household coordination app for one Household. It helps Parents see what is happening, what needs review, and what Children have earned, while giving Children a clear place to see today's work, submit progress, understand Points, and request Rewards.
 
-The current repo is moving from a V1 demo/prototype into a private production app. The domain behavior for the V1 slices is implemented and covered by Vitest tests. The Drizzle/Postgres schema, RLS migration, Supabase Auth gate, and server-backed first-run Household setup are wired; the remaining workflow mutations are being moved behind server-side authorization and transactional persistence slice by slice.
+The current repo is moving from a V1 demo/prototype into a private production app. The domain behavior for the V1 slices is implemented and covered by Vitest tests. The Drizzle/Postgres schema, RLS migration, Supabase Auth gate, server-backed first-run Household setup, Child PIN sessions, and core Parent/Child workflow mutations are wired through server-side authorization and transactional persistence.
 
 ## Product Overview
 
@@ -39,7 +39,7 @@ focused Parent workflow routes for durable management. It includes:
 - Chores Needing Parent Handling and Reward Fulfillment attention modules.
 - Compact Child status summaries with one contextual workflow link per Child.
 - Focused workflows for Approvals, Chores, Goals, Rewards, Calendar, Points, Household, and Weekly Review.
-- Calendar workflow ownership of demo Apple Calendar configuration, read-only Event sync entry, Household Agenda, and Participant enrichment.
+- Calendar workflow ownership of server-stored Apple Calendar connection metadata, safe empty agenda states, and the future read-only Event sync surface.
 - Chore, Goal, Reward, Point, Household, and Weekly Review management outside the Today screen.
 
 ### Child View
@@ -59,7 +59,7 @@ Child View is PIN-gated and focused on the selected Child. It includes:
 
 ## Current Implementation Status
 
-The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md) mark V1 slices 1-11 as done:
+The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md) track V1 delivery and production migration:
 
 - App shell and Household setup.
 - Chore creation through Child submission.
@@ -67,7 +67,7 @@ The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION
 - Goals and Progress Check-ins.
 - Reward Catalog, Contributions, Requests, and Fulfillment.
 - Bonus Points and Point Adjustments.
-- Read-only Apple Calendar Agenda with Event Enrichment.
+- Server-stored Apple Calendar connection metadata, with live feed sync planned post-release.
 - Parent Briefing and Suggested Actions.
 - Weekly Review.
 - V1 polish, empty states, and responsive quality pass.
@@ -98,6 +98,7 @@ docs/
   FUTURE_FEATURES.md
   adr/                  Architecture decision records
 drizzle/                Generated SQL migrations and metadata
+e2e/                    Playwright production smoke tests
 ```
 
 ## Getting Started
@@ -134,10 +135,13 @@ npm run start       # Start a production build
 npm run lint        # Run ESLint
 npm run typecheck   # Run TypeScript without emitting files
 npm test            # Run Vitest once
+npm run test:e2e    # Run Playwright production smoke tests when E2E env vars are set
 npm run test:watch  # Run Vitest in watch mode
 ```
 
 Drizzle is configured through `drizzle.config.ts` and the runtime database client reads `DATABASE_URL`.
+
+Production release setup, required environment variables, Vercel configuration, Supabase migration/RLS/backups, and the launch checklist live in [docs/PRODUCTION_RELEASE.md](docs/PRODUCTION_RELEASE.md).
 
 ## Engineering Notes
 
@@ -147,12 +151,13 @@ Drizzle is configured through `drizzle.config.ts` and the runtime database clien
 - Chores, Goals, and Rewards are archived instead of deleted so history remains explainable.
 - Calendar data is modeled as read-only synced Events plus separate Family App Event Enrichment.
 - Child PINs are scoped to the Household and hashed in production storage.
-- Parent and Child workflow mutations still call domain functions in the client after initial server load; production work should move those mutations behind server-side authorization and transactional persistence.
+- Production UI should not read or write demo browser `localStorage` Household state.
 
 ## Important Docs
 
 - [Product brief](docs/PRD_V1.md)
 - [Implementation slices](docs/IMPLEMENTATION_SLICES.md)
 - [Technical review](docs/TECHNICAL_REVIEW.md)
+- [Production release checklist](docs/PRODUCTION_RELEASE.md)
 - [Future features](docs/FUTURE_FEATURES.md)
 - [Repo context and glossary](CONTEXT.md)
