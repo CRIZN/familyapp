@@ -8,14 +8,14 @@ export async function GET(request: NextRequest) {
   const next = requestUrl.searchParams.get("next") ?? "/";
 
   if (code) {
-    const supabase = await createSupabaseServerClient();
+    const response = NextResponse.redirect(new URL(next, requestUrl.origin));
+    const supabase = await createSupabaseServerClient(response);
     const { error } = await supabase.auth.exchangeCodeForSession(code);
 
     if (!error) {
-      return NextResponse.redirect(new URL(next, requestUrl.origin));
+      return response;
     }
   }
 
   return NextResponse.redirect(new URL("/", requestUrl.origin));
 }
-
