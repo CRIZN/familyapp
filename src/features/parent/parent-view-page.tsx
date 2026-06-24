@@ -41,7 +41,6 @@ import {
   getChildGoalBoard,
 } from "@/domain/goals";
 import type { Household } from "@/domain/household";
-import { awardBonusPoints, createPointAdjustment } from "@/domain/points";
 import {
   getChildRewardBoard,
 } from "@/domain/rewards";
@@ -56,8 +55,10 @@ import {
   archiveChoreAction,
   archiveGoalAction,
   archiveRewardAction,
+  awardBonusPointsAction,
   createChoreAction,
   createGoalAction,
+  createPointAdjustmentAction,
   createRewardAction,
   completeGoalAction,
   fulfillRewardRequestAction,
@@ -578,38 +579,44 @@ export function ParentViewPage({
     }
   }
 
-  function onAwardBonusPoints(event: FormEvent<HTMLFormElement>) {
+  async function onAwardBonusPoints(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
-    withParentAction(() => {
-      setHousehold(
-        awardBonusPoints(household, {
-          childId: bonusChildId || household.children[0]?.id || "",
-          points: Number(bonusPoints),
-          reason: bonusReason,
-        }),
-      );
+    setError(null);
+    setMessage(null);
+    const result = await awardBonusPointsAction({
+      childId: bonusChildId || household.children[0]?.id || "",
+      points: Number(bonusPoints),
+      reason: bonusReason,
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
       setBonusPoints("1");
       setBonusReason("");
-      setMessage("Bonus Points awarded.");
-    }, "Could not award Bonus Points.");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
-  function onCreatePointAdjustment(event: FormEvent<HTMLFormElement>) {
+  async function onCreatePointAdjustment(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
-    withParentAction(() => {
-      setHousehold(
-        createPointAdjustment(household, {
-          childId: adjustmentChildId || household.children[0]?.id || "",
-          points: Number(adjustmentPoints),
-          reason: adjustmentReason,
-        }),
-      );
+    setError(null);
+    setMessage(null);
+    const result = await createPointAdjustmentAction({
+      childId: adjustmentChildId || household.children[0]?.id || "",
+      points: Number(adjustmentPoints),
+      reason: adjustmentReason,
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
       setAdjustmentPoints("1");
       setAdjustmentReason("");
-      setMessage("Point Adjustment recorded.");
-    }, "Could not record Point Adjustment.");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   async function onCreateReward(event: FormEvent<HTMLFormElement>) {

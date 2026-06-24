@@ -420,7 +420,7 @@ Wire Reward Request review and fulfillment through the Approval Queue and Reward
 - [x] Rewards workflow shows unfulfilled Rewards and fulfillment history from Supabase.
 - [x] Tests cover approval, rejection, fulfillment, balance changes, and ledger entries.
 
-### P12. Bonus Points, Point Adjustments, Ledger, and Wins Persistence
+### P12. Bonus Points, Point Adjustments, Ledger, and Wins Persistence - Done
 
 **Blocked by**: P11
 
@@ -428,12 +428,12 @@ Wire Reward Request review and fulfillment through the Approval Queue and Reward
 Wire Bonus Points, Point Adjustments, Point Ledger displays, and Wins displays through server actions and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Parents can award Bonus Points to a Child.
-- [ ] Parents can create positive or negative Point Adjustments with a required reason.
-- [ ] All Point Balance changes appear in the authoritative Point Ledger.
-- [ ] Child View shows simplified Point Ledger and Wins from Supabase.
-- [ ] Server actions enforce Parent allowlist authorization.
-- [ ] Tests cover Bonus Points, required adjustment reasons, negative corrections, ledger visibility, and Wins visibility.
+- [x] Parents can award Bonus Points to a Child.
+- [x] Parents can create positive or negative Point Adjustments with a required reason.
+- [x] All Point Balance changes appear in the authoritative Point Ledger.
+- [x] Child View shows simplified Point Ledger and Wins from Supabase.
+- [x] Server actions enforce Parent allowlist authorization.
+- [x] Tests cover Bonus Points, required adjustment reasons, negative corrections, ledger visibility, and Wins visibility.
 
 ### P13. Parent Today, Briefing, and Weekly Review Production Aggregation
 

@@ -16,6 +16,10 @@ import {
   type RewardType,
 } from "@/domain/rewards";
 import {
+  awardBonusPoints,
+  createPointAdjustment,
+} from "@/domain/points";
+import {
   createChildPinCredentials,
   type ChildWin,
   type Household,
@@ -248,6 +252,70 @@ export async function completeGoalForParent(
   );
 
   return { household, message: "Goal completed.", status: "ok" };
+}
+
+export async function awardBonusPointsForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { childId: string; points: number; reason: string },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updatedHousehold = awardBonusPoints(authorization.household, input);
+    const household = await dependencies.repository.savePointEffects(
+      authorization.household.id,
+      {
+        balanceChanges: getBalanceChanges(
+          authorization.household,
+          updatedHousehold,
+        ),
+        childWins: [],
+        pointLedger: getNewLedgerEntries(authorization.household, updatedHousehold),
+      },
+    );
+
+    return { household, message: "Bonus Points awarded.", status: "ok" };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error ? caught.message : "Could not award Bonus Points.",
+      status: "error",
+    };
+  }
+}
+
+export async function createPointAdjustmentForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { childId: string; points: number; reason: string },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updatedHousehold = createPointAdjustment(authorization.household, input);
+    const household = await dependencies.repository.savePointEffects(
+      authorization.household.id,
+      {
+        balanceChanges: getBalanceChanges(
+          authorization.household,
+          updatedHousehold,
+        ),
+        childWins: [],
+        pointLedger: getNewLedgerEntries(authorization.household, updatedHousehold),
+      },
+    );
+
+    return { household, message: "Point Adjustment recorded.", status: "ok" };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error
+          ? caught.message
+          : "Could not record Point Adjustment.",
+      status: "error",
+    };
+  }
 }
 
 export async function updateRewardForParent(

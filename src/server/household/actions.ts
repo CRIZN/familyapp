@@ -26,7 +26,9 @@ import {
   archiveChoreForParent,
   archiveGoalForParent,
   archiveRewardForParent,
+  awardBonusPointsForParent,
   completeGoalForParent,
+  createPointAdjustmentForParent,
   createChoreForParent,
   createGoalForParent,
   createRewardForParent,
@@ -168,6 +170,26 @@ export async function completeGoalAction(input: {
   );
 }
 
+export async function awardBonusPointsAction(input: {
+  childId: string;
+  points: number;
+  reason: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    awardBonusPointsForParent(dependencies, input),
+  );
+}
+
+export async function createPointAdjustmentAction(input: {
+  childId: string;
+  points: number;
+  reason: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    createPointAdjustmentForParent(dependencies, input),
+  );
+}
+
 export async function createRewardAction(input: {
   pointCost: number;
   title: string;
@@ -290,6 +312,7 @@ async function runHouseholdManagementAction(
       revalidatePath("/parent");
       revalidatePath("/parent/chores");
       revalidatePath("/parent/goals");
+      revalidatePath("/parent/points");
       revalidatePath("/parent/rewards");
       revalidatePath("/child");
     }

@@ -84,6 +84,14 @@ export type HouseholdRepository = {
     householdId: string,
     input: { checkInId: string; reviewedAt: string },
   ) => Promise<Household>;
+  savePointEffects: (
+    householdId: string,
+    input: {
+      balanceChanges: Array<{ childId: string; delta: number }>;
+      childWins: ChildWin[];
+      pointLedger: PointLedgerEntry[];
+    },
+  ) => Promise<Household>;
   saveRewardRequestApproval: (
     householdId: string,
     input: RewardRequestApprovalPersistence,
@@ -444,6 +452,14 @@ export function createDrizzleHouseholdRepository(
       if (updatedRows.length === 0) {
         throw new Error("Only pending Progress Check-ins can be marked Needs Work.");
       }
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async savePointEffects(householdId, input) {
+      await db.transaction(async (tx) => {
+        await applyPointEffects(tx, householdId, input);
+      });
 
       return requireHouseholdById(db, householdId);
     },
