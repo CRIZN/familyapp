@@ -25,10 +25,7 @@ import {
 import { getParentBriefing } from "@/domain/briefing";
 import { getParentWeeklyReview } from "@/domain/weekly-review";
 import type { AgendaEvent } from "@/domain/calendar";
-import {
-  getParentAgenda,
-  updateEventParticipants,
-} from "@/domain/calendar";
+import { getParentAgenda } from "@/domain/calendar";
 import type { ApprovalQueueItem, ChoreOccurrence } from "@/domain/chores";
 import {
   getApprovalQueue,
@@ -70,6 +67,7 @@ import {
   updateRewardAction,
   updateChildPinAction,
   updateChildProfileAction,
+  updateEventParticipantsAction,
 } from "@/server/household/actions";
 
 export type ParentWorkflow =
@@ -206,16 +204,6 @@ export function ParentViewPage({
       setMessage(result.message);
     } else {
       setError(result.message);
-    }
-  }
-
-  function withParentAction(action: () => void, fallback: string) {
-    setError(null);
-    setMessage(null);
-    try {
-      action();
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : fallback);
     }
   }
 
@@ -709,19 +697,22 @@ export function ParentViewPage({
     }
   }
 
-  function saveEventParticipants(event: AgendaEvent) {
+  async function saveEventParticipants(event: AgendaEvent) {
     if (!household) return;
-    withParentAction(() => {
-      const draft = getEventParticipantDraft(event);
-      setHousehold(
-        updateEventParticipants(household, {
-          eventId: event.eventId,
-          participantChildIds: draft.participantChildIds,
-          isAllHousehold: draft.isAllHousehold,
-        }),
-      );
-      setMessage("Event Participants updated.");
-    }, "Could not update Participants.");
+    setError(null);
+    setMessage(null);
+    const draft = getEventParticipantDraft(event);
+    const result = await updateEventParticipantsAction({
+      eventId: event.eventId,
+      isAllHousehold: draft.isAllHousehold,
+      participantChildIds: draft.participantChildIds,
+    });
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   function getEventParticipantDraft(event: AgendaEvent): EventParticipantDraft {
@@ -925,11 +916,14 @@ export function ParentViewPage({
         <div className="grid gap-4 lg:grid-cols-2">
           <CalendarConnectionForm
             calendarName={calendarNameValue}
-            sourceUrl={calendarSourceUrlValue}
             isConnected={Boolean(household.calendarConnection)}
+            lastSyncMessage={household.calendarConnection?.lastSyncMessage}
+            lastSyncStatus={household.calendarConnection?.lastSyncStatus}
+            lastSyncedAt={household.calendarConnection?.lastSyncedAt}
             onCalendarNameChange={setCalendarName}
             onSourceUrlChange={setCalendarSourceUrl}
             onSubmit={onConfigureCalendar}
+            sourceUrl={calendarSourceUrlValue}
           />
           <div className="lg:col-span-2">
             <HouseholdAgendaSection
@@ -2027,6 +2021,9 @@ function RewardCatalogSection({
 function CalendarConnectionForm({
   calendarName,
   isConnected,
+  lastSyncMessage,
+  lastSyncStatus,
+  lastSyncedAt,
   onCalendarNameChange,
   onSourceUrlChange,
   onSubmit,
@@ -2034,6 +2031,9 @@ function CalendarConnectionForm({
 }: {
   calendarName: string;
   isConnected: boolean;
+  lastSyncMessage?: string;
+  lastSyncStatus?: "idle" | "success" | "error";
+  lastSyncedAt?: string;
   sourceUrl: string;
   onCalendarNameChange: (value: string) => void;
   onSourceUrlChange: (value: string) => void;
@@ -2051,6 +2051,11 @@ function CalendarConnectionForm({
           <p className="text-muted-foreground">
             The feed URL is stored server-side and is not displayed after save.
           </p>
+          <CalendarSyncStatus
+            lastSyncMessage={lastSyncMessage}
+            lastSyncStatus={lastSyncStatus}
+            lastSyncedAt={lastSyncedAt}
+          />
         </div>
       ) : (
         <div className="mb-4 rounded-md border border-border bg-muted p-3 text-sm">
@@ -2083,6 +2088,40 @@ function CalendarConnectionForm({
         Save Calendar
       </Button>
     </FormSection>
+  );
+}
+
+function CalendarSyncStatus({
+  lastSyncMessage,
+  lastSyncStatus = "idle",
+  lastSyncedAt,
+}: {
+  lastSyncMessage?: string;
+  lastSyncStatus?: "idle" | "success" | "error";
+  lastSyncedAt?: string;
+}) {
+  if (lastSyncStatus === "success") {
+    return (
+      <p className="mt-2 text-muted-foreground">
+        Last sync succeeded{lastSyncedAt ? ` ${formatDate(lastSyncedAt.slice(0, 10))}` : ""}
+        {lastSyncMessage ? `: ${lastSyncMessage}` : "."}
+      </p>
+    );
+  }
+
+  if (lastSyncStatus === "error") {
+    return (
+      <p className="mt-2 text-destructive">
+        Calendar sync needs attention
+        {lastSyncMessage ? `: ${lastSyncMessage}` : "."}
+      </p>
+    );
+  }
+
+  return (
+    <p className="mt-2 text-muted-foreground">
+      Waiting for the first scheduled Calendar sync.
+    </p>
   );
 }
 

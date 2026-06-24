@@ -1,6 +1,8 @@
 import {
   configureAppleCalendar,
   type ConfigureAppleCalendarInput,
+  updateEventParticipants,
+  type UpdateEventParticipantsInput,
 } from "@/domain/calendar";
 import {
   archiveChore,
@@ -207,6 +209,39 @@ export async function configureCalendarForParent(
         caught instanceof Error
           ? caught.message
           : "Could not configure Apple Calendar.",
+      status: "error",
+    };
+  }
+}
+
+export async function updateEventParticipantsForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: UpdateEventParticipantsInput,
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  try {
+    const updatedHousehold = updateEventParticipants(authorization.household, input);
+    const enrichment = updatedHousehold.eventEnrichments.find(
+      (candidate) => candidate.eventId === input.eventId,
+    );
+    if (!enrichment) {
+      return { message: "Could not update Event Participants.", status: "error" };
+    }
+
+    const household = await dependencies.repository.saveEventEnrichment(
+      authorization.household.id,
+      enrichment,
+    );
+
+    return { household, message: "Event Participants updated.", status: "ok" };
+  } catch (caught) {
+    return {
+      message:
+        caught instanceof Error
+          ? caught.message
+          : "Could not update Event Participants.",
       status: "error",
     };
   }

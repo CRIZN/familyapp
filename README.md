@@ -39,7 +39,7 @@ focused Parent workflow routes for durable management. It includes:
 - Chores Needing Parent Handling and Reward Fulfillment attention modules.
 - Compact Child status summaries with one contextual workflow link per Child.
 - Focused workflows for Approvals, Chores, Goals, Rewards, Calendar, Points, Household, and Weekly Review.
-- Calendar workflow ownership of server-stored Apple Calendar connection metadata, safe empty agenda states, and the future read-only Event sync surface.
+- Calendar workflow ownership of server-stored Apple Calendar connection metadata, scheduled read-only feed sync, Household Agenda, and Participant enrichment.
 - Chore, Goal, Reward, Point, Household, and Weekly Review management outside the Today screen.
 
 ### Child View
@@ -67,7 +67,7 @@ The implementation slices in [docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION
 - Goals and Progress Check-ins.
 - Reward Catalog, Contributions, Requests, and Fulfillment.
 - Bonus Points and Point Adjustments.
-- Server-stored Apple Calendar connection metadata, with live feed sync planned post-release.
+- Server-side Apple Calendar feed sync with separate Event Enrichment.
 - Parent Briefing and Suggested Actions.
 - Weekly Review.
 - V1 polish, empty states, and responsive quality pass.

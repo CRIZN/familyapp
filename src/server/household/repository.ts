@@ -1,19 +1,25 @@
 import "server-only";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, notInArray, sql } from "drizzle-orm";
 
 import type { Chore, ChoreSubmission, SkippedChoreOccurrence } from "@/domain/chores";
-import type { CalendarConnection } from "@/domain/calendar";
+import type {
+  CalendarConnection,
+  EventEnrichment,
+  FamilyCalendarEvent,
+} from "@/domain/calendar";
 import type { Goal, ProgressCheckIn } from "@/domain/goals";
 import type { ChildWin, Household, PointLedgerEntry } from "@/domain/household";
 import type { Reward, RewardContribution, RewardRequest } from "@/domain/rewards";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
   calendarConnections,
+  calendarEvents,
   childWins,
   children,
   choreSubmissions,
   chores,
+  eventEnrichments,
   goals,
   households,
   parents,
@@ -37,6 +43,7 @@ type AppTransaction = Parameters<Parameters<AppDatabase["transaction"]>[0]>[0];
 export type PersistedHouseholdRows = {
   household: typeof households.$inferSelect;
   calendarConnection: typeof calendarConnections.$inferSelect | null;
+  calendarEvents: Array<typeof calendarEvents.$inferSelect>;
   parents: Array<typeof parents.$inferSelect>;
   children: Array<typeof children.$inferSelect>;
   chores: Array<typeof chores.$inferSelect>;
@@ -49,6 +56,14 @@ export type PersistedHouseholdRows = {
   rewardRequests: Array<typeof rewardRequests.$inferSelect>;
   pointLedger: Array<typeof pointLedger.$inferSelect>;
   childWins: Array<typeof childWins.$inferSelect>;
+  eventEnrichments: Array<typeof eventEnrichments.$inferSelect>;
+};
+
+export type CalendarSyncStatusInput = {
+  attemptedAt: string;
+  message: string;
+  status: "error" | "success";
+  syncedAt?: string;
 };
 
 export type HouseholdRepository = {
@@ -67,6 +82,22 @@ export type HouseholdRepository = {
     householdId: string,
     connection: CalendarConnection,
   ) => Promise<Household>;
+  recordCalendarSyncStatus: (
+    householdId: string,
+    input: CalendarSyncStatusInput,
+  ) => Promise<Household>;
+  saveCalendarSync: (
+    householdId: string,
+    input: {
+      calendarEvents: FamilyCalendarEvent[];
+      eventEnrichments: EventEnrichment[];
+      status: CalendarSyncStatusInput;
+    },
+  ) => Promise<Household>;
+  saveEventEnrichment: (
+    householdId: string,
+    enrichment: EventEnrichment,
+  ) => Promise<Household>;
   createFirstRunHousehold: (
     household: Household,
     firstParentAuthUserId: string,
@@ -76,6 +107,7 @@ export type HouseholdRepository = {
     authUserId: string,
   ) => Promise<Household | null>;
   hasAnyHousehold: () => Promise<boolean>;
+  listHouseholdsWithCalendarConnections: () => Promise<Household[]>;
   markChoreSubmissionNeedsWork: (
     householdId: string,
     input: { reviewedAt: string; submissionId: string },
@@ -357,6 +389,23 @@ export function createDrizzleHouseholdRepository(
       return existing.length > 0;
     },
 
+    async listHouseholdsWithCalendarConnections() {
+      const connectionRows = await db
+        .select({ householdId: calendarConnections.householdId })
+        .from(calendarConnections)
+        .orderBy(asc(calendarConnections.updatedAt));
+      const connectedHouseholds = await Promise.all(
+        connectionRows.map((connection) =>
+          getHouseholdById(db, connection.householdId),
+        ),
+      );
+
+      return connectedHouseholds.filter(
+        (household): household is Household =>
+          Boolean(household?.calendarConnection),
+      );
+    },
+
     async saveCalendarConnection(householdId, connection) {
       await db.transaction(async (tx) => {
         await tx
@@ -366,6 +415,10 @@ export function createDrizzleHouseholdRepository(
             connectedAt: new Date(connection.connectedAt),
             householdId,
             id: connection.id,
+            lastSyncAttemptedAt: null,
+            lastSyncMessage: null,
+            lastSyncStatus: "idle",
+            lastSyncedAt: null,
             publicFeedUrl: connection.sourceUrl,
             updatedAt: new Date(connection.updatedAt),
           })
@@ -373,6 +426,10 @@ export function createDrizzleHouseholdRepository(
             target: calendarConnections.householdId,
             set: {
               calendarName: connection.calendarName,
+              lastSyncAttemptedAt: null,
+              lastSyncMessage: null,
+              lastSyncStatus: "idle",
+              lastSyncedAt: null,
               publicFeedUrl: connection.sourceUrl,
               updatedAt: new Date(connection.updatedAt),
             },
@@ -383,6 +440,113 @@ export function createDrizzleHouseholdRepository(
           .set({ updatedAt: new Date(connection.updatedAt) })
           .where(eq(households.id, householdId));
       });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async recordCalendarSyncStatus(householdId, input) {
+      await updateCalendarSyncStatus(db, householdId, input);
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveCalendarSync(householdId, input) {
+      await db.transaction(async (tx) => {
+        const eventIds = input.calendarEvents.map((event) => event.id);
+        if (eventIds.length > 0) {
+          await tx
+            .delete(eventEnrichments)
+            .where(
+              and(
+                eq(eventEnrichments.householdId, householdId),
+                notInArray(eventEnrichments.eventId, eventIds),
+              ),
+            );
+          await tx
+            .delete(calendarEvents)
+            .where(
+              and(
+                eq(calendarEvents.householdId, householdId),
+                notInArray(calendarEvents.id, eventIds),
+              ),
+            );
+        } else {
+          await tx
+            .delete(eventEnrichments)
+            .where(eq(eventEnrichments.householdId, householdId));
+          await tx
+            .delete(calendarEvents)
+            .where(eq(calendarEvents.householdId, householdId));
+        }
+
+        for (const event of input.calendarEvents) {
+          await tx
+            .insert(calendarEvents)
+            .values({
+              appleEventId: event.appleEventId,
+              endsAt: new Date(event.endsAt),
+              householdId,
+              id: event.id,
+              location: event.location ?? null,
+              startsAt: new Date(event.startsAt),
+              syncedAt: new Date(event.syncedAt),
+              title: event.title,
+            })
+            .onConflictDoUpdate({
+              target: [calendarEvents.householdId, calendarEvents.appleEventId],
+              set: {
+                endsAt: new Date(event.endsAt),
+                location: event.location ?? null,
+                startsAt: new Date(event.startsAt),
+                syncedAt: new Date(event.syncedAt),
+                title: event.title,
+              },
+            });
+        }
+
+        for (const enrichment of input.eventEnrichments) {
+          await tx
+            .insert(eventEnrichments)
+            .values({
+              eventId: enrichment.eventId,
+              householdId,
+              isAllHousehold: enrichment.isAllHousehold,
+              participantChildIds: enrichment.participantChildIds,
+              updatedAt: new Date(enrichment.updatedAt),
+            })
+            .onConflictDoUpdate({
+              target: eventEnrichments.eventId,
+              set: {
+                isAllHousehold: enrichment.isAllHousehold,
+                participantChildIds: enrichment.participantChildIds,
+                updatedAt: new Date(enrichment.updatedAt),
+              },
+            });
+        }
+
+        await updateCalendarSyncStatus(tx, householdId, input.status);
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async saveEventEnrichment(householdId, enrichment) {
+      await db
+        .insert(eventEnrichments)
+        .values({
+          eventId: enrichment.eventId,
+          householdId,
+          isAllHousehold: enrichment.isAllHousehold,
+          participantChildIds: enrichment.participantChildIds,
+          updatedAt: new Date(enrichment.updatedAt),
+        })
+        .onConflictDoUpdate({
+          target: eventEnrichments.eventId,
+          set: {
+            isAllHousehold: enrichment.isAllHousehold,
+            participantChildIds: enrichment.participantChildIds,
+            updatedAt: new Date(enrichment.updatedAt),
+          },
+        });
 
       return requireHouseholdById(db, householdId);
     },
@@ -811,6 +975,8 @@ async function getHouseholdById(
 
   const [
     calendarConnectionRows,
+    calendarEventRows,
+    eventEnrichmentRows,
     parentRows,
     childRows,
     choreRows,
@@ -829,6 +995,16 @@ async function getHouseholdById(
       .from(calendarConnections)
       .where(eq(calendarConnections.householdId, household.id))
       .limit(1),
+    db
+      .select()
+      .from(calendarEvents)
+      .where(eq(calendarEvents.householdId, household.id))
+      .orderBy(asc(calendarEvents.startsAt)),
+    db
+      .select()
+      .from(eventEnrichments)
+      .where(eq(eventEnrichments.householdId, household.id))
+      .orderBy(asc(eventEnrichments.updatedAt)),
     db
       .select()
       .from(parents)
@@ -893,12 +1069,14 @@ async function getHouseholdById(
 
   return mapPersistedHouseholdRows({
     calendarConnection: calendarConnectionRows[0] ?? null,
+    calendarEvents: calendarEventRows,
     childWins: winRows,
     children: childRows,
     choreSubmissions: submissionRows,
     chores: choreRows,
     goals: goalRows,
     household,
+    eventEnrichments: eventEnrichmentRows,
     parents: parentRows,
     pointLedger: ledgerRows,
     progressCheckIns: progressRows,
@@ -916,11 +1094,19 @@ export function mapPersistedHouseholdRows(rows: PersistedHouseholdRows): Househo
           calendarName: rows.calendarConnection.calendarName,
           connectedAt: rows.calendarConnection.connectedAt.toISOString(),
           id: rows.calendarConnection.id,
+          lastSyncAttemptedAt:
+            rows.calendarConnection.lastSyncAttemptedAt?.toISOString(),
+          lastSyncMessage: rows.calendarConnection.lastSyncMessage ?? undefined,
+          lastSyncStatus: rows.calendarConnection.lastSyncStatus as
+            | "idle"
+            | "success"
+            | "error",
+          lastSyncedAt: rows.calendarConnection.lastSyncedAt?.toISOString(),
           sourceUrl: rows.calendarConnection.publicFeedUrl,
           updatedAt: rows.calendarConnection.updatedAt.toISOString(),
         }
       : null,
-    calendarEvents: [],
+    calendarEvents: rows.calendarEvents.map(mapCalendarEventRow),
     childWins: rows.childWins.map(mapChildWinRow),
     children: rows.children.map((child) => ({
       id: child.id,
@@ -945,7 +1131,7 @@ export function mapPersistedHouseholdRows(rows: PersistedHouseholdRows): Househo
       updatedAt: chore.updatedAt.toISOString(),
     })),
     createdAt: rows.household.createdAt.toISOString(),
-    eventEnrichments: [],
+    eventEnrichments: rows.eventEnrichments.map(mapEventEnrichmentRow),
     goals: rows.goals.map(mapGoalRow),
     id: rows.household.id,
     name: rows.household.name,
@@ -963,6 +1149,56 @@ export function mapPersistedHouseholdRows(rows: PersistedHouseholdRows): Househo
       mapSkippedChoreOccurrenceRow,
     ),
     updatedAt: rows.household.updatedAt.toISOString(),
+  };
+}
+
+async function updateCalendarSyncStatus(
+  db: AppDatabase | AppTransaction,
+  householdId: string,
+  input: CalendarSyncStatusInput,
+) {
+  const syncStatusUpdate: Partial<typeof calendarConnections.$inferInsert> = {
+    lastSyncAttemptedAt: new Date(input.attemptedAt),
+    lastSyncMessage: input.message,
+    lastSyncStatus: input.status,
+    updatedAt: new Date(input.attemptedAt),
+  };
+  if (input.status === "success" && input.syncedAt) {
+    syncStatusUpdate.lastSyncedAt = new Date(input.syncedAt);
+  }
+
+  await db
+    .update(calendarConnections)
+    .set(syncStatusUpdate)
+    .where(eq(calendarConnections.householdId, householdId));
+  await db
+    .update(households)
+    .set({ updatedAt: new Date(input.attemptedAt) })
+    .where(eq(households.id, householdId));
+}
+
+function mapCalendarEventRow(
+  event: typeof calendarEvents.$inferSelect,
+): FamilyCalendarEvent {
+  return {
+    appleEventId: event.appleEventId,
+    endsAt: event.endsAt.toISOString(),
+    id: event.id,
+    location: event.location ?? undefined,
+    startsAt: event.startsAt.toISOString(),
+    syncedAt: event.syncedAt.toISOString(),
+    title: event.title,
+  };
+}
+
+function mapEventEnrichmentRow(
+  enrichment: typeof eventEnrichments.$inferSelect,
+): EventEnrichment {
+  return {
+    eventId: enrichment.eventId,
+    isAllHousehold: enrichment.isAllHousehold,
+    participantChildIds: enrichment.participantChildIds,
+    updatedAt: enrichment.updatedAt.toISOString(),
   };
 }
 

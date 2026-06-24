@@ -5,6 +5,10 @@ export type CalendarConnection = {
   calendarName: string;
   sourceUrl: string;
   connectedAt: string;
+  lastSyncAttemptedAt?: string;
+  lastSyncMessage?: string;
+  lastSyncStatus?: "idle" | "success" | "error";
+  lastSyncedAt?: string;
   updatedAt: string;
 };
 
@@ -67,12 +71,9 @@ export function configureAppleCalendar(
   configuredAt: string = new Date().toISOString(),
 ): Household {
   const calendarName = input.calendarName.trim();
-  const sourceUrl = input.sourceUrl.trim();
+  const sourceUrl = normalizeAppleCalendarFeedUrl(input.sourceUrl);
   if (!calendarName) {
     throw new Error("Name the Apple Family Calendar.");
-  }
-  if (!sourceUrl) {
-    throw new Error("Add the Apple Calendar source.");
   }
 
   const normalized = withCalendarCollections(household);
@@ -103,20 +104,16 @@ export function syncAppleCalendarEvents(
   const existingByAppleId = new Map(
     normalized.calendarEvents.map((event) => [event.appleEventId, event]),
   );
-  const incomingAppleIds = new Set(incoming.map((event) => event.appleEventId));
-  const nextEvents = [
-    ...normalized.calendarEvents.filter(
-      (event) => !incomingAppleIds.has(event.appleEventId),
-    ),
-    ...incoming.map((event) => {
+  const nextEvents = incoming
+    .map((event) => {
       const existing = existingByAppleId.get(event.appleEventId);
       return {
         id: existing?.id ?? createId(),
         ...event,
         syncedAt,
       };
-    }),
-  ].sort(compareEvents);
+    })
+    .sort(compareEvents);
 
   const validEventIds = new Set(nextEvents.map((event) => event.id));
   return {
@@ -195,6 +192,26 @@ export function withCalendarCollections(household: Household): Household {
     calendarEvents: household.calendarEvents ?? [],
     eventEnrichments: household.eventEnrichments ?? [],
   };
+}
+
+export function normalizeAppleCalendarFeedUrl(sourceUrlInput: string): string {
+  const sourceUrl = sourceUrlInput.trim();
+  if (!sourceUrl) {
+    throw new Error("Add the Apple Calendar source.");
+  }
+
+  const parsed = parseCalendarUrl(sourceUrl);
+  if (
+    parsed.protocol !== "webcal:" &&
+    parsed.protocol !== "https:"
+  ) {
+    throw new Error("Use a public Apple Calendar webcal or HTTPS link.");
+  }
+  if (!isAllowedAppleCalendarHost(parsed.hostname)) {
+    throw new Error("Use a public Apple Calendar webcal or HTTPS link.");
+  }
+
+  return sourceUrl;
 }
 
 function toAgendaEvent(
@@ -324,6 +341,19 @@ function assertIsoDateTime(value: string): void {
   if (!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)) {
     throw new Error("Synced Events need valid Apple Calendar times.");
   }
+}
+
+function parseCalendarUrl(sourceUrl: string): URL {
+  try {
+    return new URL(sourceUrl);
+  } catch {
+    throw new Error("Use a public Apple Calendar webcal or HTTPS link.");
+  }
+}
+
+function isAllowedAppleCalendarHost(hostname: string): boolean {
+  const normalized = hostname.toLowerCase();
+  return normalized === "icloud.com" || normalized.endsWith(".icloud.com");
 }
 
 function createId(): string {

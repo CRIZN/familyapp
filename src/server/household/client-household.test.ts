@@ -18,7 +18,7 @@ describe("client-safe household hydration", () => {
         calendarName: "Family",
         connectedAt: "2026-06-24T12:00:00.000Z",
         id: "calendar-1",
-        sourceUrl: "webcal://example.test/family.ics",
+        sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
         updatedAt: "2026-06-24T12:00:00.000Z",
       },
     });

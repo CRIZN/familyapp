@@ -35,6 +35,7 @@ import {
   createGoalForParent,
   createRewardForParent,
   pauseChoreForParent,
+  updateEventParticipantsForParent,
   updateRewardForParent,
   updateChildPinForParent,
   updateChildProfile,
@@ -152,6 +153,16 @@ export async function configureCalendarAction(input: {
 }): Promise<HouseholdManagementResult> {
   return runHouseholdManagementAction((dependencies) =>
     configureCalendarForParent(dependencies, input),
+  );
+}
+
+export async function updateEventParticipantsAction(input: {
+  eventId: string;
+  isAllHousehold: boolean;
+  participantChildIds: string[];
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    updateEventParticipantsForParent(dependencies, input),
   );
 }
 

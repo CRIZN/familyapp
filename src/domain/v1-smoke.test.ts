@@ -50,7 +50,7 @@ describe("v1 smoke path", () => {
 
     household = configureAppleCalendar(household, {
       calendarName: "Family",
-      sourceUrl: "webcal://example.test/family",
+      sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
     });
     household = syncAppleCalendarEvents(household, [
       {

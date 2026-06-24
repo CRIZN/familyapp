@@ -479,7 +479,7 @@ Prepare the private production release on Vercel and Supabase with operational c
 - [x] A release checklist covers first-run setup, Parent allowlist verification, Child PIN verification, and private-app denial states.
 - [x] No production UI path reads or writes demo `localStorage` Household state.
 
-### P16. Post-Release Apple Calendar Feed Sync
+### P16. Post-Release Apple Calendar Feed Sync - Done
 
 **Blocked by**: P14
 
@@ -487,9 +487,9 @@ Prepare the private production release on Vercel and Supabase with operational c
 Add server-side scheduled fetching and parsing of the public Apple Calendar `webcal`/ICS feed into normalized read-only Events, preserving Family App Event Enrichment.
 
 **Acceptance criteria**:
-- [ ] Vercel cron or an equivalent server route fetches the stored feed URL server-side.
-- [ ] ICS parsing creates and updates read-only Calendar Events without exposing the feed URL.
-- [ ] Event Enrichment remains separate from synced Events.
-- [ ] Parent Agenda and Child Agenda show synced Events with Participant filtering.
-- [ ] Sync failures are logged and surfaced to Parents as safe, non-secret status.
-- [ ] Tests cover feed parsing, Event upsert behavior, enrichment preservation, and agenda filtering.
+- [x] Vercel cron or an equivalent server route fetches the stored feed URL server-side.
+- [x] ICS parsing creates and updates read-only Calendar Events without exposing the feed URL.
+- [x] Event Enrichment remains separate from synced Events.
+- [x] Parent Agenda and Child Agenda show synced Events with Participant filtering.
+- [x] Sync failures are logged and surfaced to Parents as safe, non-secret status.
+- [x] Tests cover feed parsing, Event upsert behavior, enrichment preservation, and agenda filtering.

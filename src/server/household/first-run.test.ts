@@ -123,7 +123,11 @@ function createRepository(
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
+    listHouseholdsWithCalendarConnections: async () => [],
     markChoreSubmissionNeedsWork: async () => {
+      throw new Error("not used");
+    },
+    recordCalendarSyncStatus: async () => {
       throw new Error("not used");
     },
     saveGoalCompletion: async () => {
@@ -133,6 +137,12 @@ function createRepository(
       throw new Error("not used");
     },
     saveCalendarConnection: async () => {
+      throw new Error("not used");
+    },
+    saveCalendarSync: async () => {
+      throw new Error("not used");
+    },
+    saveEventEnrichment: async () => {
       throw new Error("not used");
     },
     saveProgressCheckInApproval: async () => {

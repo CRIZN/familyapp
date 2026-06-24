@@ -100,6 +100,12 @@ export const calendarConnections = pgTable(
     connectedAt: timestamp("connected_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    lastSyncAttemptedAt: timestamp("last_sync_attempted_at", {
+      withTimezone: true,
+    }),
+    lastSyncMessage: text("last_sync_message"),
+    lastSyncStatus: text("last_sync_status").notNull().default("idle"),
+    lastSyncedAt: timestamp("last_synced_at", { withTimezone: true }),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => ({
@@ -113,6 +119,10 @@ export const calendarConnections = pgTable(
     feedUrlNotBlank: check(
       "calendar_connections_public_feed_url_not_blank",
       sql`length(trim(${table.publicFeedUrl})) > 0`,
+    ),
+    syncStatusValid: check(
+      "calendar_connections_last_sync_status_valid",
+      sql`${table.lastSyncStatus} in ('idle', 'success', 'error')`,
     ),
   }),
 ).enableRLS();

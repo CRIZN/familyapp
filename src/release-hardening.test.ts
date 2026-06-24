@@ -10,6 +10,7 @@ const requiredEnvVars = [
   "NEXT_PUBLIC_SITE_URL",
   "FIRST_RUN_SETUP_TOKEN",
   "CHILD_SESSION_SECRET",
+  "CRON_SECRET",
 ];
 
 describe("production release hardening", () => {
@@ -26,6 +27,7 @@ describe("production release hardening", () => {
   it("keeps Vercel configured for the Next.js production build", () => {
     const config = JSON.parse(readFileSync("vercel.json", "utf8")) as {
       buildCommand?: string;
+      crons?: Array<{ path: string; schedule: string }>;
       framework?: string;
       installCommand?: string;
     };
@@ -33,6 +35,10 @@ describe("production release hardening", () => {
     expect(config.framework).toBe("nextjs");
     expect(config.installCommand).toBe("npm ci");
     expect(config.buildCommand).toBe("npm run build");
+    expect(config.crons).toContainEqual({
+      path: "/api/calendar/sync",
+      schedule: "0 * * * *",
+    });
   });
 
   it("does not read or write demo browser storage from production source", () => {

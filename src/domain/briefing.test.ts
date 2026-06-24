@@ -40,7 +40,7 @@ describe("Parent Briefing", () => {
     const child = household.children[0]!;
     const configured = configureAppleCalendar(household, {
       calendarName: "Family",
-      sourceUrl: "webcal://example.test/family.ics",
+      sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
     });
     const withEvents = syncAppleCalendarEvents(configured, [
       {

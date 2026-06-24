@@ -28,7 +28,7 @@ describe("Calendar", () => {
       household,
       {
         calendarName: "Family",
-        sourceUrl: "webcal://example.test/family.ics",
+        sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
       },
       "2026-06-23T12:00:00.000Z",
     );
@@ -36,17 +36,28 @@ describe("Calendar", () => {
     expect(configured.calendarConnection).toEqual(
       expect.objectContaining({
         calendarName: "Family",
-        sourceUrl: "webcal://example.test/family.ics",
+        sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
         connectedAt: "2026-06-23T12:00:00.000Z",
       }),
     );
+  });
+
+  it("rejects non-Apple Calendar feed URLs", async () => {
+    const household = await createTestHousehold();
+
+    expect(() =>
+      configureAppleCalendar(household, {
+        calendarName: "Family",
+        sourceUrl: "http://169.254.169.254/latest/meta-data",
+      }),
+    ).toThrow("Use a public Apple Calendar webcal or HTTPS link.");
   });
 
   it("keeps synced Events read-only while allowing Apple Calendar to update them", async () => {
     const household = await createTestHousehold();
     const configured = configureAppleCalendar(household, {
       calendarName: "Family",
-      sourceUrl: "webcal://example.test/family.ics",
+      sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
     });
     const synced = syncAppleCalendarEvents(
       configured,
@@ -102,7 +113,7 @@ describe("Calendar", () => {
     const household = await createTestHousehold();
     const configured = configureAppleCalendar(household, {
       calendarName: "Family",
-      sourceUrl: "webcal://example.test/family.ics",
+      sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
     });
     const synced = syncAppleCalendarEvents(configured, [
       {
@@ -150,7 +161,7 @@ describe("Calendar", () => {
     const grace = household.children[1]!;
     const configured = configureAppleCalendar(household, {
       calendarName: "Family",
-      sourceUrl: "webcal://example.test/family.ics",
+      sourceUrl: "webcal://p01-caldav.icloud.com/published/2/family",
     });
     const synced = syncAppleCalendarEvents(configured, [
       {
