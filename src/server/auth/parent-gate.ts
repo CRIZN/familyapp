@@ -1,5 +1,6 @@
 export type ParentAppGate =
   | { status: "allowed"; email: string; userId: string }
+  | { status: "first_run"; email: string; userId: string }
   | { status: "denied" }
   | { status: "locked" };
 
@@ -10,6 +11,7 @@ export type ParentGateUser = {
 
 type ParentGateDependencies = {
   getUser: () => Promise<ParentGateUser | null>;
+  hasAnyHousehold: () => Promise<boolean>;
   isParentAllowlisted: (email: string, userId: string) => Promise<boolean>;
 };
 
@@ -40,15 +42,29 @@ export async function resolveParentAppGate(
     isAllowlisted = false;
   }
 
+  if (isAllowlisted) {
+    return { email, status: "allowed", userId: user.id };
+  }
+
+  let hasAnyHousehold = true;
+  try {
+    hasAnyHousehold = await dependencies.hasAnyHousehold();
+  } catch {
+    hasAnyHousehold = true;
+  }
+
+  if (!hasAnyHousehold) {
+    return { email, status: "first_run", userId: user.id };
+  }
+
   if (!isAllowlisted) {
     return { status: "denied" };
   }
 
-  return { email, status: "allowed", userId: user.id };
+  return { status: "denied" };
 }
 
 function normalizeEmail(email: string | null | undefined): string | null {
   const normalized = email?.trim().toLowerCase();
   return normalized ? normalized : null;
 }
-

@@ -19,6 +19,7 @@ export type ChildProfile = {
   pinHash: string;
   pinSalt: string;
   pointBalance: number;
+  sessionVersion?: number;
 };
 
 export type PointLedgerEntry = {

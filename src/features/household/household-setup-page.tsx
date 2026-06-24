@@ -1,18 +1,18 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useActionState, useState } from "react";
 import { Plus, Trash2 } from "lucide-react";
 
-import { createHousehold } from "@/domain/household";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { saveHousehold } from "./local-household-store";
+import {
+  setupFirstRunHousehold,
+  type FirstRunSetupActionState,
+} from "@/server/household/actions";
 
-type ParentDraft = {
-  name: string;
-  email: string;
+type HouseholdSetupPageProps = {
+  parentEmail: string;
 };
 
 type ChildDraft = {
@@ -20,45 +20,32 @@ type ChildDraft = {
   pin: string;
 };
 
-export function HouseholdSetupPage() {
-  const router = useRouter();
+const initialActionState: FirstRunSetupActionState = {
+  message: null,
+  status: "idle",
+};
+
+export function HouseholdSetupPage({ parentEmail }: HouseholdSetupPageProps) {
+  const [actionState, formAction, isSubmitting] = useActionState(
+    setupFirstRunHousehold,
+    initialActionState,
+  );
   const [householdName, setHouseholdName] = useState("");
-  const [parents, setParents] = useState<ParentDraft[]>([
-    { name: "", email: "" },
-  ]);
+  const [parentName, setParentName] = useState("");
+  const [setupToken, setSetupToken] = useState("");
   const [children, setChildren] = useState<ChildDraft[]>([
     { name: "", pin: "" },
   ]);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  async function onSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setError(null);
-    setIsSubmitting(true);
-    try {
-      const household = await createHousehold({
-        householdName,
-        parents,
-        children,
-      });
-      saveHousehold(household);
-      router.push("/parent");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Setup failed.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  }
 
   return (
-    <form className="mx-auto max-w-4xl px-4 py-8" onSubmit={onSubmit}>
+    <form action={formAction} className="mx-auto max-w-4xl px-4 py-8">
+      <input name="childCount" type="hidden" value={children.length} />
       <div className="mb-8">
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-parent">
-          Household Setup
+          First-Run Household Setup
         </p>
         <h1 className="mt-2 text-3xl font-semibold tracking-normal text-foreground sm:text-4xl">
-          Set up the first Parent and Child profiles.
+          Create the private production Household.
         </h1>
       </div>
 
@@ -67,72 +54,37 @@ export function HouseholdSetupPage() {
         <Input
           className="mt-2"
           id="householdName"
+          name="householdName"
           value={householdName}
           onChange={(event) => setHouseholdName(event.target.value)}
           placeholder="The Chen Household"
+          required
         />
       </section>
 
       <section className="mb-6 rounded-md border border-border bg-background p-5 shadow-panel">
-        <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-xl font-semibold">Parents</h2>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() => setParents([...parents, { name: "", email: "" }])}
-          >
-            <Plus aria-hidden="true" className="h-4 w-4" />
-            Add Parent
-          </Button>
-        </div>
-        <div className="space-y-4">
-          {parents.map((parent, index) => (
-            <div
-              className="grid gap-3 rounded-md border border-border p-3 sm:grid-cols-[1fr_1fr_auto]"
-              key={index}
-            >
-              <div>
-                <Label htmlFor={`parent-${index}-name`}>Name</Label>
-                <Input
-                  className="mt-2"
-                  id={`parent-${index}-name`}
-                  value={parent.name}
-                  onChange={(event) =>
-                    updateParent(index, { ...parent, name: event.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <Label htmlFor={`parent-${index}-email`}>Email</Label>
-                <Input
-                  className="mt-2"
-                  id={`parent-${index}-email`}
-                  type="email"
-                  value={parent.email}
-                  onChange={(event) =>
-                    updateParent(index, {
-                      ...parent,
-                      email: event.target.value,
-                    })
-                  }
-                />
-              </div>
-              <Button
-                aria-label="Remove Parent"
-                className="self-end"
-                disabled={parents.length === 1}
-                size="icon"
-                type="button"
-                variant="ghost"
-                onClick={() =>
-                  setParents(parents.filter((_, candidate) => candidate !== index))
-                }
-              >
-                <Trash2 aria-hidden="true" className="h-4 w-4" />
-              </Button>
-            </div>
-          ))}
+        <h2 className="mb-4 text-xl font-semibold">First Parent</h2>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <div>
+            <Label htmlFor="parentName">Name</Label>
+            <Input
+              className="mt-2"
+              id="parentName"
+              name="parentName"
+              value={parentName}
+              onChange={(event) => setParentName(event.target.value)}
+              required
+            />
+          </div>
+          <div>
+            <Label htmlFor="parentEmail">Authenticated email</Label>
+            <Input
+              className="mt-2"
+              id="parentEmail"
+              readOnly
+              value={parentEmail}
+            />
+          </div>
         </div>
       </section>
 
@@ -160,10 +112,12 @@ export function HouseholdSetupPage() {
                 <Input
                   className="mt-2"
                   id={`child-${index}-name`}
+                  name={`child-${index}-name`}
                   value={child.name}
                   onChange={(event) =>
                     updateChild(index, { ...child, name: event.target.value })
                   }
+                  required
                 />
               </div>
               <div>
@@ -173,10 +127,12 @@ export function HouseholdSetupPage() {
                   id={`child-${index}-pin`}
                   inputMode="numeric"
                   maxLength={8}
+                  name={`child-${index}-pin`}
                   value={child.pin}
                   onChange={(event) =>
                     updateChild(index, { ...child, pin: event.target.value })
                   }
+                  required
                 />
               </div>
               <Button
@@ -199,9 +155,22 @@ export function HouseholdSetupPage() {
         </div>
       </section>
 
-      {error ? (
+      <section className="mb-6 rounded-md border border-border bg-background p-5 shadow-panel">
+        <Label htmlFor="setupToken">First-run setup token</Label>
+        <Input
+          className="mt-2"
+          id="setupToken"
+          name="setupToken"
+          type="password"
+          value={setupToken}
+          onChange={(event) => setSetupToken(event.target.value)}
+          required
+        />
+      </section>
+
+      {actionState.status === "error" && actionState.message ? (
         <p className="mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
-          {error}
+          {actionState.message}
         </p>
       ) : null}
 
@@ -210,14 +179,6 @@ export function HouseholdSetupPage() {
       </Button>
     </form>
   );
-
-  function updateParent(index: number, nextParent: ParentDraft) {
-    setParents(
-      parents.map((parent, candidate) =>
-        candidate === index ? nextParent : parent,
-      ),
-    );
-  }
 
   function updateChild(index: number, nextChild: ChildDraft) {
     setChildren(

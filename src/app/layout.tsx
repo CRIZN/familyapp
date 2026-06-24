@@ -23,7 +23,7 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <body>
-        {gate.status === "allowed" ? (
+        {gate.status === "allowed" || gate.status === "first_run" ? (
           children
         ) : gate.status === "denied" ? (
           <PrivateAppDeniedScreen />

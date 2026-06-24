@@ -1,10 +1,5 @@
-import { AppShell } from "@/components/app-shell";
-import { ParentViewPage } from "@/features/parent/parent-view-page";
+import { ParentWorkflowRoute } from "../parent-workflow-route";
 
 export default function ParentCalendarPage() {
-  return (
-    <AppShell tone="parent">
-      <ParentViewPage workflow="calendar" />
-    </AppShell>
-  );
+  return <ParentWorkflowRoute workflow="calendar" />;
 }
