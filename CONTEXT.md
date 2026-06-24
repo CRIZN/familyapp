@@ -16,6 +16,7 @@ documents, update the tree and document index below in the same change.
 ```txt
 .
 |-- CONTEXT.md
+|-- README.md
 |-- docs/
 |   |-- PRD_V1.md
 |   |-- IMPLEMENTATION_SLICES.md
@@ -35,20 +36,27 @@ documents, update the tree and document index below in the same change.
 |   |-- 0001_bright_preak.sql
 |   |-- 0002_colossal_sersi.sql
 |   |-- 0003_slippery_sasquatch.sql
+|   |-- 0004_p1_full_v1_schema_rls.sql
 |   `-- meta/
 |       |-- 0000_snapshot.json
 |       |-- 0001_snapshot.json
 |       |-- 0002_snapshot.json
 |       |-- 0003_snapshot.json
+|       |-- 0004_snapshot.json
 |       `-- _journal.json
 |-- src/
 |   |-- app/
 |   |   |-- page.tsx
 |   |   |-- layout.tsx
 |   |   |-- globals.css
+|   |   |-- auth/
+|   |   |   `-- callback/
+|   |   |       |-- route.ts
+|   |   |       `-- route.test.ts
 |   |   |-- child/page.tsx
 |   |   |-- parent/
 |   |   |   |-- page.tsx
+|   |   |   |-- parent-workflow-route.tsx
 |   |   |   |-- approvals/page.tsx
 |   |   |   |-- calendar/page.tsx
 |   |   |   |-- chores/page.tsx
@@ -83,6 +91,9 @@ documents, update the tree and document index below in the same change.
 |   |   |-- weekly-review.ts
 |   |   `-- weekly-review.test.ts
 |   |-- features/
+|   |   |-- auth/
+|   |   |   |-- locked-app-screen.tsx
+|   |   |   `-- private-app-denied-screen.tsx
 |   |   |-- child/child-view-page.tsx
 |   |   |-- household/
 |   |   |   |-- household-setup-page.tsx
@@ -90,31 +101,40 @@ documents, update the tree and document index below in the same change.
 |   |   `-- parent/
 |   |       |-- parent-view-page.tsx
 |   |       `-- parent-workflows.test.ts
-|   |-- lib/utils.ts
-|   `-- server/
-|       |-- auth/
-|       |   |-- actions.ts
-|       |   |-- parent-access.ts
-|       |   |-- parent-gate.test.ts
-|       |   `-- parent-gate.ts
-|       |-- child/
-|       |   |-- actions.ts
-|       |   |-- queries.ts
-|       |   |-- repository.ts
-|       |   |-- session.test.ts
-|       |   `-- session.ts
-|       |-- db/
-|       |   |-- client.ts
-|       |   |-- schema.test.ts
-|       |   `-- schema.ts
-|       `-- household/
-|           |-- actions.ts
-|           |-- first-run.test.ts
-|           |-- first-run.ts
-|           |-- management.test.ts
-|           |-- management.ts
-|           |-- queries.ts
-|           `-- repository.ts
+|   |-- lib/
+|   |   |-- supabase/
+|   |   |   |-- client.ts
+|   |   |   |-- config.ts
+|   |   |   `-- server.ts
+|   |   `-- utils.ts
+|   |-- server/
+|   |   |-- auth/
+|   |   |   |-- actions.ts
+|   |   |   |-- parent-access.ts
+|   |   |   |-- parent-gate.test.ts
+|   |   |   `-- parent-gate.ts
+|   |   |-- child/
+|   |   |   |-- actions.ts
+|   |   |   |-- chores.test.ts
+|   |   |   |-- chores.ts
+|   |   |   |-- queries.ts
+|   |   |   |-- repository.ts
+|   |   |   |-- session.test.ts
+|   |   |   `-- session.ts
+|   |   |-- db/
+|   |   |   |-- client.ts
+|   |   |   |-- schema.test.ts
+|   |   |   `-- schema.ts
+|   |   `-- household/
+|   |       |-- actions.ts
+|   |       |-- first-run.test.ts
+|   |       |-- first-run.ts
+|   |       |-- management.test.ts
+|   |       |-- management.ts
+|   |       |-- queries.ts
+|   |       `-- repository.ts
+|   `-- test/
+|       `-- server-only.ts
 |-- package.json
 |-- package-lock.json
 |-- next.config.ts
@@ -127,10 +147,29 @@ documents, update the tree and document index below in the same change.
 `-- next-env.d.ts
 ```
 
+## Current Implementation Snapshot
+
+The V1 product/domain behavior is implemented and covered by Vitest tests.
+The private-production migration is complete through P7 in
+[docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md): full V1
+Postgres/RLS schema, Supabase magic-link gate, first-run Household setup,
+Parent allowlist and Household management, Child PIN sessions, Parent Chore
+management persistence, and Child Chore board/submission persistence.
+
+P8-P16 remain the active production hardening path: Chore approval
+transactions, Goals and Progress Check-ins persistence, Rewards persistence,
+Bonus Points and Point Adjustments persistence, Parent aggregation, Calendar
+Connection metadata, production release hardening, and post-release Apple
+Calendar feed sync.
+
 ## Important Documents
 
 Read these documents before making product, architectural, or terminology
 changes:
+
+**[README.md](README.md)**:
+The current project overview, setup instructions, environment variables,
+development commands, and operational notes.
 
 **[docs/PRD_V1.md](docs/PRD_V1.md)**:
 The v1 product brief. Defines purpose, primary users, v1 scope, out-of-scope
@@ -142,8 +181,8 @@ bullets with user stories, build notes, dependencies, and acceptance criteria.
 
 **[docs/TECHNICAL_REVIEW.md](docs/TECHNICAL_REVIEW.md)**:
 The technical recommendation and architecture guidance. Captures the Next.js,
-Supabase, Vercel, Drizzle, Tailwind, shadcn/ui, lucide-react, Vitest, and
-Playwright direction.
+Supabase, Vercel, Drizzle, Tailwind, local UI primitives, lucide-react, Vitest,
+and future end-to-end testing direction.
 
 **[docs/FUTURE_FEATURES.md](docs/FUTURE_FEATURES.md)**:
 Ideas intentionally left out of v1, such as Chore templates and Family Display
