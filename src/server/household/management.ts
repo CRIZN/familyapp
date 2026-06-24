@@ -10,6 +10,12 @@ import {
   createGoal,
 } from "@/domain/goals";
 import {
+  archiveReward,
+  createReward,
+  updateReward,
+  type RewardType,
+} from "@/domain/rewards";
+import {
   createChildPinCredentials,
   type ChildWin,
   type Household,
@@ -82,6 +88,27 @@ export async function createGoalForParent(
   );
 
   return { household, message: "Goal created.", status: "ok" };
+}
+
+export async function createRewardForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { pointCost: number; title: string; type: RewardType },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = createReward(authorization.household, input);
+  const createdReward = updatedHousehold.rewards.at(-1);
+  if (!createdReward) {
+    return { message: "Could not create Reward.", status: "error" };
+  }
+
+  const household = await dependencies.repository.createReward(
+    authorization.household.id,
+    createdReward,
+  );
+
+  return { household, message: "Reward created.", status: "ok" };
 }
 
 export async function addAllowedParent(
@@ -221,6 +248,79 @@ export async function completeGoalForParent(
   );
 
   return { household, message: "Goal completed.", status: "ok" };
+}
+
+export async function updateRewardForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: {
+    pointCost: number;
+    rewardId: string;
+    title: string;
+    type: RewardType;
+  },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = updateReward(
+    authorization.household,
+    input.rewardId,
+    {
+      pointCost: input.pointCost,
+      title: input.title,
+      type: input.type,
+    },
+  );
+  const reward = updatedHousehold.rewards.find(
+    (candidate) => candidate.id === input.rewardId,
+  );
+  if (!reward) {
+    return { message: "Reward not found.", status: "error" };
+  }
+
+  const household = await dependencies.repository.saveReward(
+    authorization.household.id,
+    input.rewardId,
+    {
+      pointCost: reward.pointCost,
+      status: reward.status,
+      title: reward.title,
+      type: reward.type,
+      updatedAt: reward.updatedAt,
+    },
+  );
+
+  return { household, message: "Reward updated.", status: "ok" };
+}
+
+export async function archiveRewardForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { rewardId: string },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const updatedHousehold = archiveReward(authorization.household, input.rewardId);
+  const reward = updatedHousehold.rewards.find(
+    (candidate) => candidate.id === input.rewardId,
+  );
+  if (!reward) {
+    return { message: "Reward not found.", status: "error" };
+  }
+
+  const household = await dependencies.repository.saveReward(
+    authorization.household.id,
+    input.rewardId,
+    {
+      pointCost: reward.pointCost,
+      status: reward.status,
+      title: reward.title,
+      type: reward.type,
+      updatedAt: reward.updatedAt,
+    },
+  );
+
+  return { household, message: "Reward archived.", status: "ok" };
 }
 
 async function updateParentChoreStatus(

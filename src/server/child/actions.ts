@@ -12,6 +12,13 @@ import {
 } from "./session";
 import { submitChoreForChild, type ChildChoreResult } from "./chores";
 import { submitProgressCheckInForChild, type ChildGoalResult } from "./goals";
+import {
+  cancelRewardRequestForChild,
+  contributeToRewardForChild,
+  requestRewardForChild,
+  returnRewardContributionForChild,
+  type ChildRewardResult,
+} from "./rewards";
 import { getCurrentChildSession } from "./queries";
 
 export type ChildSignInActionState = {
@@ -106,6 +113,66 @@ export async function submitChildProgressCheckInAction(input: {
         caught instanceof Error
           ? caught.message
           : "Could not submit Progress Check-in.",
+      status: "error",
+    };
+  }
+}
+
+export async function contributeToRewardAction(input: {
+  points: number;
+  rewardId: string;
+}): Promise<ChildRewardResult> {
+  return runChildRewardAction((dependencies) =>
+    contributeToRewardForChild(dependencies, input),
+  );
+}
+
+export async function returnRewardContributionAction(input: {
+  contributionId: string;
+}): Promise<ChildRewardResult> {
+  return runChildRewardAction((dependencies) =>
+    returnRewardContributionForChild(dependencies, input),
+  );
+}
+
+export async function requestRewardAction(input: {
+  rewardId: string;
+}): Promise<ChildRewardResult> {
+  return runChildRewardAction((dependencies) =>
+    requestRewardForChild(dependencies, input),
+  );
+}
+
+export async function cancelRewardRequestAction(input: {
+  requestId: string;
+}): Promise<ChildRewardResult> {
+  return runChildRewardAction((dependencies) =>
+    cancelRewardRequestForChild(dependencies, input),
+  );
+}
+
+async function runChildRewardAction(
+  action: (
+    dependencies: Parameters<typeof contributeToRewardForChild>[0],
+  ) => Promise<ChildRewardResult>,
+): Promise<ChildRewardResult> {
+  try {
+    const result = await action({
+      getAuthenticatedChild: getCurrentChildSession,
+      repository: createDrizzleChildAppRepository(),
+    });
+
+    if (result.status === "ok") {
+      revalidatePath("/child");
+      revalidatePath("/parent");
+      revalidatePath("/parent/rewards");
+      revalidatePath("/parent/approvals");
+    }
+
+    return result;
+  } catch (caught) {
+    return {
+      message: caught instanceof Error ? caught.message : "Could not update Reward.",
       status: "error",
     };
   }

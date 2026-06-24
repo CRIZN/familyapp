@@ -390,7 +390,7 @@ Wire Goals, Progress Check-ins, Goal approval outcomes, and Goal Completion thro
 - [x] Needs Work persists without awarding Points.
 - [x] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
 
-### P10. Reward Catalog and Child Reward Actions Persistence
+### P10. Reward Catalog and Child Reward Actions Persistence - Done
 
 **Blocked by**: P8
 
@@ -398,12 +398,12 @@ Wire Goals, Progress Check-ins, Goal approval outcomes, and Goal Completion thro
 Wire Reward Catalog management plus Child Reward Contributions, contribution returns, Reward Requests, and cancellations through server actions and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Parents can create, edit, and Archive shared Rewards.
-- [ ] Children can contribute available Points toward Rewards and return active contributions.
-- [ ] Children can submit Reward Requests when enough Points are committed or available.
-- [ ] Pending Reward Requests reserve Points and prevent double-spend.
-- [ ] Cancellation returns Reserved Points.
-- [ ] Tests cover Reward Catalog persistence, contributions, returns, reservations, cancellation, and ledger entries.
+- [x] Parents can create, edit, and Archive shared Rewards.
+- [x] Children can contribute available Points toward Rewards and return active contributions.
+- [x] Children can submit Reward Requests when enough Points are committed or available.
+- [x] Pending Reward Requests reserve Points and prevent double-spend.
+- [x] Cancellation returns Reserved Points.
+- [x] Tests cover Reward Catalog persistence, contributions, returns, reservations, cancellation, and ledger entries.
 
 ### P11. Reward Approval and Fulfillment Persistence
 

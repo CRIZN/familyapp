@@ -5,6 +5,7 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import type { Chore, ChoreSubmission, SkippedChoreOccurrence } from "@/domain/chores";
 import type { Goal, ProgressCheckIn } from "@/domain/goals";
 import type { ChildWin, Household, PointLedgerEntry } from "@/domain/household";
+import type { Reward, RewardContribution, RewardRequest } from "@/domain/rewards";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
   childWins,
@@ -16,6 +17,9 @@ import {
   parents,
   pointLedger,
   progressCheckIns,
+  rewardContributions,
+  rewardRequests,
+  rewards,
   skippedChoreOccurrences,
 } from "@/server/db/schema";
 
@@ -34,6 +38,7 @@ export type HouseholdRepository = {
   ) => Promise<Household>;
   createChore: (householdId: string, chore: Chore) => Promise<Household>;
   createGoal: (householdId: string, goal: Goal) => Promise<Household>;
+  createReward: (householdId: string, reward: Reward) => Promise<Household>;
   createFirstRunHousehold: (
     household: Household,
     firstParentAuthUserId: string,
@@ -73,6 +78,11 @@ export type HouseholdRepository = {
   saveProgressCheckInNeedsWork: (
     householdId: string,
     input: { checkInId: string; reviewedAt: string },
+  ) => Promise<Household>;
+  saveReward: (
+    householdId: string,
+    rewardId: string,
+    input: Pick<Reward, "pointCost" | "status" | "title" | "type" | "updatedAt">,
   ) => Promise<Household>;
   skipChoreOccurrence: (
     householdId: string,
@@ -219,6 +229,21 @@ export function createDrizzleHouseholdRepository(
         status: goal.status,
         title: goal.title,
         updatedAt: new Date(goal.updatedAt),
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async createReward(householdId, reward) {
+      await db.insert(rewards).values({
+        createdAt: new Date(reward.createdAt),
+        householdId,
+        id: reward.id,
+        pointCost: reward.pointCost,
+        status: reward.status,
+        title: reward.title,
+        type: reward.type,
+        updatedAt: new Date(reward.updatedAt),
       });
 
       return requireHouseholdById(db, householdId);
@@ -406,6 +431,26 @@ export function createDrizzleHouseholdRepository(
       return requireHouseholdById(db, householdId);
     },
 
+    async saveReward(householdId, rewardId, input) {
+      const updatedRows = await db
+        .update(rewards)
+        .set({
+          pointCost: input.pointCost,
+          status: input.status,
+          title: input.title,
+          type: input.type,
+          updatedAt: new Date(input.updatedAt),
+        })
+        .where(and(eq(rewards.householdId, householdId), eq(rewards.id, rewardId)))
+        .returning({ id: rewards.id });
+
+      if (updatedRows.length === 0) {
+        throw new Error("Reward not found.");
+      }
+
+      return requireHouseholdById(db, householdId);
+    },
+
     async skipChoreOccurrence(householdId, input) {
       await db.insert(skippedChoreOccurrences).values({
         childId: input.childId,
@@ -565,6 +610,9 @@ async function getHouseholdById(
     skippedRows,
     goalRows,
     progressRows,
+    rewardRows,
+    contributionRows,
+    requestRows,
     ledgerRows,
     winRows,
   ] = await Promise.all([
@@ -603,6 +651,21 @@ async function getHouseholdById(
       .from(progressCheckIns)
       .where(eq(progressCheckIns.householdId, household.id))
       .orderBy(asc(progressCheckIns.submittedAt)),
+    db
+      .select()
+      .from(rewards)
+      .where(eq(rewards.householdId, household.id))
+      .orderBy(asc(rewards.createdAt)),
+    db
+      .select()
+      .from(rewardContributions)
+      .where(eq(rewardContributions.householdId, household.id))
+      .orderBy(asc(rewardContributions.createdAt)),
+    db
+      .select()
+      .from(rewardRequests)
+      .where(eq(rewardRequests.householdId, household.id))
+      .orderBy(asc(rewardRequests.requestedAt)),
     db
       .select()
       .from(pointLedger)
@@ -653,9 +716,9 @@ async function getHouseholdById(
     })),
     pointLedger: ledgerRows.map(mapPointLedgerRow),
     progressCheckIns: progressRows.map(mapProgressCheckInRow),
-    rewardContributions: [],
-    rewardRequests: [],
-    rewards: [],
+    rewardContributions: contributionRows.map(mapRewardContributionRow),
+    rewardRequests: requestRows.map(mapRewardRequestRow),
+    rewards: rewardRows.map(mapRewardRow),
     skippedChoreOccurrences: skippedRows.map(mapSkippedChoreOccurrenceRow),
     updatedAt: household.updatedAt.toISOString(),
   };
@@ -710,6 +773,49 @@ function mapProgressCheckInRow(
     reviewedAt: checkIn.reviewedAt?.toISOString(),
     status: checkIn.status,
     submittedAt: checkIn.submittedAt.toISOString(),
+  };
+}
+
+function mapRewardRow(reward: typeof rewards.$inferSelect): Reward {
+  return {
+    createdAt: reward.createdAt.toISOString(),
+    id: reward.id,
+    pointCost: reward.pointCost,
+    status: reward.status,
+    title: reward.title,
+    type: reward.type,
+    updatedAt: reward.updatedAt.toISOString(),
+  };
+}
+
+function mapRewardContributionRow(
+  contribution: typeof rewardContributions.$inferSelect,
+): RewardContribution {
+  return {
+    childId: contribution.childId,
+    createdAt: contribution.createdAt.toISOString(),
+    id: contribution.id,
+    points: contribution.points,
+    requestId: contribution.requestId ?? undefined,
+    rewardId: contribution.rewardId,
+    status: contribution.status,
+    updatedAt: contribution.updatedAt.toISOString(),
+  };
+}
+
+function mapRewardRequestRow(
+  request: typeof rewardRequests.$inferSelect,
+): RewardRequest {
+  return {
+    childId: request.childId,
+    contributionPoints: request.contributionPoints,
+    fulfilledAt: request.fulfilledAt?.toISOString(),
+    id: request.id,
+    requestedAt: request.requestedAt.toISOString(),
+    reservedPoints: request.reservedPoints,
+    reviewedAt: request.reviewedAt?.toISOString(),
+    rewardId: request.rewardId,
+    status: request.status,
   };
 }
 
