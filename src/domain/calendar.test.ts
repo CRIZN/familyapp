@@ -8,6 +8,10 @@ import {
   updateEventParticipants,
 } from "./calendar";
 import { createHousehold } from "./household";
+import {
+  parseAppleCalendarFeed,
+  syncAppleCalendarFeed,
+} from "@/server/calendar/sync-engine";
 
 async function createTestHousehold() {
   return createHousehold({
@@ -194,5 +198,225 @@ describe("Calendar", () => {
         day.events.map((event) => event.title),
       ),
     ).toEqual(["Family dinner", "Ada piano"]);
+  });
+
+  it("parses timed, all-day, and recurring iCalendar Events into external identities", () => {
+    const events = parseAppleCalendarFeed(
+      [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "BEGIN:VEVENT",
+        "UID:single-1",
+        "SUMMARY:Doctor",
+        "DTSTART:20260626T160000Z",
+        "DTEND:20260626T170000Z",
+        "LOCATION:Clinic",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:all-day-1",
+        "SUMMARY:No school",
+        "DTSTART;VALUE=DATE:20260627",
+        "DTEND;VALUE=DATE:20260628",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:recurring-1",
+        "SUMMARY:Practice",
+        "DTSTART:20260628T150000Z",
+        "DTEND:20260628T160000Z",
+        "RRULE:FREQ=DAILY;COUNT=2",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\n"),
+      "2026-06-25T12:00:00.000Z",
+    );
+
+    expect(events).toEqual([
+      expect.objectContaining({
+        appleEventId: "single-1",
+        isAllDay: false,
+        location: "Clinic",
+        startsAt: "2026-06-26T16:00:00.000Z",
+        title: "Doctor",
+      }),
+      expect.objectContaining({
+        appleEventId: "all-day-1",
+        endsAt: "2026-06-28T00:00:00.000Z",
+        isAllDay: true,
+        startsAt: "2026-06-27T00:00:00.000Z",
+        title: "No school",
+      }),
+      expect.objectContaining({
+        appleEventId: "recurring-1#2026-06-28T15:00:00.000Z",
+        isAllDay: false,
+      }),
+      expect.objectContaining({
+        appleEventId: "recurring-1#2026-06-29T15:00:00.000Z",
+        isAllDay: false,
+      }),
+    ]);
+  });
+
+  it("syncs the rolling Event window and removes disappeared Events with enrichment", async () => {
+    const household = await createTestHousehold();
+    const configured = configureAppleCalendar(household, {
+      calendarName: "Family",
+      sourceUrl: "webcal://example.test/family.ics",
+    });
+    const initial = syncAppleCalendarEvents(
+      configured,
+      [
+        {
+          appleEventId: "keep-1",
+          title: "Keep me",
+          startsAt: "2026-06-26T16:00:00.000Z",
+          endsAt: "2026-06-26T17:00:00.000Z",
+        },
+        {
+          appleEventId: "disappears-1",
+          title: "Gone",
+          startsAt: "2026-06-27T16:00:00.000Z",
+          endsAt: "2026-06-27T17:00:00.000Z",
+        },
+        {
+          appleEventId: "old-1",
+          title: "Too old",
+          startsAt: "2026-05-20T16:00:00.000Z",
+          endsAt: "2026-05-20T17:00:00.000Z",
+        },
+        {
+          appleEventId: "future-1",
+          title: "Too far",
+          startsAt: "2026-12-23T16:00:00.000Z",
+          endsAt: "2026-12-23T17:00:00.000Z",
+        },
+      ],
+      "2026-06-25T12:00:00.000Z",
+    );
+    const keep = initial.calendarEvents.find(
+      (event) => event.appleEventId === "keep-1",
+    )!;
+    const disappears = initial.calendarEvents.find(
+      (event) => event.appleEventId === "disappears-1",
+    )!;
+    const enrichedKeep = updateEventParticipants(initial, {
+      eventId: keep.id,
+      participantChildIds: [household.children[0]!.id],
+      isAllHousehold: false,
+    });
+    const enriched = updateEventParticipants(enrichedKeep, {
+      eventId: disappears.id,
+      participantChildIds: [household.children[1]!.id],
+      isAllHousehold: false,
+    });
+
+    const resynced = syncAppleCalendarEvents(
+      enriched,
+      [
+        {
+          appleEventId: "keep-1",
+          title: "Keep me updated",
+          startsAt: "2026-06-26T18:00:00.000Z",
+          endsAt: "2026-06-26T19:00:00.000Z",
+        },
+      ],
+      "2026-06-25T13:00:00.000Z",
+    );
+
+    expect(resynced.calendarEvents.map((event) => event.appleEventId)).toEqual([
+      "keep-1",
+    ]);
+    expect(resynced.calendarEvents[0]).toMatchObject({
+      id: keep.id,
+      startsAt: "2026-06-26T18:00:00.000Z",
+      title: "Keep me updated",
+    });
+    expect(resynced.eventEnrichments).toEqual([
+      expect.objectContaining({
+        eventId: keep.id,
+        participantChildIds: [household.children[0]!.id],
+      }),
+    ]);
+  });
+
+  it("sorts All-Day Events above timed Events and defaults new Events to all Household", async () => {
+    const household = await createTestHousehold();
+    const configured = configureAppleCalendar(household, {
+      calendarName: "Family",
+      sourceUrl: "webcal://example.test/family.ics",
+    });
+
+    const result = syncAppleCalendarFeed(
+      configured,
+      [
+        "BEGIN:VCALENDAR",
+        "VERSION:2.0",
+        "BEGIN:VEVENT",
+        "UID:timed-1",
+        "SUMMARY:Ada piano",
+        "DTSTART:20260626T150000Z",
+        "DTEND:20260626T160000Z",
+        "END:VEVENT",
+        "BEGIN:VEVENT",
+        "UID:all-day-1",
+        "SUMMARY:No school",
+        "DTSTART;VALUE=DATE:20260626",
+        "DTEND;VALUE=DATE:20260627",
+        "END:VEVENT",
+        "END:VCALENDAR",
+      ].join("\n"),
+      "2026-06-25T12:00:00.000Z",
+    );
+
+    expect(result.status).toBe("ok");
+    const synced = result.household;
+    expect(getParentAgenda(synced)[0]?.events).toEqual([
+      expect.objectContaining({
+        isAllDay: true,
+        participantNames: ["All Household"],
+        title: "No school",
+      }),
+      expect.objectContaining({
+        isAllDay: false,
+        participantNames: ["All Household"],
+        title: "Ada piano",
+      }),
+    ]);
+  });
+
+  it("keeps the last successful Agenda visible after failed Calendar Sync", async () => {
+    const household = await createTestHousehold();
+    const configured = configureAppleCalendar(household, {
+      calendarName: "Family",
+      sourceUrl: "webcal://example.test/family.ics",
+    });
+    const successful = syncAppleCalendarEvents(
+      configured,
+      [
+        {
+          appleEventId: "single-1",
+          title: "Doctor",
+          startsAt: "2026-06-26T16:00:00.000Z",
+          endsAt: "2026-06-26T17:00:00.000Z",
+        },
+      ],
+      "2026-06-25T12:00:00.000Z",
+    );
+
+    const failed = syncAppleCalendarFeed(
+      successful,
+      "this is not an ics feed",
+      "2026-06-25T13:00:00.000Z",
+    );
+
+    expect(failed.status).toBe("error");
+    expect(failed.household.calendarEvents).toEqual(successful.calendarEvents);
+    expect(failed.household.calendarConnection).toEqual(
+      expect.objectContaining({
+        eventCount: 1,
+        lastSuccessfulSyncAt: "2026-06-25T12:00:00.000Z",
+        lastSyncAttemptAt: "2026-06-25T13:00:00.000Z",
+        syncFailureStatus: "Calendar feed could not be parsed.",
+      }),
+    );
   });
 });

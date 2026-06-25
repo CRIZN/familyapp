@@ -134,6 +134,7 @@ export const calendarEvents = pgTable(
     startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
     endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
     location: text("location"),
+    isAllDay: boolean("is_all_day").notNull().default(false),
     syncedAt: timestamp("synced_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

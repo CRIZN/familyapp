@@ -43,6 +43,13 @@
       "when": 1782407193033,
       "tag": "0005_calendar_connection_sync_metadata",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1782407519905,
+      "tag": "0006_calendar_event_all_day",
+      "breakpoints": true
     }
   ]
 }

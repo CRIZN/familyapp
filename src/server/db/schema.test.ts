@@ -22,6 +22,9 @@ const migration = readFileSync(
 ) + readFileSync(
   join(process.cwd(), "drizzle/0005_calendar_connection_sync_metadata.sql"),
   "utf8",
+) + readFileSync(
+  join(process.cwd(), "drizzle/0006_calendar_event_all_day.sql"),
+  "utf8",
 );
 
 const householdScopedTables = [
@@ -88,6 +91,9 @@ describe("production database schema", () => {
     );
     expect(migration).toContain(
       `ALTER TABLE "calendar_connections" ADD COLUMN "sync_failure_status"`,
+    );
+    expect(migration).toContain(
+      `ALTER TABLE "calendar_events" ADD COLUMN "is_all_day" boolean DEFAULT false NOT NULL`,
     );
     expect(snapshot.tables["public.children"]?.columns).toHaveProperty(
       "session_version",

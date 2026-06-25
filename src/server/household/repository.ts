@@ -327,6 +327,7 @@ async function getHouseholdById(
       appleEventId: event.appleEventId,
       endsAt: event.endsAt.toISOString(),
       id: event.id,
+      isAllDay: event.isAllDay,
       location: event.location ?? undefined,
       startsAt: event.startsAt.toISOString(),
       syncedAt: event.syncedAt.toISOString(),
