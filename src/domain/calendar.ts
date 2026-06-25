@@ -1,5 +1,8 @@
 import type { ChildProfile, Household } from "./household";
 
+const CALENDAR_SYNC_PAST_WINDOW_DAYS = 30;
+const CALENDAR_SYNC_FUTURE_WINDOW_DAYS = 180;
+
 export type CalendarConnection = {
   id: string;
   calendarName: string;
@@ -19,6 +22,7 @@ export type FamilyCalendarEvent = {
   startsAt: string;
   endsAt: string;
   location?: string;
+  isAllDay: boolean;
   syncedAt: string;
 };
 
@@ -35,6 +39,7 @@ export type AppleCalendarEventInput = {
   startsAt: string;
   endsAt: string;
   location?: string;
+  isAllDay?: boolean;
 };
 
 export type ConfigureAppleCalendarInput = {
@@ -55,6 +60,7 @@ export type AgendaEvent = {
   startsAt: string;
   endsAt: string;
   location?: string;
+  isAllDay: boolean;
   participantChildIds: string[];
   participantNames: string[];
   isAllHousehold: boolean;
@@ -108,28 +114,32 @@ export function syncAppleCalendarEvents(
     throw new Error("Connect the Apple Family Calendar before syncing Events.");
   }
 
-  const incoming = events.map(validateAppleCalendarEvent);
+  const window = getCalendarSyncWindow(syncedAt);
+  const incoming = events
+    .map(validateAppleCalendarEvent)
+    .filter((event) => eventIsInsideSyncWindow(event, window));
   const existingByAppleId = new Map(
     normalized.calendarEvents.map((event) => [event.appleEventId, event]),
   );
-  const incomingAppleIds = new Set(incoming.map((event) => event.appleEventId));
-  const nextEvents = [
-    ...normalized.calendarEvents.filter(
-      (event) => !incomingAppleIds.has(event.appleEventId),
-    ),
-    ...incoming.map((event) => {
+  const nextEvents = incoming
+    .map((event) => {
       const existing = existingByAppleId.get(event.appleEventId);
       return {
         id: existing?.id ?? createId(),
         ...event,
         syncedAt,
       };
-    }),
-  ].sort(compareEvents);
+    })
+    .sort(compareEvents);
 
   const validEventIds = new Set(nextEvents.map((event) => event.id));
   return {
     ...normalized,
+    calendarConnection: markCalendarSyncSuccessful(
+      normalized.calendarConnection,
+      syncedAt,
+      nextEvents.length,
+    ),
     calendarEvents: nextEvents,
     eventEnrichments: normalized.eventEnrichments.filter((enrichment) =>
       validEventIds.has(enrichment.eventId),
@@ -171,6 +181,22 @@ export function updateEventParticipants(
         )
       : [...normalized.eventEnrichments, nextEnrichment],
     updatedAt,
+  };
+}
+
+export function recordCalendarSyncFailure(
+  household: Household,
+  attemptedAt: string,
+  failureStatus: string,
+): Household {
+  const normalized = withCalendarCollections(household);
+  return {
+    ...normalized,
+    calendarConnection: markCalendarSyncFailed(
+      normalized.calendarConnection,
+      attemptedAt,
+      failureStatus,
+    ),
   };
 }
 
@@ -226,6 +252,7 @@ function toAgendaEvent(
     startsAt: event.startsAt,
     endsAt: event.endsAt,
     location: event.location,
+    isAllDay: event.isAllDay,
     participantChildIds: enrichment.participantChildIds,
     participantNames: enrichment.isAllHousehold
       ? ["All Household"]
@@ -297,6 +324,7 @@ function validateAppleCalendarEvent(
     title,
     startsAt,
     endsAt,
+    isAllDay: input.isAllDay ?? false,
     ...(location ? { location } : {}),
   };
 }
@@ -305,6 +333,11 @@ function compareEvents(
   left: FamilyCalendarEvent,
   right: FamilyCalendarEvent,
 ): number {
+  const dateComparison = compareEventDates(left, right);
+  if (dateComparison !== 0) return dateComparison;
+  if (left.isAllDay !== right.isAllDay) {
+    return left.isAllDay ? -1 : 1;
+  }
   if (left.startsAt !== right.startsAt) {
     return left.startsAt.localeCompare(right.startsAt);
   }
@@ -312,10 +345,106 @@ function compareEvents(
 }
 
 function compareAgendaEvents(left: AgendaEvent, right: AgendaEvent): number {
+  const dateComparison = compareEventDates(left, right);
+  if (dateComparison !== 0) return dateComparison;
+  if (left.isAllDay !== right.isAllDay) {
+    return left.isAllDay ? -1 : 1;
+  }
   if (left.startsAt !== right.startsAt) {
     return left.startsAt.localeCompare(right.startsAt);
   }
   return left.title.localeCompare(right.title);
+}
+
+export function compareIncomingEvents(
+  left: AppleCalendarEventInput,
+  right: AppleCalendarEventInput,
+): number {
+  const dateComparison = compareEventDates(left, right);
+  if (dateComparison !== 0) return dateComparison;
+  if ((left.isAllDay ?? false) !== (right.isAllDay ?? false)) {
+    return left.isAllDay ? -1 : 1;
+  }
+  if (left.startsAt !== right.startsAt) {
+    return left.startsAt.localeCompare(right.startsAt);
+  }
+  return left.title.localeCompare(right.title);
+}
+
+function compareEventDates(
+  left: Pick<FamilyCalendarEvent | AgendaEvent | AppleCalendarEventInput, "startsAt">,
+  right: Pick<FamilyCalendarEvent | AgendaEvent | AppleCalendarEventInput, "startsAt">,
+): number {
+  return left.startsAt.slice(0, 10).localeCompare(right.startsAt.slice(0, 10));
+}
+
+export type CalendarSyncWindow = {
+  endIso: string;
+  start: Date;
+  startIso: string;
+};
+
+export function getCalendarSyncWindow(syncedAt: string): CalendarSyncWindow {
+  const syncDate = new Date(syncedAt);
+  if (Number.isNaN(syncDate.getTime())) {
+    throw new Error("Calendar Sync needs a valid sync timestamp.");
+  }
+  const syncDay = new Date(
+    Date.UTC(syncDate.getUTCFullYear(), syncDate.getUTCMonth(), syncDate.getUTCDate()),
+  );
+  const start = addUtcDays(syncDay, -CALENDAR_SYNC_PAST_WINDOW_DAYS);
+  const end = addUtcDays(syncDay, CALENDAR_SYNC_FUTURE_WINDOW_DAYS + 1);
+  return {
+    endIso: end.toISOString(),
+    start,
+    startIso: start.toISOString(),
+  };
+}
+
+export function eventIsInsideSyncWindow(
+  event: Pick<FamilyCalendarEvent | AppleCalendarEventInput, "startsAt">,
+  window: CalendarSyncWindow,
+): boolean {
+  return event.startsAt >= window.startIso && event.startsAt < window.endIso;
+}
+
+function addUtcDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setUTCDate(next.getUTCDate() + days);
+  return next;
+}
+
+function markCalendarSyncSuccessful(
+  connection: CalendarConnection | null,
+  syncedAt: string,
+  eventCount: number,
+): CalendarConnection | null {
+  return connection
+    ? {
+        ...connection,
+        eventCount,
+        lastSuccessfulSyncAt: syncedAt,
+        lastSyncAttemptAt: syncedAt,
+        syncFailureStatus: null,
+        updatedAt: syncedAt,
+      }
+    : null;
+}
+
+function markCalendarSyncFailed(
+  connection: CalendarConnection | null,
+  attemptedAt: string,
+  failureStatus: string,
+): CalendarConnection | null {
+  return connection
+    ? {
+        ...connection,
+        eventCount: connection.eventCount ?? 0,
+        lastSyncAttemptAt: attemptedAt,
+        syncFailureStatus: failureStatus,
+        updatedAt: attemptedAt,
+      }
+    : null;
 }
 
 function assertChildBelongsToHousehold(

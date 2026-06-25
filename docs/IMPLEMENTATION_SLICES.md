@@ -517,7 +517,7 @@ Replace the client-only Calendar Connection mutation with a Parent-authorized se
 - [x] Replacing the feed URL clears existing synced Events and their Event Enrichment before syncing the new feed.
 - [x] Tests cover persistence, write-only feed URL behavior, Parent authorization, safe metadata hydration, and feed replacement clearing.
 
-### P18. Calendar Feed Sync Engine Semantics
+### P18. Calendar Feed Sync Engine Semantics - Done
 
 **Blocked by**: P17
 
@@ -530,15 +530,15 @@ Replace the client-only Calendar Connection mutation with a Parent-authorized se
 Harden the server-side Calendar Sync engine around the agreed Event identity, retention, deletion, all-day, and Event Enrichment semantics. Normalize Apple/iCalendar feed Events into Family App read-only Events without inferring Participants from Event text.
 
 **Acceptance criteria**:
-- [ ] Calendar Sync keeps a rolling Event window from 30 days in the past through 180 days in the future.
-- [ ] Synced Events outside the rolling window are pruned with their Event Enrichment.
-- [ ] Events that disappear from the Family Calendar feed inside the rolling window are removed from Family App with their Event Enrichment.
-- [ ] Single Events are matched by Apple/iCalendar UID; recurring Event occurrences are matched by UID plus occurrence start time.
-- [ ] Event Enrichment is preserved when the External Event Identity stays the same, even if title, time, or location changes.
-- [ ] All-Day Events remain distinct from timed Events and sort above timed Events for their Agenda date.
-- [ ] New synced Events default to all-Household, with no v1 Participant inference from Event text.
-- [ ] Failed sync attempts keep the last successfully synced Events visible rather than clearing the Agenda.
-- [ ] Tests cover feed parsing, rolling-window pruning, disappeared-event removal, recurring identity, enrichment preservation, all-day behavior, no Participant inference, and nondestructive failure handling.
+- [x] Calendar Sync keeps a rolling Event window from 30 days in the past through 180 days in the future.
+- [x] Synced Events outside the rolling window are pruned with their Event Enrichment.
+- [x] Events that disappear from the Family Calendar feed inside the rolling window are removed from Family App with their Event Enrichment.
+- [x] Single Events are matched by Apple/iCalendar UID; recurring Event occurrences are matched by UID plus occurrence start time.
+- [x] Event Enrichment is preserved when the External Event Identity stays the same, even if title, time, or location changes.
+- [x] All-Day Events remain distinct from timed Events and sort above timed Events for their Agenda date.
+- [x] New synced Events default to all-Household, with no v1 Participant inference from Event text.
+- [x] Failed sync attempts keep the last successfully synced Events visible rather than clearing the Agenda.
+- [x] Tests cover feed parsing, rolling-window pruning, disappeared-event removal, recurring identity, enrichment preservation, all-day behavior, no Participant inference, and nondestructive failure handling.
 
 ### P19. Automatic Calendar Sync Triggers and Parent Controls
 

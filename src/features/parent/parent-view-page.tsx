@@ -2682,7 +2682,9 @@ function AgendaEventCard({ event }: { event: AgendaEvent }) {
         <div>
           <p className="font-medium">{event.title}</p>
           <p className="text-sm text-muted-foreground">
-            {formatTime(event.startsAt)} - {formatTime(event.endsAt)}
+            {event.isAllDay
+              ? "All day"
+              : `${formatTime(event.startsAt)} - ${formatTime(event.endsAt)}`}
             {event.location ? ` - ${event.location}` : ""}
           </p>
           <p className="mt-1 text-sm text-muted-foreground">
