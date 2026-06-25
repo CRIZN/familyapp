@@ -15,6 +15,7 @@ import {
   archiveChoreForParent,
   createChoreForParent,
   pauseChoreForParent,
+  saveCalendarConnectionForParent,
   updateChildPinForParent,
   updateChildProfile,
   type HouseholdManagementResult,
@@ -125,6 +126,15 @@ export async function updateChildPinAction(input: {
   );
 }
 
+export async function saveCalendarConnectionAction(input: {
+  calendarName: string;
+  feedUrl: string;
+}): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction((dependencies) =>
+    saveCalendarConnectionForParent(dependencies, input),
+  );
+}
+
 async function runHouseholdManagementAction(
   action: (
     dependencies: Parameters<typeof addAllowedParent>[0],
@@ -150,6 +160,7 @@ async function runHouseholdManagementAction(
 
     if (result.status === "ok") {
       revalidatePath("/parent");
+      revalidatePath("/parent/calendar");
       revalidatePath("/parent/chores");
       revalidatePath("/child");
     }

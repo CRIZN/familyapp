@@ -5,7 +5,15 @@ import { and, asc, eq, sql } from "drizzle-orm";
 import type { Chore } from "@/domain/chores";
 import type { Household } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
-import { children, chores, households, parents } from "@/server/db/schema";
+import {
+  calendarConnections,
+  calendarEvents,
+  children,
+  chores,
+  eventEnrichments,
+  households,
+  parents,
+} from "@/server/db/schema";
 
 export type HouseholdRepository = {
   addAllowedParent: (
@@ -22,6 +30,10 @@ export type HouseholdRepository = {
     authUserId: string,
   ) => Promise<Household | null>;
   hasAnyHousehold: () => Promise<boolean>;
+  saveCalendarConnection: (
+    householdId: string,
+    input: { calendarName: string; publicFeedUrl: string },
+  ) => Promise<Household>;
   updateChildPin: (
     householdId: string,
     childId: string,
@@ -130,6 +142,57 @@ export function createDrizzleHouseholdRepository(
       return existing.length > 0;
     },
 
+    async saveCalendarConnection(householdId, input) {
+      await db.transaction(async (tx) => {
+        const [existing] = await tx
+          .select({
+            id: calendarConnections.id,
+            publicFeedUrl: calendarConnections.publicFeedUrl,
+          })
+          .from(calendarConnections)
+          .where(eq(calendarConnections.householdId, householdId))
+          .limit(1);
+
+        const now = new Date();
+        const isReplacement =
+          Boolean(existing) && existing.publicFeedUrl !== input.publicFeedUrl;
+
+        if (isReplacement) {
+          await tx
+            .delete(eventEnrichments)
+            .where(eq(eventEnrichments.householdId, householdId));
+          await tx
+            .delete(calendarEvents)
+            .where(eq(calendarEvents.householdId, householdId));
+          await tx
+            .delete(calendarConnections)
+            .where(eq(calendarConnections.householdId, householdId));
+        }
+
+        if (!existing || isReplacement) {
+          await tx.insert(calendarConnections).values({
+            calendarName: input.calendarName,
+            connectedAt: now,
+            householdId,
+            publicFeedUrl: input.publicFeedUrl,
+            updatedAt: now,
+          });
+          return;
+        }
+
+        await tx
+          .update(calendarConnections)
+          .set({
+            calendarName: input.calendarName,
+            publicFeedUrl: input.publicFeedUrl,
+            updatedAt: now,
+          })
+          .where(eq(calendarConnections.id, existing.id));
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
     async updateChildPin(householdId, childId, input) {
       const updatedRows = await db
         .update(children)
@@ -211,7 +274,8 @@ async function getHouseholdById(
     return null;
   }
 
-  const [parentRows, childRows, choreRows] = await Promise.all([
+  const [parentRows, childRows, choreRows, connectionRows, eventRows, enrichmentRows] =
+    await Promise.all([
     db
       .select()
       .from(parents)
@@ -227,11 +291,47 @@ async function getHouseholdById(
       .from(chores)
       .where(eq(chores.householdId, household.id))
       .orderBy(asc(chores.dueDate), asc(chores.createdAt)),
+    db
+      .select()
+      .from(calendarConnections)
+      .where(eq(calendarConnections.householdId, household.id))
+      .limit(1),
+    db
+      .select()
+      .from(calendarEvents)
+      .where(eq(calendarEvents.householdId, household.id))
+      .orderBy(asc(calendarEvents.startsAt)),
+    db
+      .select()
+      .from(eventEnrichments)
+      .where(eq(eventEnrichments.householdId, household.id)),
   ]);
 
+  const connection = connectionRows[0];
+
   return {
-    calendarConnection: null,
-    calendarEvents: [],
+    calendarConnection: connection
+      ? {
+          calendarName: connection.calendarName,
+          connectedAt: connection.connectedAt.toISOString(),
+          eventCount: eventRows.length,
+          id: connection.id,
+          lastSuccessfulSyncAt:
+            connection.lastSuccessfulSyncAt?.toISOString() ?? null,
+          lastSyncAttemptAt: connection.lastSyncAttemptAt?.toISOString() ?? null,
+          syncFailureStatus: connection.syncFailureStatus,
+          updatedAt: connection.updatedAt.toISOString(),
+        }
+      : null,
+    calendarEvents: eventRows.map((event) => ({
+      appleEventId: event.appleEventId,
+      endsAt: event.endsAt.toISOString(),
+      id: event.id,
+      location: event.location ?? undefined,
+      startsAt: event.startsAt.toISOString(),
+      syncedAt: event.syncedAt.toISOString(),
+      title: event.title,
+    })),
     childWins: [],
     children: childRows.map((child) => ({
       id: child.id,
@@ -256,7 +356,12 @@ async function getHouseholdById(
       updatedAt: chore.updatedAt.toISOString(),
     })),
     createdAt: household.createdAt.toISOString(),
-    eventEnrichments: [],
+    eventEnrichments: enrichmentRows.map((enrichment) => ({
+      eventId: enrichment.eventId,
+      isAllHousehold: enrichment.isAllHousehold,
+      participantChildIds: enrichment.participantChildIds,
+      updatedAt: enrichment.updatedAt.toISOString(),
+    })),
     goals: [],
     id: household.id,
     name: household.name,

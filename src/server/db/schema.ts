@@ -101,6 +101,11 @@ export const calendarConnections = pgTable(
       .notNull()
       .defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    lastSyncAttemptAt: timestamp("last_sync_attempt_at", { withTimezone: true }),
+    lastSuccessfulSyncAt: timestamp("last_successful_sync_at", {
+      withTimezone: true,
+    }),
+    syncFailureStatus: text("sync_failure_status"),
   },
   (table) => ({
     householdIndex: uniqueIndex("calendar_connections_household_idx").on(

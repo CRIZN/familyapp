@@ -24,13 +24,8 @@ import {
 
 import { getParentBriefing } from "@/domain/briefing";
 import { getParentWeeklyReview } from "@/domain/weekly-review";
-import type { AgendaEvent } from "@/domain/calendar";
-import {
-  configureAppleCalendar,
-  getParentAgenda,
-  syncAppleCalendarEvents,
-  updateEventParticipants,
-} from "@/domain/calendar";
+import type { AgendaEvent, CalendarConnection } from "@/domain/calendar";
+import { getParentAgenda, updateEventParticipants } from "@/domain/calendar";
 import type { ApprovalQueueItem, ChoreOccurrence } from "@/domain/chores";
 import {
   approveChoreSubmissions,
@@ -67,6 +62,7 @@ import {
   archiveChoreAction,
   createChoreAction,
   pauseChoreAction,
+  saveCalendarConnectionAction,
   updateChildPinAction,
   updateChildProfileAction,
 } from "@/server/household/actions";
@@ -139,11 +135,6 @@ export function ParentViewPage({
   const [adjustmentReason, setAdjustmentReason] = useState("");
   const [calendarName, setCalendarName] = useState("");
   const [calendarSourceUrl, setCalendarSourceUrl] = useState("");
-  const [eventTitle, setEventTitle] = useState("");
-  const [eventDate, setEventDate] = useState(getTodayDateKey());
-  const [eventStartTime, setEventStartTime] = useState("09:00");
-  const [eventEndTime, setEventEndTime] = useState("10:00");
-  const [eventLocation, setEventLocation] = useState("");
   const [eventParticipantDrafts, setEventParticipantDrafts] = useState<
     Record<string, EventParticipantDraft>
   >({});
@@ -519,48 +510,24 @@ export function ParentViewPage({
     }, "Could not fulfill Reward.");
   }
 
-  function onConfigureCalendar(event: FormEvent<HTMLFormElement>) {
+  async function onConfigureCalendar(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!household) return;
-    withParentAction(() => {
-      const updated = configureAppleCalendar(household, {
-        calendarName:
-          calendarName || household.calendarConnection?.calendarName || "",
-        sourceUrl:
-          calendarSourceUrl || household.calendarConnection?.sourceUrl || "",
-      });
-      setHousehold(updated);
-      setCalendarName(updated.calendarConnection?.calendarName ?? "");
-      setCalendarSourceUrl(updated.calendarConnection?.sourceUrl ?? "");
-      setMessage("Apple Family Calendar connected.");
-    }, "Could not configure Apple Calendar.");
-  }
+    setError(null);
+    setMessage(null);
+    const result = await saveCalendarConnectionAction({
+      calendarName: calendarName || household.calendarConnection?.calendarName || "",
+      feedUrl: calendarSourceUrl,
+    });
 
-  function onSyncCalendarEvent(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!household) return;
-    withParentAction(() => {
-      setHousehold(
-        syncAppleCalendarEvents(household, [
-          {
-            appleEventId: createAppleEventId(
-              eventTitle,
-              eventDate,
-              eventStartTime,
-            ),
-            title: eventTitle,
-            startsAt: toAppleDateTime(eventDate, eventStartTime),
-            endsAt: toAppleDateTime(eventDate, eventEndTime),
-            location: eventLocation,
-          },
-        ]),
-      );
-      setEventTitle("");
-      setEventStartTime("09:00");
-      setEventEndTime("10:00");
-      setEventLocation("");
-      setMessage("Apple Calendar Event synced.");
-    }, "Could not sync Event.");
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setCalendarName(result.household.calendarConnection?.calendarName ?? "");
+      setCalendarSourceUrl("");
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
   }
 
   function saveEventParticipants(event: AgendaEvent) {
@@ -614,8 +581,6 @@ export function ParentViewPage({
     approvalQueue.every((item) => selectedApprovalIds.includes(item.id));
   const calendarNameValue =
     calendarName || household.calendarConnection?.calendarName || "";
-  const calendarSourceUrlValue =
-    calendarSourceUrl || household.calendarConnection?.sourceUrl || "";
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8">
@@ -780,24 +745,17 @@ export function ParentViewPage({
         <div className="grid gap-4 lg:grid-cols-2">
           <CalendarConnectionForm
             calendarName={calendarNameValue}
-            sourceUrl={calendarSourceUrlValue}
+            sourceUrl={calendarSourceUrl}
             onCalendarNameChange={setCalendarName}
             onSourceUrlChange={setCalendarSourceUrl}
             onSubmit={onConfigureCalendar}
           />
-          <SyncEventForm
-            canSync={Boolean(household.calendarConnection)}
-            date={eventDate}
-            endTime={eventEndTime}
-            location={eventLocation}
-            startTime={eventStartTime}
-            title={eventTitle}
-            onDateChange={setEventDate}
-            onEndTimeChange={setEventEndTime}
-            onLocationChange={setEventLocation}
-            onStartTimeChange={setEventStartTime}
-            onSubmit={onSyncCalendarEvent}
-            onTitleChange={setEventTitle}
+          <CalendarConnectionMetadata
+            connection={household.calendarConnection}
+            eventCount={parentAgenda.reduce(
+              (count, day) => count + day.events.length,
+              0,
+            )}
           />
           <div className="lg:col-span-2">
             <HouseholdAgendaSection
@@ -1937,91 +1895,58 @@ function CalendarConnectionForm({
   );
 }
 
-function SyncEventForm({
-  canSync,
-  date,
-  endTime,
-  location,
-  onDateChange,
-  onEndTimeChange,
-  onLocationChange,
-  onStartTimeChange,
-  onSubmit,
-  onTitleChange,
-  startTime,
-  title,
+function CalendarConnectionMetadata({
+  connection,
+  eventCount,
 }: {
-  canSync: boolean;
-  date: string;
-  endTime: string;
-  location: string;
-  startTime: string;
-  title: string;
-  onDateChange: (value: string) => void;
-  onEndTimeChange: (value: string) => void;
-  onLocationChange: (value: string) => void;
-  onStartTimeChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onTitleChange: (value: string) => void;
+  connection: CalendarConnection | null;
+  eventCount: number;
 }) {
   return (
-    <FormSection
+    <Section
       icon={<CalendarDays aria-hidden="true" className="h-6 w-6 text-parent" />}
-      title="Sync Apple Event"
-      onSubmit={onSubmit}
+      title="Connection status"
     >
-      <Field label="Event" id="event-title">
-        <Input
-          className="mt-2"
-          id="event-title"
-          value={title}
-          onChange={(event) => onTitleChange(event.target.value)}
-          placeholder="Soccer practice"
+      {connection ? (
+        <dl className="grid gap-3 text-sm sm:grid-cols-2">
+          <MetadataItem label="State" value="Connected" />
+          <MetadataItem label="Calendar" value={connection.calendarName} />
+          <MetadataItem
+            label="Last sync attempt"
+            value={formatOptionalDateTime(connection.lastSyncAttemptAt)}
+          />
+          <MetadataItem
+            label="Last successful sync"
+            value={formatOptionalDateTime(connection.lastSuccessfulSyncAt)}
+          />
+          <MetadataItem
+            label="Synced Events"
+            value={String(connection.eventCount ?? eventCount)}
+          />
+          <MetadataItem
+            label="Sync status"
+            value={connection.syncFailureStatus ?? "No sync failures reported"}
+          />
+        </dl>
+      ) : (
+        <EmptyState
+          icon={<CalendarDays aria-hidden="true" className="h-5 w-5" />}
+          title="Calendar not connected."
+          detail="Save the Family Calendar feed to show connection status."
         />
-      </Field>
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Field label="Date" id="event-date">
-          <Input
-            className="mt-2"
-            id="event-date"
-            type="date"
-            value={date}
-            onChange={(event) => onDateChange(event.target.value)}
-          />
-        </Field>
-        <Field label="Starts" id="event-start">
-          <Input
-            className="mt-2"
-            id="event-start"
-            type="time"
-            value={startTime}
-            onChange={(event) => onStartTimeChange(event.target.value)}
-          />
-        </Field>
-        <Field label="Ends" id="event-end">
-          <Input
-            className="mt-2"
-            id="event-end"
-            type="time"
-            value={endTime}
-            onChange={(event) => onEndTimeChange(event.target.value)}
-          />
-        </Field>
-      </div>
-      <Field label="Location" id="event-location">
-        <Input
-          className="mt-2"
-          id="event-location"
-          value={location}
-          onChange={(event) => onLocationChange(event.target.value)}
-          placeholder="Field 2"
-        />
-      </Field>
-      <Button className="mt-4" type="submit" variant="parent" disabled={!canSync}>
-        <Plus aria-hidden="true" className="h-4 w-4" />
-        Sync Event
-      </Button>
-    </FormSection>
+      )}
+    </Section>
+  );
+}
+
+function MetadataItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-md border border-border p-3">
+      <dt className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+        {label}
+      </dt>
+      <dd className="mt-1 break-words text-foreground">{value}</dd>
+    </div>
   );
 }
 
@@ -2881,17 +2806,12 @@ function formatTime(value: string): string {
   }).format(new Date(value));
 }
 
-function toAppleDateTime(date: string, time: string): string {
-  return new Date(`${date}T${time}:00.000`).toISOString();
-}
-
-function createAppleEventId(title: string, date: string, time: string): string {
-  const normalizedTitle = title
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-|-$/g, "");
-  return `apple-${date}-${time}-${normalizedTitle || "event"}`;
+function formatOptionalDateTime(value: string | null | undefined): string {
+  if (!value) return "Not yet";
+  return new Intl.DateTimeFormat("en", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function getSelectedQueueItems(

@@ -261,15 +261,15 @@ These slices move the completed V1 demo into a private production app for one Ho
 Create or harden the complete V1 Drizzle/Supabase schema for a fresh production instance, including Household-owned tables, indexes, foreign keys, state enums, Point Ledger data, Calendar Connection fields for a server-side public feed URL, Child session invalidation fields, and Row Level Security policies. Schema and RLS ship together.
 
 **Acceptance criteria**:
-- [ ] Drizzle schema and generated migrations cover all V1 entities from slices 1-11.
-- [ ] Every household-owned table has `household_id` and appropriate foreign keys.
-- [ ] State fields use explicit status enums rather than boolean clusters.
-- [ ] Point Ledger entries can represent every production Point Balance change.
-- [ ] Calendar Connection stores the public feed URL server-side and supports safe client metadata.
-- [ ] Child rows include a session invalidation field such as `pin_updated_at` or `session_version`.
-- [ ] RLS is enabled for household-owned tables and denies access by default.
-- [ ] RLS policies enforce Parent email allowlist access and Child-session scoped access where applicable.
-- [ ] Tests or migration checks verify the schema, constraints, and RLS policy shape.
+- [x] Drizzle schema and generated migrations cover all V1 entities from slices 1-11.
+- [x] Every household-owned table has `household_id` and appropriate foreign keys.
+- [x] State fields use explicit status enums rather than boolean clusters.
+- [x] Point Ledger entries can represent every production Point Balance change.
+- [x] Calendar Connection stores the public feed URL server-side and supports safe client metadata.
+- [x] Child rows include a session invalidation field such as `pin_updated_at` or `session_version`.
+- [x] RLS is enabled for household-owned tables and denies access by default.
+- [x] RLS policies enforce Parent email allowlist access and Child-session scoped access where applicable.
+- [x] Tests or migration checks verify the schema, constraints, and RLS policy shape.
 
 ### P2. Supabase Auth Gate and Locked App Shell - Done
 
@@ -360,7 +360,7 @@ Wire Child View Chore boards and Chore Submission actions through Child session 
 - [x] Child session authorization prevents access to another Child's Chores.
 - [x] Tests cover Child ownership, submission persistence, and Overdue behavior.
 
-### P8. Chore Approval Queue and Point Ledger Persistence
+### P8. Chore Approval Queue and Point Ledger Persistence - Done
 
 **Blocked by**: P7
 
@@ -368,14 +368,14 @@ Wire Child View Chore boards and Chore Submission actions through Child session 
 Wire the Approval Queue for Chore Submissions, including Approve, Needs Work, Skip, and batch-friendly approval with Point Ledger and Point Balance updates in one database transaction.
 
 **Acceptance criteria**:
-- [ ] Parent Approval Queue shows pending Chore Submissions from Supabase.
-- [ ] Approving Chore Submissions creates Point Ledger entries and updates Point Balance atomically.
-- [ ] Needs Work and Skip persist without awarding Points.
-- [ ] Batch approval works for multiple Chore Submissions.
-- [ ] Server actions enforce Parent allowlist authorization.
-- [ ] Tests cover transaction safety, ledger entries, balance updates, Needs Work, Skip, and batch approval.
+- [x] Parent Approval Queue shows pending Chore Submissions from Supabase.
+- [x] Approving Chore Submissions creates Point Ledger entries and updates Point Balance atomically.
+- [x] Needs Work and Skip persist without awarding Points.
+- [x] Batch approval works for multiple Chore Submissions.
+- [x] Server actions enforce Parent allowlist authorization.
+- [x] Tests cover transaction safety, ledger entries, balance updates, Needs Work, Skip, and batch approval.
 
-### P9. Goals and Progress Check-ins Persistence
+### P9. Goals and Progress Check-ins Persistence - Done
 
 **Blocked by**: P8
 
@@ -383,14 +383,14 @@ Wire the Approval Queue for Chore Submissions, including Approve, Needs Work, Sk
 Wire Goals, Progress Check-ins, Goal approval outcomes, and Goal Completion through server actions and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Parents can create, complete, and Archive Goals for one Child.
-- [ ] Children can submit Progress Check-ins for their own active Goals.
-- [ ] Approval Queue distinguishes Progress Check-ins from Chore Submissions.
-- [ ] Approved Progress Check-ins and Goal Completion create Point Ledger entries and Wins atomically.
-- [ ] Needs Work persists without awarding Points.
-- [ ] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
+- [x] Parents can create, complete, and Archive Goals for one Child.
+- [x] Children can submit Progress Check-ins for their own active Goals.
+- [x] Approval Queue distinguishes Progress Check-ins from Chore Submissions.
+- [x] Approved Progress Check-ins and Goal Completion create Point Ledger entries and Wins atomically.
+- [x] Needs Work persists without awarding Points.
+- [x] Tests cover Goal ownership, check-in approval, Needs Work, completion, ledger entries, and Wins.
 
-### P10. Reward Catalog and Child Reward Actions Persistence
+### P10. Reward Catalog and Child Reward Actions Persistence - Done
 
 **Blocked by**: P8
 
@@ -398,14 +398,14 @@ Wire Goals, Progress Check-ins, Goal approval outcomes, and Goal Completion thro
 Wire Reward Catalog management plus Child Reward Contributions, contribution returns, Reward Requests, and cancellations through server actions and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Parents can create, edit, and Archive shared Rewards.
-- [ ] Children can contribute available Points toward Rewards and return active contributions.
-- [ ] Children can submit Reward Requests when enough Points are committed or available.
-- [ ] Pending Reward Requests reserve Points and prevent double-spend.
-- [ ] Cancellation returns Reserved Points.
-- [ ] Tests cover Reward Catalog persistence, contributions, returns, reservations, cancellation, and ledger entries.
+- [x] Parents can create, edit, and Archive shared Rewards.
+- [x] Children can contribute available Points toward Rewards and return active contributions.
+- [x] Children can submit Reward Requests when enough Points are committed or available.
+- [x] Pending Reward Requests reserve Points and prevent double-spend.
+- [x] Cancellation returns Reserved Points.
+- [x] Tests cover Reward Catalog persistence, contributions, returns, reservations, cancellation, and ledger entries.
 
-### P11. Reward Approval and Fulfillment Persistence
+### P11. Reward Approval and Fulfillment Persistence - Done
 
 **Blocked by**: P10
 
@@ -413,14 +413,14 @@ Wire Reward Catalog management plus Child Reward Contributions, contribution ret
 Wire Reward Request review and fulfillment through the Approval Queue and Rewards workflow.
 
 **Acceptance criteria**:
-- [ ] Approval Queue visually distinguishes Reward Requests.
-- [ ] Parent approval spends Reserved Points and creates ledger entries atomically.
-- [ ] Rejection returns Reserved Points.
-- [ ] Fulfillment is tracked separately after approval.
-- [ ] Rewards workflow shows unfulfilled Rewards and fulfillment history from Supabase.
-- [ ] Tests cover approval, rejection, fulfillment, balance changes, and ledger entries.
+- [x] Approval Queue visually distinguishes Reward Requests.
+- [x] Parent approval spends Reserved Points and creates ledger entries atomically.
+- [x] Rejection returns Reserved Points.
+- [x] Fulfillment is tracked separately after approval.
+- [x] Rewards workflow shows unfulfilled Rewards and fulfillment history from Supabase.
+- [x] Tests cover approval, rejection, fulfillment, balance changes, and ledger entries.
 
-### P12. Bonus Points, Point Adjustments, Ledger, and Wins Persistence
+### P12. Bonus Points, Point Adjustments, Ledger, and Wins Persistence - Done
 
 **Blocked by**: P11
 
@@ -428,14 +428,14 @@ Wire Reward Request review and fulfillment through the Approval Queue and Reward
 Wire Bonus Points, Point Adjustments, Point Ledger displays, and Wins displays through server actions and Drizzle.
 
 **Acceptance criteria**:
-- [ ] Parents can award Bonus Points to a Child.
-- [ ] Parents can create positive or negative Point Adjustments with a required reason.
-- [ ] All Point Balance changes appear in the authoritative Point Ledger.
-- [ ] Child View shows simplified Point Ledger and Wins from Supabase.
-- [ ] Server actions enforce Parent allowlist authorization.
-- [ ] Tests cover Bonus Points, required adjustment reasons, negative corrections, ledger visibility, and Wins visibility.
+- [x] Parents can award Bonus Points to a Child.
+- [x] Parents can create positive or negative Point Adjustments with a required reason.
+- [x] All Point Balance changes appear in the authoritative Point Ledger.
+- [x] Child View shows simplified Point Ledger and Wins from Supabase.
+- [x] Server actions enforce Parent allowlist authorization.
+- [x] Tests cover Bonus Points, required adjustment reasons, negative corrections, ledger visibility, and Wins visibility.
 
-### P13. Parent Today, Briefing, and Weekly Review Production Aggregation
+### P13. Parent Today, Briefing, and Weekly Review Production Aggregation - Done
 
 **Blocked by**: P9, P12
 
@@ -443,14 +443,14 @@ Wire Bonus Points, Point Adjustments, Point Ledger displays, and Wins displays t
 Wire Parent Today, Needs Attention, Child Status summaries, Briefing, Suggested Actions, and Weekly Review to server-backed aggregation over Supabase data.
 
 **Acceptance criteria**:
-- [ ] Parent Today loads agenda-independent attention data from Supabase.
-- [ ] Approval Queue preview, Chores Needing Parent Handling, Reward Fulfillment, and Child Status summaries are server-backed.
-- [ ] Briefing Suggested Actions link to focused Parent workflows.
-- [ ] Weekly Review summarizes Chores, Goals, Point Balances, pending Reward Requests, and unfulfilled Rewards from Supabase.
-- [ ] Empty states remain useful when no data exists.
-- [ ] Tests cover aggregation rules and empty states over persisted data.
+- [x] Parent Today loads agenda-independent attention data from Supabase.
+- [x] Approval Queue preview, Chores Needing Parent Handling, Reward Fulfillment, and Child Status summaries are server-backed.
+- [x] Briefing Suggested Actions link to focused Parent workflows.
+- [x] Weekly Review summarizes Chores, Goals, Point Balances, pending Reward Requests, and unfulfilled Rewards from Supabase.
+- [x] Empty states remain useful when no data exists.
+- [x] Tests cover aggregation rules and empty states over persisted data.
 
-### P14. Calendar Connection Metadata Without Live Feed Sync
+### P14. Calendar Connection Metadata Without Live Feed Sync - Done
 
 **Blocked by**: P3
 
@@ -458,13 +458,13 @@ Wire Parent Today, Needs Attention, Child Status summaries, Briefing, Suggested 
 Wire the Calendar workflow enough for production release without live Apple feed fetching. Parents can save or replace the public `webcal`/ICS feed URL server-side, but the client only sees safe metadata.
 
 **Acceptance criteria**:
-- [ ] Parents can save Calendar name and public feed URL through a server action.
-- [ ] The feed URL is stored server-side and is not echoed back to the client after save.
-- [ ] Calendar screens show safe connection metadata and empty/not-connected states.
-- [ ] Event Enrichment UI handles an empty agenda gracefully.
-- [ ] Tests cover feed URL write-only behavior and Parent authorization.
+- [x] Parents can save Calendar name and public feed URL through a server action.
+- [x] The feed URL is stored server-side and is not echoed back to the client after save.
+- [x] Calendar screens show safe connection metadata and empty/not-connected states.
+- [x] Event Enrichment UI handles an empty agenda gracefully.
+- [x] Tests cover feed URL write-only behavior and Parent authorization.
 
-### P15. Production Release Hardening
+### P15. Production Release Hardening - Done
 
 **Blocked by**: P1-P14
 
@@ -472,14 +472,14 @@ Wire the Calendar workflow enough for production release without live Apple feed
 Prepare the private production release on Vercel and Supabase with operational checks, release smoke tests, and rollback-safe configuration.
 
 **Acceptance criteria**:
-- [ ] Required environment variables are documented, including Supabase values, `FIRST_RUN_SETUP_TOKEN`, and Child session signing secret.
-- [ ] Vercel production deployment is configured for the Next.js app.
-- [ ] Supabase production project has migrations applied, RLS enabled, and backups configured.
-- [ ] Playwright covers the production happy path across Parent magic-link setup, Child PIN sign-in, Chore approval, Points, Rewards, and Weekly Review.
-- [ ] A release checklist covers first-run setup, Parent allowlist verification, Child PIN verification, and private-app denial states.
-- [ ] No production UI path reads or writes demo `localStorage` Household state.
+- [x] Required environment variables are documented, including Supabase values, `FIRST_RUN_SETUP_TOKEN`, and Child session signing secret.
+- [x] Vercel production deployment is configured for the Next.js app.
+- [x] Supabase production project has migrations applied, RLS enabled, and backups configured.
+- [x] Playwright covers the production happy path across Parent magic-link setup, Child PIN sign-in, Chore approval, Points, Rewards, and Weekly Review.
+- [x] A release checklist covers first-run setup, Parent allowlist verification, Child PIN verification, and private-app denial states.
+- [x] No production UI path reads or writes demo `localStorage` Household state.
 
-### P16. Post-Release Apple Calendar Feed Sync
+### P16. Post-Release Apple Calendar Feed Sync - Done
 
 **Blocked by**: P14
 
@@ -487,9 +487,77 @@ Prepare the private production release on Vercel and Supabase with operational c
 Add server-side scheduled fetching and parsing of the public Apple Calendar `webcal`/ICS feed into normalized read-only Events, preserving Family App Event Enrichment.
 
 **Acceptance criteria**:
-- [ ] Vercel cron or an equivalent server route fetches the stored feed URL server-side.
-- [ ] ICS parsing creates and updates read-only Calendar Events without exposing the feed URL.
-- [ ] Event Enrichment remains separate from synced Events.
-- [ ] Parent Agenda and Child Agenda show synced Events with Participant filtering.
-- [ ] Sync failures are logged and surfaced to Parents as safe, non-secret status.
-- [ ] Tests cover feed parsing, Event upsert behavior, enrichment preservation, and agenda filtering.
+- [x] Vercel cron or an equivalent server route fetches the stored feed URL server-side.
+- [x] ICS parsing creates and updates read-only Calendar Events without exposing the feed URL.
+- [x] Event Enrichment remains separate from synced Events.
+- [x] Parent Agenda and Child Agenda show synced Events with Participant filtering.
+- [x] Sync failures are logged and surfaced to Parents as safe, non-secret status.
+- [x] Tests cover feed parsing, Event upsert behavior, enrichment preservation, and agenda filtering.
+
+## Calendar Sync Follow-up Slices
+
+These slices capture the Calendar Sync fixes and design clarifications from ADR 0009. Treat them as bug-fix follow-ups to the completed production launch scope: Calendar URLs must persist server-side, synced Events should refresh automatically, and the UI must never expose the full Family Calendar feed URL after save.
+
+### P17. Calendar Connection Persistence and Safe Metadata - Done
+
+**Blocked by**: P14, P16
+
+**User stories covered**:
+- As a Parent, I can save or replace the Family Calendar feed URL and trust that it persists.
+- As a Parent, I can see whether the Family Calendar is connected without seeing the secret feed URL.
+
+**What to build**:
+Replace the client-only Calendar Connection mutation with a Parent-authorized server action and Drizzle repository methods for Calendar Connection save/update. Store the public `webcal`/ICS feed URL server-side only, return safe Calendar Connection metadata to the client, and treat a feed replacement as a new Calendar Connection source.
+
+**Acceptance criteria**:
+- [x] Parents can save Calendar name and feed URL through a Parent-authorized server action.
+- [x] A syntactically valid `webcal://`, `http://`, or `https://` feed URL persists even when the immediate fetch attempt fails.
+- [x] The full feed URL is never returned to client components after save or during Household hydration.
+- [x] Calendar workflow shows safe metadata: connected state, Calendar name, last sync attempt, last successful sync, event count, and non-secret failure status.
+- [x] Replacing the feed URL clears existing synced Events and their Event Enrichment before syncing the new feed.
+- [x] Tests cover persistence, write-only feed URL behavior, Parent authorization, safe metadata hydration, and feed replacement clearing.
+
+### P18. Calendar Feed Sync Engine Semantics
+
+**Blocked by**: P17
+
+**User stories covered**:
+- As a Parent, I can rely on Apple Calendar as the source of truth for Events.
+- As a Parent, I can manually tag synced Events with Participants and keep those tags across normal Apple Calendar edits.
+- As a Child, I see the Events relevant to me after Calendar Sync completes.
+
+**What to build**:
+Harden the server-side Calendar Sync engine around the agreed Event identity, retention, deletion, all-day, and Event Enrichment semantics. Normalize Apple/iCalendar feed Events into Family App read-only Events without inferring Participants from Event text.
+
+**Acceptance criteria**:
+- [ ] Calendar Sync keeps a rolling Event window from 30 days in the past through 180 days in the future.
+- [ ] Synced Events outside the rolling window are pruned with their Event Enrichment.
+- [ ] Events that disappear from the Family Calendar feed inside the rolling window are removed from Family App with their Event Enrichment.
+- [ ] Single Events are matched by Apple/iCalendar UID; recurring Event occurrences are matched by UID plus occurrence start time.
+- [ ] Event Enrichment is preserved when the External Event Identity stays the same, even if title, time, or location changes.
+- [ ] All-Day Events remain distinct from timed Events and sort above timed Events for their Agenda date.
+- [ ] New synced Events default to all-Household, with no v1 Participant inference from Event text.
+- [ ] Failed sync attempts keep the last successfully synced Events visible rather than clearing the Agenda.
+- [ ] Tests cover feed parsing, rolling-window pruning, disappeared-event removal, recurring identity, enrichment preservation, all-day behavior, no Participant inference, and nondestructive failure handling.
+
+### P19. Automatic Calendar Sync Triggers and Parent Controls
+
+**Blocked by**: P17, P18
+
+**User stories covered**:
+- As a Parent, I do not have to manually enter or manually sync Events for the Agenda to stay current.
+- As a Parent, I can retry Calendar Sync from the Calendar workflow when troubleshooting.
+- As a Child, I only see the resulting Agenda and do not manage Calendar Sync.
+
+**What to build**:
+Wire the sync engine into the app lifecycle so Calendar Sync runs automatically on save, on stale Calendar page loads, and from scheduled Vercel cron. Add a Parent-only Sync Now action and safe sync status messaging.
+
+**Acceptance criteria**:
+- [ ] Saving a Calendar Connection attempts an immediate Calendar Sync after persisting the feed URL.
+- [ ] Loading the Calendar workflow attempts Calendar Sync when the last sync attempt is more than 15 minutes old.
+- [ ] Vercel cron or an equivalent scheduled route runs Calendar Sync without exposing the feed URL.
+- [ ] The scheduled route relies on Vercel cron protections first and adds a custom server-only secret only if the deployment route would otherwise be reachable by ordinary web traffic.
+- [ ] Parents can trigger a safe Sync Now action from the Calendar workflow.
+- [ ] Children cannot trigger Calendar Sync controls and only see synced Agenda results.
+- [ ] Sync failures show a safe warning with last attempted sync time and a Parent Sync Now action while keeping the last successful Agenda visible.
+- [ ] Tests cover save-triggered sync, stale-load sync threshold, scheduled sync route behavior, Parent-only Sync Now authorization, Child exclusion, and safe failure messaging.
