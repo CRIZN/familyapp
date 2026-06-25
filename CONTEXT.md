@@ -223,6 +223,10 @@ Family App launches as a private production app for one Household with
 first-run token setup, Parent email allowlisting, Child PIN sessions, and a
 fresh Supabase-backed V1 schema.
 
+**[docs/adr/0009-automatic-calendar-sync-freshness.md](docs/adr/0009-automatic-calendar-sync-freshness.md)**:
+Calendar Sync runs on save, stale Calendar page loads, and scheduled cron while
+keeping the Family Calendar feed URL server-side.
+
 ## Language
 
 **Household**:
@@ -363,6 +367,11 @@ A dated calendar item the Household needs to know about, such as a school deadli
 appointment, birthday, parent travel, or family plan.
 _Avoid_: Activity, plan, calendar item
 
+**All-Day Event**:
+An Event that belongs to a date rather than a specific start and end time.
+All-Day Events should remain visibly distinct from timed Events in the Agenda.
+_Avoid_: Midnight event, untimed timed event
+
 **Participant**:
 A Parent or Child involved in a specific Event.
 Events belong to the Household even when only some people participate.
@@ -382,6 +391,16 @@ _Avoid_: Planner, schedule, calendar feed
 The shared Apple Calendar the Household uses as the source of truth for Events.
 Family App reads from the Family Calendar for awareness rather than owning the calendar itself.
 _Avoid_: Internal calendar, app calendar, event database
+
+**Calendar Sync**:
+The automatic refresh of Events from the Family Calendar into Family App for Household awareness.
+Parents should not manually create Family Calendar Events inside Family App as the normal sync path.
+_Avoid_: Manual sync, event entry, calendar import
+
+**External Event Identity**:
+The Family Calendar identity used to match a synced Event across Calendar Sync runs.
+Single Events use the Apple/iCalendar UID; recurring Event occurrences use UID plus occurrence start time.
+_Avoid_: Event title, calendar row ID, sync ID
 
 **Briefing**:
 A Parent-facing summary of what needs attention, including pending child-related approvals, Overdue Chores, unfulfilled Rewards, and Suggested Actions.

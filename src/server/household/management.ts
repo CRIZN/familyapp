@@ -114,6 +114,37 @@ export async function updateChildPinForParent(
   return { household, message: "Child PIN updated.", status: "ok" };
 }
 
+export async function saveCalendarConnectionForParent(
+  dependencies: HouseholdManagementDependencies,
+  input: { calendarName: string; feedUrl: string },
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const calendarName = input.calendarName.trim();
+  if (!calendarName) {
+    return { message: "Name the Apple Family Calendar.", status: "error" };
+  }
+
+  const feedUrl = normalizeCalendarFeedUrl(input.feedUrl);
+  if (!feedUrl) {
+    return {
+      message: "Enter a valid webcal, http, or https Calendar feed URL.",
+      status: "error",
+    };
+  }
+
+  const household = await dependencies.repository.saveCalendarConnection(
+    authorization.household.id,
+    {
+      calendarName,
+      publicFeedUrl: feedUrl,
+    },
+  );
+
+  return { household, message: "Apple Family Calendar connected.", status: "ok" };
+}
+
 export async function pauseChoreForParent(
   dependencies: HouseholdManagementDependencies,
   input: { choreId: string },
@@ -191,4 +222,18 @@ async function authorizeParent(
 function normalizeEmail(email: string | null | undefined): string | null {
   const normalized = email?.trim().toLowerCase();
   return normalized ? normalized : null;
+}
+
+function normalizeCalendarFeedUrl(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  try {
+    const parsed = new URL(trimmed);
+    return ["webcal:", "http:", "https:"].includes(parsed.protocol)
+      ? trimmed
+      : null;
+  } catch {
+    return null;
+  }
 }

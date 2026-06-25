@@ -114,6 +114,9 @@ function createRepository(
     createFirstRunHousehold: async () => undefined,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
+    saveCalendarConnection: async () => {
+      throw new Error("not used");
+    },
     updateChildPin: async () => {
       throw new Error("not used");
     },

@@ -7,6 +7,7 @@ import {
   archiveChoreForParent,
   createChoreForParent,
   pauseChoreForParent,
+  saveCalendarConnectionForParent,
   updateChildPinForParent,
   updateChildProfile,
 } from "./management";
@@ -191,6 +192,7 @@ describe("Household management", () => {
     const household = await createTestHousehold();
     const updateChildProfileMock = vi.fn();
     const createChoreMock = vi.fn();
+    const saveCalendarConnectionMock = vi.fn();
 
     const result = await updateChildProfile(
       {
@@ -237,6 +239,29 @@ describe("Household management", () => {
       status: "error",
     });
     expect(createChoreMock).not.toHaveBeenCalled();
+
+    const calendarResult = await saveCalendarConnectionForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "visitor@example.com",
+          userId: "user-2",
+        }),
+        repository: createRepository(household, {
+          findHouseholdForParent: async () => null,
+          saveCalendarConnection: saveCalendarConnectionMock,
+        }),
+      },
+      {
+        calendarName: "Family",
+        feedUrl: "webcal://example.test/family.ics",
+      },
+    );
+
+    expect(calendarResult).toEqual({
+      message: "This Parent email is not allowed for the Household.",
+      status: "error",
+    });
+    expect(saveCalendarConnectionMock).not.toHaveBeenCalled();
   });
 
   it("updates Child profile names through the repository", async () => {
@@ -308,6 +333,77 @@ describe("Household management", () => {
       sessionVersion: 2,
     });
   });
+
+  it("saves Calendar Connection feed URLs through an authorized Parent repository call", async () => {
+    const household = await createTestHousehold();
+    const saveCalendarConnectionMock = vi.fn(async () => ({
+      ...household,
+      calendarConnection: {
+        calendarName: "Family",
+        connectedAt: "2026-06-25T12:00:00.000Z",
+        eventCount: 0,
+        id: "calendar-connection-1",
+        lastSuccessfulSyncAt: null,
+        lastSyncAttemptAt: null,
+        syncFailureStatus: null,
+        updatedAt: "2026-06-25T12:00:00.000Z",
+      },
+    }));
+
+    const result = await saveCalendarConnectionForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, {
+          saveCalendarConnection: saveCalendarConnectionMock,
+        }),
+      },
+      {
+        calendarName: " Family ",
+        feedUrl: " webcal://example.test/missing-but-valid.ics ",
+      },
+    );
+
+    expect(result.status).toBe("ok");
+    expect(saveCalendarConnectionMock).toHaveBeenCalledWith(household.id, {
+      calendarName: "Family",
+      publicFeedUrl: "webcal://example.test/missing-but-valid.ics",
+    });
+    expect(result.status === "ok" && result.household.calendarConnection).toEqual(
+      expect.not.objectContaining({
+        sourceUrl: "webcal://example.test/missing-but-valid.ics",
+      }),
+    );
+  });
+
+  it("rejects invalid Calendar feed URL schemes before persistence", async () => {
+    const household = await createTestHousehold();
+    const saveCalendarConnectionMock = vi.fn();
+
+    const result = await saveCalendarConnectionForParent(
+      {
+        getAuthenticatedParent: async () => ({
+          email: "first@example.com",
+          userId: "user-1",
+        }),
+        repository: createRepository(household, {
+          saveCalendarConnection: saveCalendarConnectionMock,
+        }),
+      },
+      {
+        calendarName: "Family",
+        feedUrl: "ftp://example.test/family.ics",
+      },
+    );
+
+    expect(result).toEqual({
+      message: "Enter a valid webcal, http, or https Calendar feed URL.",
+      status: "error",
+    });
+    expect(saveCalendarConnectionMock).not.toHaveBeenCalled();
+  });
 });
 
 async function createTestHousehold(): Promise<Household> {
@@ -329,6 +425,7 @@ function createRepository(
     findHouseholdForParent: async (email) =>
       email === "first@example.com" ? household : null,
     hasAnyHousehold: async () => true,
+    saveCalendarConnection: async () => household,
     updateChildPin: async () => household,
     updateChildProfile: async () => household,
     updateChoreStatus: async () => household,

@@ -3,9 +3,13 @@ import type { ChildProfile, Household } from "./household";
 export type CalendarConnection = {
   id: string;
   calendarName: string;
-  sourceUrl: string;
+  sourceUrl?: string;
   connectedAt: string;
   updatedAt: string;
+  lastSyncAttemptAt?: string | null;
+  lastSuccessfulSyncAt?: string | null;
+  syncFailureStatus?: string | null;
+  eventCount?: number;
 };
 
 export type FamilyCalendarEvent = {
@@ -84,6 +88,11 @@ export function configureAppleCalendar(
       sourceUrl,
       connectedAt: normalized.calendarConnection?.connectedAt ?? configuredAt,
       updatedAt: configuredAt,
+      lastSyncAttemptAt: normalized.calendarConnection?.lastSyncAttemptAt ?? null,
+      lastSuccessfulSyncAt:
+        normalized.calendarConnection?.lastSuccessfulSyncAt ?? null,
+      syncFailureStatus: normalized.calendarConnection?.syncFailureStatus ?? null,
+      eventCount: normalized.calendarConnection?.eventCount ?? 0,
     },
     updatedAt: configuredAt,
   };

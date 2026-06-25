@@ -6,9 +6,11 @@ import type { ChoreSubmission } from "@/domain/chores";
 import type { Household } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
+  calendarEvents,
   children,
   choreSubmissions,
   chores,
+  eventEnrichments,
   households,
   skippedChoreOccurrences,
 } from "@/server/db/schema";
@@ -157,7 +159,8 @@ async function getChildScopedHousehold(
     return null;
   }
 
-  const [choreRows, submissionRows, skippedRows] = await Promise.all([
+  const [choreRows, submissionRows, skippedRows, eventRows, enrichmentRows] =
+    await Promise.all([
     db
       .select()
       .from(chores)
@@ -185,11 +188,41 @@ async function getChildScopedHousehold(
         ),
       )
       .orderBy(asc(skippedChoreOccurrences.occurrenceDate)),
+    db
+      .select()
+      .from(calendarEvents)
+      .where(eq(calendarEvents.householdId, child.householdId))
+      .orderBy(asc(calendarEvents.startsAt)),
+    db
+      .select()
+      .from(eventEnrichments)
+      .where(eq(eventEnrichments.householdId, child.householdId)),
   ]);
+
+  const enrichmentByEventId = new Map(
+    enrichmentRows.map((enrichment) => [enrichment.eventId, enrichment]),
+  );
+  const visibleEventRows = eventRows.filter((event) => {
+    const enrichment = enrichmentByEventId.get(event.id);
+    return (
+      !enrichment ||
+      enrichment.isAllHousehold ||
+      enrichment.participantChildIds.includes(child.childId)
+    );
+  });
+  const visibleEventIds = new Set(visibleEventRows.map((event) => event.id));
 
   return {
     calendarConnection: null,
-    calendarEvents: [],
+    calendarEvents: visibleEventRows.map((event) => ({
+      appleEventId: event.appleEventId,
+      endsAt: event.endsAt.toISOString(),
+      id: event.id,
+      location: event.location ?? undefined,
+      startsAt: event.startsAt.toISOString(),
+      syncedAt: event.syncedAt.toISOString(),
+      title: event.title,
+    })),
     childWins: [],
     children: [
       {
@@ -216,7 +249,14 @@ async function getChildScopedHousehold(
       updatedAt: chore.updatedAt.toISOString(),
     })),
     createdAt: household.createdAt.toISOString(),
-    eventEnrichments: [],
+    eventEnrichments: enrichmentRows
+      .filter((enrichment) => visibleEventIds.has(enrichment.eventId))
+      .map((enrichment) => ({
+        eventId: enrichment.eventId,
+        isAllHousehold: enrichment.isAllHousehold,
+        participantChildIds: enrichment.participantChildIds,
+        updatedAt: enrichment.updatedAt.toISOString(),
+      })),
     goals: [],
     id: household.id,
     name: household.name,

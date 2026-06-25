@@ -19,6 +19,9 @@ const snapshot = JSON.parse(
 const migration = readFileSync(
   join(process.cwd(), "drizzle/0004_p1_full_v1_schema_rls.sql"),
   "utf8",
+) + readFileSync(
+  join(process.cwd(), "drizzle/0005_calendar_connection_sync_metadata.sql"),
+  "utf8",
 );
 
 const householdScopedTables = [
@@ -76,6 +79,15 @@ describe("production database schema", () => {
     );
     expect(snapshot.tables["public.calendar_connections"]?.columns).not.toHaveProperty(
       "source_url",
+    );
+    expect(migration).toContain(
+      `ALTER TABLE "calendar_connections" ADD COLUMN "last_sync_attempt_at"`,
+    );
+    expect(migration).toContain(
+      `ALTER TABLE "calendar_connections" ADD COLUMN "last_successful_sync_at"`,
+    );
+    expect(migration).toContain(
+      `ALTER TABLE "calendar_connections" ADD COLUMN "sync_failure_status"`,
     );
     expect(snapshot.tables["public.children"]?.columns).toHaveProperty(
       "session_version",

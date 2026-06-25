@@ -104,6 +104,19 @@ describe("parent workflow IA", () => {
     expect(source).toContain("<PointAdjustmentForm");
   });
 
+  it("routes Calendar Connection saves through a server action without echoing the feed URL", () => {
+    const source = readFileSync(
+      "src/features/parent/parent-view-page.tsx",
+      "utf8",
+    );
+
+    expect(source).toContain("saveCalendarConnectionAction");
+    expect(source).toContain("<CalendarConnectionMetadata");
+    expect(source).not.toContain("configureAppleCalendar");
+    expect(source).not.toContain("syncAppleCalendarEvents");
+    expect(source).not.toContain("household.calendarConnection?.sourceUrl");
+  });
+
   it("routes Parent Chore management through server actions", () => {
     const source = readFileSync(
       "src/features/parent/parent-view-page.tsx",
