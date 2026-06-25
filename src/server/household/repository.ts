@@ -1,7 +1,12 @@
 import "server-only";
 
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, notInArray, sql } from "drizzle-orm";
 
+import {
+  recordCalendarSyncFailure,
+  syncAppleCalendarEvents,
+  type AppleCalendarEventInput,
+} from "@/domain/calendar";
 import type { Chore } from "@/domain/chores";
 import type { Household } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
@@ -29,10 +34,25 @@ export type HouseholdRepository = {
     email: string,
     authUserId: string,
   ) => Promise<Household | null>;
+  findCalendarConnectionSource: (
+    householdId: string,
+  ) => Promise<{ publicFeedUrl: string } | null>;
   hasAnyHousehold: () => Promise<boolean>;
+  listCalendarConnectionSources: () => Promise<
+    Array<{ householdId: string; publicFeedUrl: string }>
+  >;
+  recordCalendarSyncFailure: (
+    householdId: string,
+    input: { attemptedAt: string; failureStatus: string },
+  ) => Promise<Household>;
   saveCalendarConnection: (
     householdId: string,
     input: { calendarName: string; publicFeedUrl: string },
+  ) => Promise<Household>;
+  syncCalendarEvents: (
+    householdId: string,
+    events: AppleCalendarEventInput[],
+    syncedAt: string,
   ) => Promise<Household>;
   updateChildPin: (
     householdId: string,
@@ -142,6 +162,48 @@ export function createDrizzleHouseholdRepository(
       return existing.length > 0;
     },
 
+    async findCalendarConnectionSource(householdId) {
+      const [connection] = await db
+        .select({ publicFeedUrl: calendarConnections.publicFeedUrl })
+        .from(calendarConnections)
+        .where(eq(calendarConnections.householdId, householdId))
+        .limit(1);
+
+      return connection ?? null;
+    },
+
+    async listCalendarConnectionSources() {
+      return db
+        .select({
+          householdId: calendarConnections.householdId,
+          publicFeedUrl: calendarConnections.publicFeedUrl,
+        })
+        .from(calendarConnections)
+        .orderBy(asc(calendarConnections.connectedAt));
+    },
+
+    async recordCalendarSyncFailure(householdId, input) {
+      const current = await requireHouseholdById(db, householdId);
+      const updated = recordCalendarSyncFailure(
+        current,
+        input.attemptedAt,
+        input.failureStatus,
+      );
+
+      await db
+        .update(calendarConnections)
+        .set({
+          syncFailureStatus: updated.calendarConnection?.syncFailureStatus ?? null,
+          lastSyncAttemptAt: updated.calendarConnection?.lastSyncAttemptAt
+            ? new Date(updated.calendarConnection.lastSyncAttemptAt)
+            : null,
+          updatedAt: new Date(input.attemptedAt),
+        })
+        .where(eq(calendarConnections.householdId, householdId));
+
+      return requireHouseholdById(db, householdId);
+    },
+
     async saveCalendarConnection(householdId, input) {
       await db.transaction(async (tx) => {
         const [existing] = await tx
@@ -188,6 +250,84 @@ export function createDrizzleHouseholdRepository(
             updatedAt: now,
           })
           .where(eq(calendarConnections.id, existing.id));
+      });
+
+      return requireHouseholdById(db, householdId);
+    },
+
+    async syncCalendarEvents(householdId, events, syncedAt) {
+      const current = await requireHouseholdById(db, householdId);
+      const synced = syncAppleCalendarEvents(current, events, syncedAt);
+
+      await db.transaction(async (tx) => {
+        const eventIds = synced.calendarEvents.map((event) => event.id);
+        if (eventIds.length > 0) {
+          await tx
+            .delete(eventEnrichments)
+            .where(
+              and(
+                eq(eventEnrichments.householdId, householdId),
+                notInArray(eventEnrichments.eventId, eventIds),
+              ),
+            );
+          await tx
+            .delete(calendarEvents)
+            .where(
+              and(
+                eq(calendarEvents.householdId, householdId),
+                notInArray(calendarEvents.id, eventIds),
+              ),
+            );
+        } else {
+          await tx
+            .delete(eventEnrichments)
+            .where(eq(eventEnrichments.householdId, householdId));
+          await tx
+            .delete(calendarEvents)
+            .where(eq(calendarEvents.householdId, householdId));
+        }
+
+        for (const event of synced.calendarEvents) {
+          await tx
+            .insert(calendarEvents)
+            .values({
+              appleEventId: event.appleEventId,
+              endsAt: new Date(event.endsAt),
+              householdId,
+              id: event.id,
+              isAllDay: event.isAllDay,
+              location: event.location ?? null,
+              startsAt: new Date(event.startsAt),
+              syncedAt: new Date(event.syncedAt),
+              title: event.title,
+            })
+            .onConflictDoUpdate({
+              target: calendarEvents.id,
+              set: {
+                appleEventId: event.appleEventId,
+                endsAt: new Date(event.endsAt),
+                isAllDay: event.isAllDay,
+                location: event.location ?? null,
+                startsAt: new Date(event.startsAt),
+                syncedAt: new Date(event.syncedAt),
+                title: event.title,
+              },
+            });
+        }
+
+        await tx
+          .update(calendarConnections)
+          .set({
+            lastSuccessfulSyncAt: synced.calendarConnection?.lastSuccessfulSyncAt
+              ? new Date(synced.calendarConnection.lastSuccessfulSyncAt)
+              : null,
+            lastSyncAttemptAt: synced.calendarConnection?.lastSyncAttemptAt
+              ? new Date(synced.calendarConnection.lastSyncAttemptAt)
+              : null,
+            syncFailureStatus: synced.calendarConnection?.syncFailureStatus ?? null,
+            updatedAt: new Date(syncedAt),
+          })
+          .where(eq(calendarConnections.householdId, householdId));
       });
 
       return requireHouseholdById(db, householdId);

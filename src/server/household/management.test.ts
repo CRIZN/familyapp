@@ -8,6 +8,7 @@ import {
   createChoreForParent,
   pauseChoreForParent,
   saveCalendarConnectionForParent,
+  syncCalendarNowForParent,
   updateChildPinForParent,
   updateChildProfile,
 } from "./management";
@@ -404,6 +405,28 @@ describe("Household management", () => {
     });
     expect(saveCalendarConnectionMock).not.toHaveBeenCalled();
   });
+
+  it("runs Calendar Sync Now only after Parent authorization", async () => {
+    const household = await createTestHousehold();
+    const syncCalendarEventsMock = vi.fn();
+
+    const denied = await syncCalendarNowForParent({
+      getAuthenticatedParent: async () => ({
+        email: "visitor@example.com",
+        userId: "user-2",
+      }),
+      repository: createRepository(household, {
+        findHouseholdForParent: async () => null,
+        syncCalendarEvents: syncCalendarEventsMock,
+      }),
+    });
+
+    expect(denied).toEqual({
+      message: "This Parent email is not allowed for the Household.",
+      status: "error",
+    });
+    expect(syncCalendarEventsMock).not.toHaveBeenCalled();
+  });
 });
 
 async function createTestHousehold(): Promise<Household> {
@@ -422,10 +445,16 @@ function createRepository(
     addAllowedParent: async () => household,
     createChore: async () => household,
     createFirstRunHousehold: async () => undefined,
+    findCalendarConnectionSource: async () => ({
+      publicFeedUrl: "webcal://example.test/family.ics",
+    }),
     findHouseholdForParent: async (email) =>
       email === "first@example.com" ? household : null,
     hasAnyHousehold: async () => true,
+    listCalendarConnectionSources: async () => [],
+    recordCalendarSyncFailure: async () => household,
     saveCalendarConnection: async () => household,
+    syncCalendarEvents: async () => household,
     updateChildPin: async () => household,
     updateChildProfile: async () => household,
     updateChoreStatus: async () => household,

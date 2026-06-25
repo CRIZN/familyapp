@@ -1,10 +1,13 @@
 import "server-only";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { syncCalendarIfStale } from "@/server/calendar/service";
 
 import { createDrizzleHouseholdRepository } from "./repository";
 
-export async function getCurrentParentHousehold() {
+export async function getCurrentParentHousehold(options?: {
+  syncCalendarIfStale?: boolean;
+}) {
   try {
     const supabase = await createSupabaseServerClient();
     const { data, error } = await supabase.auth.getUser();
@@ -13,10 +16,16 @@ export async function getCurrentParentHousehold() {
       return null;
     }
 
-    return createDrizzleHouseholdRepository().findHouseholdForParent(
+    const repository = createDrizzleHouseholdRepository();
+    const household = await repository.findHouseholdForParent(
       data.user.email,
       data.user.id,
     );
+    if (!household || !options?.syncCalendarIfStale) {
+      return household;
+    }
+
+    return syncCalendarIfStale({ repository }, household);
   } catch {
     return null;
   }

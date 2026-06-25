@@ -112,9 +112,17 @@ function createRepository(
       throw new Error("not used");
     },
     createFirstRunHousehold: async () => undefined,
+    findCalendarConnectionSource: async () => null,
     findHouseholdForParent: async () => null,
     hasAnyHousehold: async () => false,
+    listCalendarConnectionSources: async () => [],
+    recordCalendarSyncFailure: async () => {
+      throw new Error("not used");
+    },
     saveCalendarConnection: async () => {
+      throw new Error("not used");
+    },
+    syncCalendarEvents: async () => {
       throw new Error("not used");
     },
     updateChildPin: async () => {
