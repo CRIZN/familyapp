@@ -14,6 +14,7 @@ import {
   ListChecks,
   PauseCircle,
   Plus,
+  RefreshCw,
   ShieldCheck,
   SkipForward,
   Sparkles,
@@ -63,6 +64,7 @@ import {
   createChoreAction,
   pauseChoreAction,
   saveCalendarConnectionAction,
+  syncCalendarNowAction,
   updateChildPinAction,
   updateChildProfileAction,
 } from "@/server/household/actions";
@@ -530,6 +532,19 @@ export function ParentViewPage({
     }
   }
 
+  async function onSyncCalendarNow() {
+    if (!household) return;
+    setError(null);
+    setMessage(null);
+    const result = await syncCalendarNowAction();
+    if (result.status === "ok") {
+      setHousehold(result.household);
+      setMessage(result.message);
+    } else {
+      setError(result.message);
+    }
+  }
+
   function saveEventParticipants(event: AgendaEvent) {
     if (!household) return;
     withParentAction(() => {
@@ -756,6 +771,7 @@ export function ParentViewPage({
               (count, day) => count + day.events.length,
               0,
             )}
+            onSyncNow={onSyncCalendarNow}
           />
           <div className="lg:col-span-2">
             <HouseholdAgendaSection
@@ -1898,9 +1914,11 @@ function CalendarConnectionForm({
 function CalendarConnectionMetadata({
   connection,
   eventCount,
+  onSyncNow,
 }: {
   connection: CalendarConnection | null;
   eventCount: number;
+  onSyncNow: () => void;
 }) {
   return (
     <Section
@@ -1927,6 +1945,22 @@ function CalendarConnectionMetadata({
             label="Sync status"
             value={connection.syncFailureStatus ?? "No sync failures reported"}
           />
+          {connection.syncFailureStatus ? (
+            <div className="rounded-md border border-amber-300 bg-amber-50 p-3 sm:col-span-2">
+              <p className="text-sm font-medium text-amber-950">
+                {connection.syncFailureStatus}
+              </p>
+              <p className="mt-1 text-sm text-amber-900">
+                Last attempted {formatOptionalDateTime(connection.lastSyncAttemptAt)}.
+              </p>
+            </div>
+          ) : null}
+          <div className="sm:col-span-2">
+            <Button type="button" variant="parent" onClick={onSyncNow}>
+              <RefreshCw aria-hidden="true" className="h-4 w-4" />
+              Sync Now
+            </Button>
+          </div>
         </dl>
       ) : (
         <EmptyState

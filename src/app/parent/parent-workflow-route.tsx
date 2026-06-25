@@ -10,7 +10,9 @@ export async function ParentWorkflowRoute({
 }: {
   workflow?: ParentWorkflow;
 }) {
-  const household = await getCurrentParentHousehold();
+  const household = await getCurrentParentHousehold({
+    syncCalendarIfStale: workflow === "calendar",
+  });
 
   return (
     <AppShell tone="parent">

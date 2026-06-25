@@ -10,6 +10,7 @@ import {
 } from "@/domain/household";
 
 import type { HouseholdRepository } from "./repository";
+import { syncCalendarForHousehold } from "@/server/calendar/service";
 
 export type ParentManagementUser = {
   email: string | null | undefined;
@@ -17,7 +18,9 @@ export type ParentManagementUser = {
 };
 
 export type HouseholdManagementDependencies = {
+  fetchCalendarFeed?: (feedUrl: string) => Promise<string>;
   getAuthenticatedParent: () => Promise<ParentManagementUser | null>;
+  now?: () => Date;
   repository: HouseholdRepository;
 };
 
@@ -143,6 +146,34 @@ export async function saveCalendarConnectionForParent(
   );
 
   return { household, message: "Apple Family Calendar connected.", status: "ok" };
+}
+
+export async function syncCalendarNowForParent(
+  dependencies: HouseholdManagementDependencies,
+): Promise<HouseholdManagementResult> {
+  const authorization = await authorizeParent(dependencies);
+  if (authorization.status === "error") return authorization;
+
+  const result = await syncCalendarForHousehold(
+    {
+      fetchFeed: dependencies.fetchCalendarFeed,
+      now: dependencies.now,
+      repository: dependencies.repository,
+    },
+    authorization.household.id,
+  );
+
+  return result.status === "ok"
+    ? {
+        household: result.household,
+        message: "Calendar Sync completed.",
+        status: "ok",
+      }
+    : {
+        household: result.household,
+        message: "Calendar Sync failed. The last successful Agenda is still visible.",
+        status: "ok",
+      };
 }
 
 export async function pauseChoreForParent(

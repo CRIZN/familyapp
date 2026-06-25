@@ -117,6 +117,38 @@ describe("parent workflow IA", () => {
     expect(source).not.toContain("household.calendarConnection?.sourceUrl");
   });
 
+  it("wires automatic Calendar Sync triggers and Parent-only controls", () => {
+    const parentSource = readFileSync(
+      "src/features/parent/parent-view-page.tsx",
+      "utf8",
+    );
+    const actionsSource = readFileSync("src/server/household/actions.ts", "utf8");
+    const routeSource = readFileSync(
+      "src/app/parent/parent-workflow-route.tsx",
+      "utf8",
+    );
+    const cronRouteSource = readFileSync(
+      "src/app/api/calendar/sync/route.ts",
+      "utf8",
+    );
+    const childSource = readFileSync(
+      "src/features/child/child-view-page.tsx",
+      "utf8",
+    );
+    const vercelConfig = readFileSync("vercel.json", "utf8");
+
+    expect(actionsSource).toContain("syncCalendarForHousehold");
+    expect(actionsSource).toContain("saveCalendarConnectionAction");
+    expect(routeSource).toContain("syncCalendarIfStale: workflow === \"calendar\"");
+    expect(cronRouteSource).toContain("syncAllCalendarConnections");
+    expect(cronRouteSource).toContain("isVercelCronRequest");
+    expect(vercelConfig).toContain("\"path\": \"/api/calendar/sync\"");
+    expect(parentSource).toContain("syncCalendarNowAction");
+    expect(parentSource).toContain("Sync Now");
+    expect(childSource).not.toContain("syncCalendarNowAction");
+    expect(childSource).not.toContain("Sync Now");
+  });
+
   it("routes Parent Chore management through server actions", () => {
     const source = readFileSync(
       "src/features/parent/parent-view-page.tsx",

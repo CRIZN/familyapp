@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { syncCalendarForHousehold } from "@/server/calendar/service";
 
 import {
   createFirstRunHousehold,
@@ -16,6 +17,7 @@ import {
   createChoreForParent,
   pauseChoreForParent,
   saveCalendarConnectionForParent,
+  syncCalendarNowForParent,
   updateChildPinForParent,
   updateChildProfile,
   type HouseholdManagementResult,
@@ -130,8 +132,32 @@ export async function saveCalendarConnectionAction(input: {
   calendarName: string;
   feedUrl: string;
 }): Promise<HouseholdManagementResult> {
+  return runHouseholdManagementAction(async (dependencies) => {
+    const saved = await saveCalendarConnectionForParent(dependencies, input);
+    if (saved.status === "error") return saved;
+
+    const syncResult = await syncCalendarForHousehold(
+      { repository: dependencies.repository },
+      saved.household.id,
+    );
+    return syncResult.status === "ok"
+      ? {
+          household: syncResult.household,
+          message: "Apple Family Calendar connected and synced.",
+          status: "ok",
+        }
+      : {
+          household: syncResult.household,
+          message:
+            "Apple Family Calendar connected. Calendar Sync failed, so the last successful Agenda is still visible.",
+          status: "ok",
+        };
+  });
+}
+
+export async function syncCalendarNowAction(): Promise<HouseholdManagementResult> {
   return runHouseholdManagementAction((dependencies) =>
-    saveCalendarConnectionForParent(dependencies, input),
+    syncCalendarNowForParent(dependencies),
   );
 }
 

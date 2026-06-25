@@ -540,7 +540,7 @@ Harden the server-side Calendar Sync engine around the agreed Event identity, re
 - [x] Failed sync attempts keep the last successfully synced Events visible rather than clearing the Agenda.
 - [x] Tests cover feed parsing, rolling-window pruning, disappeared-event removal, recurring identity, enrichment preservation, all-day behavior, no Participant inference, and nondestructive failure handling.
 
-### P19. Automatic Calendar Sync Triggers and Parent Controls
+### P19. Automatic Calendar Sync Triggers and Parent Controls - Done
 
 **Blocked by**: P17, P18
 
@@ -553,11 +553,11 @@ Harden the server-side Calendar Sync engine around the agreed Event identity, re
 Wire the sync engine into the app lifecycle so Calendar Sync runs automatically on save, on stale Calendar page loads, and from scheduled Vercel cron. Add a Parent-only Sync Now action and safe sync status messaging.
 
 **Acceptance criteria**:
-- [ ] Saving a Calendar Connection attempts an immediate Calendar Sync after persisting the feed URL.
-- [ ] Loading the Calendar workflow attempts Calendar Sync when the last sync attempt is more than 15 minutes old.
-- [ ] Vercel cron or an equivalent scheduled route runs Calendar Sync without exposing the feed URL.
-- [ ] The scheduled route relies on Vercel cron protections first and adds a custom server-only secret only if the deployment route would otherwise be reachable by ordinary web traffic.
-- [ ] Parents can trigger a safe Sync Now action from the Calendar workflow.
-- [ ] Children cannot trigger Calendar Sync controls and only see synced Agenda results.
-- [ ] Sync failures show a safe warning with last attempted sync time and a Parent Sync Now action while keeping the last successful Agenda visible.
-- [ ] Tests cover save-triggered sync, stale-load sync threshold, scheduled sync route behavior, Parent-only Sync Now authorization, Child exclusion, and safe failure messaging.
+- [x] Saving a Calendar Connection attempts an immediate Calendar Sync after persisting the feed URL.
+- [x] Loading the Calendar workflow attempts Calendar Sync when the last sync attempt is more than 15 minutes old.
+- [x] Vercel cron or an equivalent scheduled route runs Calendar Sync without exposing the feed URL.
+- [x] The scheduled route relies on Vercel cron protections first and adds a custom server-only secret only if the deployment route would otherwise be reachable by ordinary web traffic.
+- [x] Parents can trigger a safe Sync Now action from the Calendar workflow.
+- [x] Children cannot trigger Calendar Sync controls and only see synced Agenda results.
+- [x] Sync failures show a safe warning with last attempted sync time and a Parent Sync Now action while keeping the last successful Agenda visible.
+- [x] Tests cover save-triggered sync, stale-load sync threshold, scheduled sync route behavior, Parent-only Sync Now authorization, Child exclusion, and safe failure messaging.
