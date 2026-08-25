@@ -150,17 +150,14 @@ documents, update the tree and document index below in the same change.
 ## Current Implementation Snapshot
 
 The V1 product/domain behavior is implemented and covered by Vitest tests.
-The private-production migration is complete through P7 in
-[docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md): full V1
-Postgres/RLS schema, Supabase magic-link gate, first-run Household setup,
-Parent allowlist and Household management, Child PIN sessions, Parent Chore
-management persistence, and Child Chore board/submission persistence.
+The private-production migration is complete through P19 in
+[docs/IMPLEMENTATION_SLICES.md](docs/IMPLEMENTATION_SLICES.md): schema, auth
+gate, first-run setup, Parent allowlist, Child PIN sessions, chores/approvals/
+goals/rewards/points persistence, parent aggregation, Calendar Connection,
+sync engine, and automatic Calendar Sync triggers.
 
-P8-P16 remain the active production hardening path: Chore approval
-transactions, Goals and Progress Check-ins persistence, Rewards persistence,
-Bonus Points and Point Adjustments persistence, Parent aggregation, Calendar
-Connection metadata, production release hardening, and post-release Apple
-Calendar feed sync.
+Parked ideas remain in [docs/FUTURE_FEATURES.md](docs/FUTURE_FEATURES.md):
+chore templates and Family Display Mode.
 
 ## Important Documents
 
