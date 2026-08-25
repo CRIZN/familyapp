@@ -1,11 +1,16 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { LockKeyhole, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  getAuthCallbackForwardHref,
+  readAuthLinkErrorMessage,
+} from "@/features/auth/magic-link-params";
 import {
   requestParentMagicLink,
   type MagicLinkState,
@@ -17,10 +22,30 @@ const initialState: MagicLinkState = {
 };
 
 export function LockedAppScreen() {
+  return (
+    <Suspense>
+      <LockedAppScreenContent />
+    </Suspense>
+  );
+}
+
+function LockedAppScreenContent() {
+  const searchParams = useSearchParams();
   const [state, formAction, isPending] = useActionState(
     requestParentMagicLink,
     initialState,
   );
+  const linkError = readAuthLinkErrorMessage(searchParams.toString());
+
+  useEffect(() => {
+    const destination = getAuthCallbackForwardHref(window.location.href);
+    if (destination) {
+      window.location.replace(destination);
+    }
+  }, []);
+
+  const message = state.message ?? linkError;
+  const messageIsError = state.message ? state.status === "error" : Boolean(linkError);
 
   return (
     <main className="min-h-screen bg-background">
@@ -53,16 +78,16 @@ export function LockedAppScreen() {
             </Button>
           </form>
 
-          {state.message ? (
+          {message ? (
             <p
               className={
-                state.status === "error"
+                messageIsError
                   ? "mt-4 text-sm text-destructive"
                   : "mt-4 text-sm text-muted-foreground"
               }
               role="status"
             >
-              {state.message}
+              {message}
             </p>
           ) : null}
         </div>
@@ -70,4 +95,3 @@ export function LockedAppScreen() {
     </main>
   );
 }
-
