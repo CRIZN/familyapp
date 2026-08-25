@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState, useEffect, useState } from "react";
+import { Suspense, useActionState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { LockKeyhole, Mail } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,20 +22,26 @@ const initialState: MagicLinkState = {
 };
 
 export function LockedAppScreen() {
+  return (
+    <Suspense>
+      <LockedAppScreenContent />
+    </Suspense>
+  );
+}
+
+function LockedAppScreenContent() {
+  const searchParams = useSearchParams();
   const [state, formAction, isPending] = useActionState(
     requestParentMagicLink,
     initialState,
   );
-  const [linkError, setLinkError] = useState<string | null>(null);
+  const linkError = readAuthLinkErrorMessage(searchParams.toString());
 
   useEffect(() => {
     const destination = getAuthCallbackForwardHref(window.location.href);
     if (destination) {
       window.location.replace(destination);
-      return;
     }
-
-    setLinkError(readAuthLinkErrorMessage(window.location.search));
   }, []);
 
   const message = state.message ?? linkError;
@@ -88,4 +95,3 @@ export function LockedAppScreen() {
     </main>
   );
 }
-

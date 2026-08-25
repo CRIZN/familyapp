@@ -166,6 +166,29 @@ describe("auth callback route", () => {
       response.headers.getSetCookie().some((cookie) => cookie.includes("sb-familyapp-auth-token=")),
     ).toBe(false);
   });
+
+  it("does not set a session when token_hash verify fails", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "otp_expired", error_description: "expired" }), {
+        headers: { "content-type": "application/json" },
+        status: 400,
+      }),
+    );
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request(
+        "https://app.example/auth/callback?token_hash=expired-hash&type=magiclink",
+      ) as never,
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.example/?authError=invalid_link",
+    );
+    expect(
+      response.headers.getSetCookie().some((cookie) => cookie.includes("sb-familyapp-auth-token=")),
+    ).toBe(false);
+  });
 });
 
 function encodeSupabaseCookieValue(value: string): string {
