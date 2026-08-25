@@ -48,26 +48,30 @@ describe("Parent Weekly Review", () => {
       calendarName: "Family",
       sourceUrl: "webcal://example.test/family.ics",
     });
-    const withEvents = syncAppleCalendarEvents(configured, [
-      {
-        appleEventId: "apple-today",
-        title: "Piano lesson",
-        startsAt: "2026-06-23T17:00:00.000Z",
-        endsAt: "2026-06-23T18:00:00.000Z",
-      },
-      {
-        appleEventId: "apple-weekend",
-        title: "Tournament",
-        startsAt: "2026-06-28T15:00:00.000Z",
-        endsAt: "2026-06-28T18:00:00.000Z",
-      },
-      {
-        appleEventId: "apple-next-week",
-        title: "Camp starts",
-        startsAt: "2026-06-30T15:00:00.000Z",
-        endsAt: "2026-06-30T18:00:00.000Z",
-      },
-    ]);
+    const withEvents = syncAppleCalendarEvents(
+      configured,
+      [
+        {
+          appleEventId: "apple-today",
+          title: "Piano lesson",
+          startsAt: "2026-06-23T17:00:00.000Z",
+          endsAt: "2026-06-23T18:00:00.000Z",
+        },
+        {
+          appleEventId: "apple-weekend",
+          title: "Tournament",
+          startsAt: "2026-06-28T15:00:00.000Z",
+          endsAt: "2026-06-28T18:00:00.000Z",
+        },
+        {
+          appleEventId: "apple-next-week",
+          title: "Camp starts",
+          startsAt: "2026-06-30T15:00:00.000Z",
+          endsAt: "2026-06-30T18:00:00.000Z",
+        },
+      ],
+      "2026-06-23T12:00:00.000Z",
+    );
     const withOverdueChore = createChore(withEvents, {
       title: "Water plants",
       childId: ada.id,

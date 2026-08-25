@@ -42,32 +42,36 @@ describe("Parent Briefing", () => {
       calendarName: "Family",
       sourceUrl: "webcal://example.test/family.ics",
     });
-    const withEvents = syncAppleCalendarEvents(configured, [
-      {
-        appleEventId: "apple-yesterday",
-        title: "Yesterday appointment",
-        startsAt: "2026-06-22T15:00:00.000Z",
-        endsAt: "2026-06-22T16:00:00.000Z",
-      },
-      {
-        appleEventId: "apple-today",
-        title: "Piano lesson",
-        startsAt: "2026-06-23T17:00:00.000Z",
-        endsAt: "2026-06-23T18:00:00.000Z",
-      },
-      {
-        appleEventId: "apple-tomorrow",
-        title: "Soccer practice",
-        startsAt: "2026-06-24T21:00:00.000Z",
-        endsAt: "2026-06-24T22:00:00.000Z",
-      },
-      {
-        appleEventId: "apple-later",
-        title: "Weekend trip",
-        startsAt: "2026-06-27T16:00:00.000Z",
-        endsAt: "2026-06-27T17:00:00.000Z",
-      },
-    ]);
+    const withEvents = syncAppleCalendarEvents(
+      configured,
+      [
+        {
+          appleEventId: "apple-yesterday",
+          title: "Yesterday appointment",
+          startsAt: "2026-06-22T15:00:00.000Z",
+          endsAt: "2026-06-22T16:00:00.000Z",
+        },
+        {
+          appleEventId: "apple-today",
+          title: "Piano lesson",
+          startsAt: "2026-06-23T17:00:00.000Z",
+          endsAt: "2026-06-23T18:00:00.000Z",
+        },
+        {
+          appleEventId: "apple-tomorrow",
+          title: "Soccer practice",
+          startsAt: "2026-06-24T21:00:00.000Z",
+          endsAt: "2026-06-24T22:00:00.000Z",
+        },
+        {
+          appleEventId: "apple-later",
+          title: "Weekend trip",
+          startsAt: "2026-06-27T16:00:00.000Z",
+          endsAt: "2026-06-27T17:00:00.000Z",
+        },
+      ],
+      "2026-06-23T12:00:00.000Z",
+    );
     const withOverdue = createChore(withEvents, {
       title: "Water plants",
       childId: child.id,
