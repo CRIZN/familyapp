@@ -113,6 +113,8 @@ documents, update the tree and document index below in the same change.
 |   |-- server/
 |   |   |-- auth/
 |   |   |   |-- actions.ts
+|   |   |   |-- callback-origin.ts
+|   |   |   |-- callback-origin.test.ts
 |   |   |   |-- parent-access.ts
 |   |   |   |-- parent-gate.test.ts
 |   |   |   `-- parent-gate.ts
