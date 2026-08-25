@@ -584,7 +584,7 @@ Add a Parent-authorized kiosk route at `/parent/display` that assembles a `Famil
 - [x] Chrome is limited to household name, a large current time and date, and Exit back to `/parent`.
 - [x] Today's Agenda shows all-day Events above timed Events, with title, time or all-day, location when present, and Participant names or all-Household.
 - [x] Today's Chores are grouped by Child and include Overdue, with wall statuses for due, overdue, pending review, and done.
-- [x] The snapshot uses the same date-key helper as Parent Today and never includes the Family Calendar feed URL.
+- [x] The snapshot uses the same America/Denver date-key helper as Parent Today and never includes the Family Calendar feed URL.
 - [x] Empty states cover no calendar connected, no Events today, and no chores today.
 - [x] The display auto-refreshes at least every 60 seconds without a tap.
 - [x] Tests cover snapshot assembly, Child grouping, overdue vs today Chores, mixed all-day and timed Agenda, and feed URL exclusion.

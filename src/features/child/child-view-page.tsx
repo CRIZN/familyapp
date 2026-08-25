@@ -24,6 +24,7 @@ import {
   getChildPointLedger,
   getChildWins,
 } from "@/domain/chores";
+import { getTodayDateKey } from "@/domain/dates";
 import type { GoalProgress, ProgressCheckInSummary } from "@/domain/goals";
 import { getChildGoalBoard, submitProgressCheckIn } from "@/domain/goals";
 import {
@@ -966,10 +967,6 @@ function ProgressCheckInCard({
       </div>
     </div>
   );
-}
-
-function getTodayDateKey(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function formatDate(dateKey: string): string {

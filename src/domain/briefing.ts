@@ -2,6 +2,7 @@ import type { AgendaDay, AgendaEvent } from "./calendar";
 import { getParentAgenda } from "./calendar";
 import type { ChoreOccurrence } from "./chores";
 import { getApprovalQueue, getChildChoreBoard } from "./chores";
+import { getTodayDateKey } from "./dates";
 import type { Household } from "./household";
 
 export type ParentBriefing = {
@@ -42,7 +43,7 @@ export type SuggestedAction = {
 
 export function getParentBriefing(
   household: Household,
-  today: string = toDateKey(new Date()),
+  today: string = getTodayDateKey(),
 ): ParentBriefing {
   assertDate(today);
   const tomorrow = toDateKey(addDays(parseDateKey(today), 1));

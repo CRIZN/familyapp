@@ -19,6 +19,16 @@ describe("Family Display route", () => {
     expect(routeSource).toContain("getCurrentParentHousehold");
     expect(routeSource).toContain("assembleFamilyDisplaySnapshot");
     expect(routeSource).toContain("getTodayDateKey");
+    expect(routeSource).toContain('from "@/domain/dates"');
+
+    const parentSource = readFileSync(
+      "src/features/parent/parent-view-page.tsx",
+      "utf8",
+    );
+    expect(parentSource).toContain('from "@/domain/dates"');
+    expect(parentSource).toContain("getTodayDateKey");
+    expect(parentSource).not.toContain("function getTodayDateKey");
+
     expect(routeSource).not.toContain("ParentWorkflowRoute");
     expect(routeSource).not.toContain("ParentViewPage");
     expect(routeSource).not.toContain("syncCalendarIfStale");
