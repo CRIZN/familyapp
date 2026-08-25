@@ -32,4 +32,15 @@ describe("Household repository Calendar persistence", () => {
     expect(metadataSource).not.toContain("publicFeedUrl");
     expect(metadataSource).not.toContain("sourceUrl");
   });
+
+  it("hydrates Chore Submissions and skipped occurrences for Parent boards", () => {
+    const source = readFileSync("src/server/household/repository.ts", "utf8");
+
+    expect(source).toContain(".from(choreSubmissions)");
+    expect(source).toContain(".from(skippedChoreOccurrences)");
+    expect(source).toContain("choreSubmissions: submissionRows.map(mapChoreSubmissionRow)");
+    expect(source).toContain("skippedChoreOccurrences: skippedRows.map");
+    expect(source).not.toMatch(/choreSubmissions:\s*\[\]/);
+    expect(source).not.toMatch(/skippedChoreOccurrences:\s*\[\]/);
+  });
 });
