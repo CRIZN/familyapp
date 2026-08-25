@@ -90,6 +90,82 @@ describe("auth callback route", () => {
       ]),
     );
   });
+
+  it("sets session cookies on the redirect after verifyOtp for token_hash and type", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          access_token: "access-token",
+          expires_in: 3600,
+          refresh_token: "refresh-token",
+          token_type: "bearer",
+          user: {
+            aud: "authenticated",
+            email: "parent@example.com",
+            id: "user-1",
+          },
+        }),
+        { headers: { "content-type": "application/json" }, status: 200 },
+      ),
+    );
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request(
+        "https://app.example/auth/callback?token_hash=valid-hash&type=magiclink",
+      ) as never,
+    );
+
+    expect(response.headers.get("location")).toBe("https://app.example/");
+    expect(response.headers.getSetCookie()).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("sb-familyapp-auth-token="),
+      ]),
+    );
+    expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
+  it("does not set a session or pretend success when credentials are missing", async () => {
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("https://app.example/auth/callback") as never,
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.example/?authError=invalid_link",
+    );
+    expect(response.headers.getSetCookie()).toEqual([]);
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not set a session when PKCE exchange fails", async () => {
+    cookieStore.seed([
+      {
+        name: "sb-familyapp-auth-token-code-verifier",
+        value: encodeSupabaseCookieValue("pkce-verifier"),
+      },
+    ]);
+    vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ error: "invalid_grant", error_description: "bad code" }), {
+        headers: { "content-type": "application/json" },
+        status: 400,
+      }),
+    );
+    const { GET } = await import("./route");
+
+    const response = await GET(
+      new Request("https://app.example/auth/callback?code=used-or-invalid") as never,
+    );
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.example/?authError=invalid_link",
+    );
+    expect(
+      response.headers.getSetCookie().some((cookie) => cookie.includes("sb-familyapp-auth-token=")),
+    ).toBe(false);
+  });
 });
 
 function encodeSupabaseCookieValue(value: string): string {

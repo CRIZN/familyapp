@@ -45,6 +45,7 @@ documents, update the tree and document index below in the same change.
 |       |-- 0004_snapshot.json
 |       `-- _journal.json
 |-- src/
+|   |-- proxy.ts
 |   |-- app/
 |   |   |-- page.tsx
 |   |   |-- layout.tsx
@@ -93,6 +94,8 @@ documents, update the tree and document index below in the same change.
 |   |-- features/
 |   |   |-- auth/
 |   |   |   |-- locked-app-screen.tsx
+|   |   |   |-- magic-link-params.ts
+|   |   |   |-- magic-link-params.test.ts
 |   |   |   `-- private-app-denied-screen.tsx
 |   |   |-- child/child-view-page.tsx
 |   |   |-- household/
