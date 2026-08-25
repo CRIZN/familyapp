@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 
 import { createSupabaseServerClient } from "@/lib/supabase/server";
+import { resolveAuthCallbackUrl } from "@/server/auth/callback-origin";
 
 export type MagicLinkState = {
   message: string | null;
@@ -62,23 +63,21 @@ export async function signOutParent(): Promise<void> {
 
 async function getAuthCallbackUrl(): Promise<string> {
   const headerList = await headers();
-  const origin = headerList.get("origin") ?? getConfiguredSiteOrigin();
 
-  return new URL("/auth/callback", origin).toString();
-}
-
-function getConfiguredSiteOrigin(): string {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL?.trim();
-  if (siteUrl) {
-    return siteUrl;
-  }
-
-  const vercelUrl = process.env.VERCEL_URL?.trim();
-  if (vercelUrl) {
-    return `https://${vercelUrl}`;
-  }
-
-  return "http://localhost:3000";
+  return resolveAuthCallbackUrl(
+    {
+      forwardedHost: headerList.get("x-forwarded-host"),
+      forwardedProto: headerList.get("x-forwarded-proto"),
+      host: headerList.get("host"),
+      origin: headerList.get("origin"),
+    },
+    {
+      siteUrl: process.env.NEXT_PUBLIC_SITE_URL,
+      vercelBranchUrl: process.env.VERCEL_BRANCH_URL,
+      vercelEnv: process.env.VERCEL_ENV,
+      vercelUrl: process.env.VERCEL_URL,
+    },
+  );
 }
 
 function isValidEmail(email: string): boolean {
