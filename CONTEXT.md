@@ -30,7 +30,9 @@ documents, update the tree and document index below in the same change.
 |       |-- 0005-nextjs-supabase-vercel-stack.md
 |       |-- 0006-point-ledger-is-authoritative.md
 |       |-- 0007-parent-view-command-surface.md
-|       `-- 0008-private-single-household-production-launch.md
+|       |-- 0008-private-single-household-production-launch.md
+|       |-- 0009-automatic-calendar-sync-freshness.md
+|       `-- 0010-family-display-parent-kiosk.md
 |-- drizzle/
 |   |-- 0000_reflective_dracula.sql
 |   |-- 0001_bright_preak.sql
@@ -65,7 +67,8 @@ documents, update the tree and document index below in the same change.
 |   |   |   |-- household/page.tsx
 |   |   |   |-- points/page.tsx
 |   |   |   |-- rewards/page.tsx
-|   |   |   `-- weekly-review/page.tsx
+|   |   |   |-- weekly-review/page.tsx
+|   |   |   `-- display/page.tsx
 |   |   `-- setup/page.tsx
 |   |-- components/
 |   |   |-- app-shell.tsx
@@ -88,6 +91,10 @@ documents, update the tree and document index below in the same change.
 |   |   |-- points.test.ts
 |   |   |-- rewards.ts
 |   |   |-- rewards.test.ts
+|   |   |-- dates.ts
+|   |   |-- dates.test.ts
+|   |   |-- family-display.ts
+|   |   |-- family-display.test.ts
 |   |   |-- v1-smoke.test.ts
 |   |   |-- weekly-review.ts
 |   |   `-- weekly-review.test.ts
@@ -101,6 +108,11 @@ documents, update the tree and document index below in the same change.
 |   |   |-- household/
 |   |   |   |-- household-setup-page.tsx
 |   |   |   `-- local-household-store.ts
+|   |   |-- display/
+|   |   |   |-- family-display-clock.tsx
+|   |   |   |-- family-display-page.tsx
+|   |   |   |-- family-display-refresh.tsx
+|   |   |   `-- family-display-route.test.ts
 |   |   `-- parent/
 |   |       |-- parent-view-page.tsx
 |   |       `-- parent-workflows.test.ts
@@ -161,8 +173,11 @@ gate, first-run setup, Parent allowlist, Child PIN sessions, chores/approvals/
 goals/rewards/points persistence, parent aggregation, Calendar Connection,
 sync engine, and automatic Calendar Sync triggers.
 
+P20 adds Family Display Mode: a Parent-authorized read-only kiosk at
+`/parent/display` for today's Agenda and Chores.
+
 Parked ideas remain in [docs/FUTURE_FEATURES.md](docs/FUTURE_FEATURES.md):
-chore templates and Family Display Mode.
+chore templates and a later Family Display token.
 
 ## Important Documents
 
@@ -187,8 +202,8 @@ Supabase, Vercel, Drizzle, Tailwind, local UI primitives, lucide-react, Vitest,
 and future end-to-end testing direction.
 
 **[docs/FUTURE_FEATURES.md](docs/FUTURE_FEATURES.md)**:
-Ideas intentionally left out of v1, such as Chore templates and Family Display
-Mode.
+Ideas intentionally left out of v1 or parked after a first slice, such as Chore
+templates and a later Family Display token.
 
 ## Architecture Decision Records
 
@@ -228,6 +243,10 @@ fresh Supabase-backed V1 schema.
 **[docs/adr/0009-automatic-calendar-sync-freshness.md](docs/adr/0009-automatic-calendar-sync-freshness.md)**:
 Calendar Sync runs on save, stale Calendar page loads, and scheduled cron while
 keeping the Family Calendar feed URL server-side.
+
+**[docs/adr/0010-family-display-parent-kiosk.md](docs/adr/0010-family-display-parent-kiosk.md)**:
+Family Display Mode is a Parent-authorized read-only kiosk at `/parent/display`,
+not a scaled Today screen or a new display token.
 
 ## Language
 
@@ -421,6 +440,11 @@ _Avoid_: Weekly digest, report, planning session
 The Parent-facing daily command surface for understanding the Household's current situation and taking urgent actions.
 Parent View is not the full management console for every create, edit, archive, or configuration workflow.
 _Avoid_: Admin view, admin panel, management console, settings page
+
+**Family Display**:
+The Parent-authorized read-only kitchen tablet or wall screen for today's Agenda and Chores.
+Family Display is not Parent View and does not include approvals, forms, or Calendar feed controls.
+_Avoid_: Kiosk mode, wall dashboard, public display
 
 **Child View**:
 The app experience for a Child to see assigned Chores and Goals, submit progress, view their Point Balance, and request Rewards.

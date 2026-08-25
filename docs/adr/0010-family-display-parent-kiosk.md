@@ -1,0 +1,3 @@
+# Family Display Mode is a Parent-authorized kiosk
+
+Family Display Mode is a read-only kitchen tablet or wall screen at `/parent/display`. It uses the same Parent allowlist and Supabase magic-link gate as other `/parent/*` routes. Scaling Parent Today with larger CSS was rejected because Today is a command surface with approvals and forms. A dedicated display PIN or token was rejected for v1 because it would add a new auth surface. A later dedicated display token can still be considered if a tablet needs to stay signed in without a Parent session. The display never fetches the Family Calendar feed, never echoes the feed URL, and does not persist state in `localStorage`.

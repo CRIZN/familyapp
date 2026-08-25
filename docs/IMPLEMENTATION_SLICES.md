@@ -561,3 +561,30 @@ Wire the sync engine into the app lifecycle so Calendar Sync runs automatically 
 - [x] Children cannot trigger Calendar Sync controls and only see synced Agenda results.
 - [x] Sync failures show a safe warning with last attempted sync time and a Parent Sync Now action while keeping the last successful Agenda visible.
 - [x] Tests cover save-triggered sync, stale-load sync threshold, scheduled sync route behavior, Parent-only Sync Now authorization, Child exclusion, and safe failure messaging.
+
+## Household Awareness Follow-up Slices
+
+These slices add household awareness surfaces that stay outside the Parent Today command surface.
+
+### P20. Family Display Mode - Done
+
+**Blocked by**: P13, P19
+
+**User stories covered**:
+- As a Parent, I can open a dedicated, read-only household display on a kitchen tablet or wall screen.
+- As a family, I can see today's Family Calendar Agenda and today's Chores from across the kitchen.
+- As a Parent, I can leave the tablet on this screen without exposing approvals, forms, or Calendar feed secrets.
+
+**What to build**:
+Add a Parent-authorized kiosk route at `/parent/display` that assembles a `FamilyDisplaySnapshot` from existing Household, Agenda, and Chore board helpers. Keep Family Display out of `parent-view-page.tsx`. Hide the normal Parent workflow nav and offer Exit back to `/parent`. Auto-refresh at least every 60 seconds.
+
+**Acceptance criteria**:
+- [x] `/parent/display` uses the same Parent gate as other `/parent/*` routes and does not use Child PIN auth.
+- [x] The display is read-only: no approve, submit, edit, Sync Now, or feed URL controls.
+- [x] Chrome is limited to household name, a large current time and date, and Exit back to `/parent`.
+- [x] Today's Agenda shows all-day Events above timed Events, with title, time or all-day, location when present, and Participant names or all-Household.
+- [x] Today's Chores are grouped by Child and include Overdue, with wall statuses for due, overdue, pending review, and done.
+- [x] The snapshot uses the same date-key helper as Parent Today and never includes the Family Calendar feed URL.
+- [x] Empty states cover no calendar connected, no Events today, and no chores today.
+- [x] The display auto-refreshes at least every 60 seconds without a tap.
+- [x] Tests cover snapshot assembly, Child grouping, overdue vs today Chores, mixed all-day and timed Agenda, and feed URL exclusion.
