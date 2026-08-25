@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Home, ShieldCheck, UserRound } from "lucide-react";
+import { Home, Monitor, ShieldCheck, UserRound } from "lucide-react";
 
 export function AppShell({
   children,
@@ -32,6 +32,15 @@ export function AppShell({
               <ShieldCheck aria-hidden="true" className="h-4 w-4" />
               Parent View
             </Link>
+            {tone === "parent" ? (
+              <Link
+                className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
+                href="/parent/display"
+              >
+                <Monitor aria-hidden="true" className="h-4 w-4" />
+                Family Display
+              </Link>
+            ) : null}
             <Link
               className="inline-flex min-h-9 items-center gap-2 rounded-md px-3 py-2 text-sm font-medium hover:bg-muted"
               href="/child"

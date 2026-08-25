@@ -108,20 +108,24 @@ describe("Calendar", () => {
       calendarName: "Family",
       sourceUrl: "webcal://example.test/family.ics",
     });
-    const synced = syncAppleCalendarEvents(configured, [
-      {
-        appleEventId: "apple-2",
-        title: "Dentist",
-        startsAt: "2026-06-24T15:00:00.000Z",
-        endsAt: "2026-06-24T16:00:00.000Z",
-      },
-      {
-        appleEventId: "apple-1",
-        title: "Breakfast club",
-        startsAt: "2026-06-24T13:00:00.000Z",
-        endsAt: "2026-06-24T14:00:00.000Z",
-      },
-    ]);
+    const synced = syncAppleCalendarEvents(
+      configured,
+      [
+        {
+          appleEventId: "apple-2",
+          title: "Dentist",
+          startsAt: "2026-06-24T15:00:00.000Z",
+          endsAt: "2026-06-24T16:00:00.000Z",
+        },
+        {
+          appleEventId: "apple-1",
+          title: "Breakfast club",
+          startsAt: "2026-06-24T13:00:00.000Z",
+          endsAt: "2026-06-24T14:00:00.000Z",
+        },
+      ],
+      "2026-06-23T12:00:00.000Z",
+    );
     const dentist = synced.calendarEvents.find(
       (event) => event.appleEventId === "apple-2",
     )!;
@@ -156,26 +160,30 @@ describe("Calendar", () => {
       calendarName: "Family",
       sourceUrl: "webcal://example.test/family.ics",
     });
-    const synced = syncAppleCalendarEvents(configured, [
-      {
-        appleEventId: "apple-1",
-        title: "Family dinner",
-        startsAt: "2026-06-24T23:00:00.000Z",
-        endsAt: "2026-06-25T00:00:00.000Z",
-      },
-      {
-        appleEventId: "apple-2",
-        title: "Ada piano",
-        startsAt: "2026-06-25T18:00:00.000Z",
-        endsAt: "2026-06-25T18:30:00.000Z",
-      },
-      {
-        appleEventId: "apple-3",
-        title: "Grace soccer",
-        startsAt: "2026-06-25T20:00:00.000Z",
-        endsAt: "2026-06-25T21:00:00.000Z",
-      },
-    ]);
+    const synced = syncAppleCalendarEvents(
+      configured,
+      [
+        {
+          appleEventId: "apple-1",
+          title: "Family dinner",
+          startsAt: "2026-06-24T23:00:00.000Z",
+          endsAt: "2026-06-25T00:00:00.000Z",
+        },
+        {
+          appleEventId: "apple-2",
+          title: "Ada piano",
+          startsAt: "2026-06-25T18:00:00.000Z",
+          endsAt: "2026-06-25T18:30:00.000Z",
+        },
+        {
+          appleEventId: "apple-3",
+          title: "Grace soccer",
+          startsAt: "2026-06-25T20:00:00.000Z",
+          endsAt: "2026-06-25T21:00:00.000Z",
+        },
+      ],
+      "2026-06-23T12:00:00.000Z",
+    );
     const adaEvent = synced.calendarEvents.find(
       (event) => event.appleEventId === "apple-2",
     )!;

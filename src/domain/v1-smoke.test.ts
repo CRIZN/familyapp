@@ -52,15 +52,19 @@ describe("v1 smoke path", () => {
       calendarName: "Family",
       sourceUrl: "webcal://example.test/family",
     });
-    household = syncAppleCalendarEvents(household, [
-      {
-        appleEventId: "apple-soccer-practice",
-        title: "Soccer practice",
-        startsAt: `${today}T16:00:00.000Z`,
-        endsAt: `${today}T17:00:00.000Z`,
-        location: "Field 2",
-      },
-    ]);
+    household = syncAppleCalendarEvents(
+      household,
+      [
+        {
+          appleEventId: "apple-soccer-practice",
+          title: "Soccer practice",
+          startsAt: `${today}T16:00:00.000Z`,
+          endsAt: `${today}T17:00:00.000Z`,
+          location: "Field 2",
+        },
+      ],
+      `${today}T12:00:00.000Z`,
+    );
     household = updateEventParticipants(household, {
       eventId: household.calendarEvents[0].id,
       participantChildIds: [childId],

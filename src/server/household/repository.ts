@@ -7,17 +7,19 @@ import {
   syncAppleCalendarEvents,
   type AppleCalendarEventInput,
 } from "@/domain/calendar";
-import type { Chore } from "@/domain/chores";
+import type { Chore, ChoreSubmission } from "@/domain/chores";
 import type { Household } from "@/domain/household";
 import { getDatabase, type AppDatabase } from "@/server/db/client";
 import {
   calendarConnections,
   calendarEvents,
   children,
+  choreSubmissions,
   chores,
   eventEnrichments,
   households,
   parents,
+  skippedChoreOccurrences,
 } from "@/server/db/schema";
 
 export type HouseholdRepository = {
@@ -414,8 +416,16 @@ async function getHouseholdById(
     return null;
   }
 
-  const [parentRows, childRows, choreRows, connectionRows, eventRows, enrichmentRows] =
-    await Promise.all([
+  const [
+    parentRows,
+    childRows,
+    choreRows,
+    connectionRows,
+    eventRows,
+    enrichmentRows,
+    submissionRows,
+    skippedRows,
+  ] = await Promise.all([
     db
       .select()
       .from(parents)
@@ -445,6 +455,16 @@ async function getHouseholdById(
       .select()
       .from(eventEnrichments)
       .where(eq(eventEnrichments.householdId, household.id)),
+    db
+      .select()
+      .from(choreSubmissions)
+      .where(eq(choreSubmissions.householdId, household.id))
+      .orderBy(asc(choreSubmissions.occurrenceDate), asc(choreSubmissions.submittedAt)),
+    db
+      .select()
+      .from(skippedChoreOccurrences)
+      .where(eq(skippedChoreOccurrences.householdId, household.id))
+      .orderBy(asc(skippedChoreOccurrences.occurrenceDate)),
   ]);
 
   const connection = connectionRows[0];
@@ -482,7 +502,7 @@ async function getHouseholdById(
       pointBalance: child.pointBalance,
       sessionVersion: child.sessionVersion,
     })),
-    choreSubmissions: [],
+    choreSubmissions: submissionRows.map(mapChoreSubmissionRow),
     chores: choreRows.map((chore) => ({
       childId: chore.childId,
       createdAt: chore.createdAt.toISOString(),
@@ -516,7 +536,27 @@ async function getHouseholdById(
     rewardContributions: [],
     rewardRequests: [],
     rewards: [],
-    skippedChoreOccurrences: [],
+    skippedChoreOccurrences: skippedRows.map((occurrence) => ({
+      childId: occurrence.childId,
+      choreId: occurrence.choreId,
+      id: occurrence.id,
+      occurrenceDate: occurrence.occurrenceDate,
+      skippedAt: occurrence.skippedAt.toISOString(),
+    })),
     updatedAt: household.updatedAt.toISOString(),
+  };
+}
+
+function mapChoreSubmissionRow(
+  submission: typeof choreSubmissions.$inferSelect,
+): ChoreSubmission {
+  return {
+    childId: submission.childId,
+    choreId: submission.choreId,
+    id: submission.id,
+    occurrenceDate: submission.occurrenceDate,
+    reviewedAt: submission.reviewedAt?.toISOString(),
+    status: submission.status,
+    submittedAt: submission.submittedAt.toISOString(),
   };
 }
