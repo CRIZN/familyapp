@@ -1,6 +1,6 @@
 import { getParentAgenda, type AgendaEvent } from "./calendar";
 import { getChildChoreBoard, type ChoreOccurrence } from "./chores";
-import { getTodayDateKey } from "./dates";
+import { formatTime, getTodayDateKey } from "./dates";
 import type { Household } from "./household";
 
 export type FamilyDisplayChoreStatus =
@@ -186,13 +186,6 @@ function getCalendarStatus(household: Household): FamilyDisplayCalendarStatus {
     calendarName: connection.calendarName,
     lastSuccessfulSyncAt: connection.lastSuccessfulSyncAt ?? null,
   };
-}
-
-function formatTime(value: string): string {
-  return new Intl.DateTimeFormat("en", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
 }
 
 function assertDateKey(value: string): void {

@@ -110,10 +110,12 @@ describe("Family Display snapshot", () => {
     });
     expect(snapshot.agenda[1]).toMatchObject({
       title: "Piano lesson",
+      timeLabel: "11:00 AM",
       participantLabel: "Ada",
     });
     expect(snapshot.agenda[2]).toMatchObject({
       title: "Soccer practice",
+      timeLabel: "3:00 PM",
       location: "Field 2",
       participantLabel: "All Household",
     });
@@ -233,6 +235,32 @@ describe("Family Display snapshot", () => {
       calendarName: "Family",
       lastSuccessfulSyncAt: expect.any(String),
     });
+  });
+
+  it("labels a noon Mountain event instead of the UTC hour", async () => {
+    const household = await createTestHousehold();
+    const connected = connectFamilyCalendar(household);
+    const synced = syncAppleCalendarEvents(
+      connected,
+      [
+        {
+          appleEventId: "olivia-dentist",
+          title: "Olivia dentist",
+          startsAt: "2026-08-25T18:00:00.000Z",
+          endsAt: "2026-08-25T19:00:00.000Z",
+        },
+      ],
+      "2026-08-25T12:00:00.000Z",
+    );
+
+    const snapshot = assembleFamilyDisplaySnapshot(synced, "2026-08-25");
+
+    expect(snapshot.agenda).toEqual([
+      expect.objectContaining({
+        title: "Olivia dentist",
+        timeLabel: "12:00 PM",
+      }),
+    ]);
   });
 
   it("uses the supplied date key instead of inventing a separate today", async () => {

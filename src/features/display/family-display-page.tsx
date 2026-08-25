@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CalendarDays, ListChecks } from "lucide-react";
 
+import { formatOptionalDateTime } from "@/domain/dates";
 import type {
   FamilyDisplayCalendarStatus,
   FamilyDisplayChoreStatus,
@@ -198,13 +199,6 @@ function calendarStatusLine(status: FamilyDisplayCalendarStatus): string {
     return `${status.calendarName} is connected.`;
   }
   return `${status.calendarName} last synced ${formatOptionalDateTime(status.lastSuccessfulSyncAt)}.`;
-}
-
-function formatOptionalDateTime(value: string): string {
-  return new Intl.DateTimeFormat("en", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
 }
 
 function choreStatusClass(status: FamilyDisplayChoreStatus): string {
