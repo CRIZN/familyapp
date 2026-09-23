@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import { getParentBriefing } from "@/domain/briefing";
+import { getTodayDateKey } from "@/domain/dates";
 import { getParentWeeklyReview } from "@/domain/weekly-review";
 import type { AgendaEvent, CalendarConnection } from "@/domain/calendar";
 import { getParentAgenda, updateEventParticipants } from "@/domain/calendar";
@@ -2816,10 +2817,6 @@ function BriefingLine({ label, value }: { label: string; value: number }) {
       <span className="font-semibold">{value}</span>
     </div>
   );
-}
-
-function getTodayDateKey(): string {
-  return new Date().toISOString().slice(0, 10);
 }
 
 function getTomorrowDateKey(today: string): string {

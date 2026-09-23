@@ -7,11 +7,25 @@ import {
 } from "./dates";
 
 describe("getTodayDateKey", () => {
-  it("uses the same ISO date-key helper as Parent Today", () => {
-    const now = new Date("2026-06-23T15:30:00.000Z");
+  it("stays on the Denver date after UTC midnight during Mountain evening", () => {
+    const eveningInDenver = new Date("2026-08-26T00:30:00.000Z");
 
-    expect(getTodayDateKey(now)).toBe("2026-06-23");
-    expect(getTodayDateKey(now)).toBe(now.toISOString().slice(0, 10));
+    expect(eveningInDenver.toISOString().slice(0, 10)).toBe("2026-08-26");
+    expect(getTodayDateKey(eveningInDenver)).toBe("2026-08-25");
+  });
+
+  it("stays on the Denver date during Mountain morning on the same UTC day", () => {
+    const morningInDenver = new Date("2026-08-25T12:00:00.000Z");
+
+    expect(morningInDenver.toISOString().slice(0, 10)).toBe("2026-08-25");
+    expect(getTodayDateKey(morningInDenver)).toBe("2026-08-25");
+  });
+
+  it("uses the Denver date in winter MST after UTC midnight", () => {
+    const eveningInDenver = new Date("2026-01-16T00:30:00.000Z");
+
+    expect(eveningInDenver.toISOString().slice(0, 10)).toBe("2026-01-16");
+    expect(getTodayDateKey(eveningInDenver)).toBe("2026-01-15");
   });
 });
 

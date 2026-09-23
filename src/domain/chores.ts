@@ -1,3 +1,4 @@
+import { getTodayDateKey } from "./dates";
 import type {
   ChildProfile,
   ChildWin,
@@ -165,7 +166,7 @@ export function submitChore(
   }
   assertDate(input.occurrenceDate);
 
-  const today = input.today ?? toDateKey(new Date());
+  const today = input.today ?? getTodayDateKey();
   const board = getChildChoreBoard(normalized, input.childId, today);
   const occurrence = [...board.overdue, ...board.today].find(
     (candidate) =>
@@ -207,7 +208,7 @@ export function submitChore(
 export function getChildChoreBoard(
   household: Household,
   childId: string,
-  today: string = toDateKey(new Date()),
+  today: string = getTodayDateKey(),
 ): ChildChoreBoard {
   const child = assertChildBelongsToHousehold(household, childId);
   assertDate(today);

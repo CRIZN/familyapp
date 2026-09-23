@@ -10,6 +10,7 @@ import {
   createChore,
   submitChore,
 } from "./chores";
+import { getTodayDateKey } from "./dates";
 import { assembleFamilyDisplaySnapshot } from "./family-display";
 import { createHousehold, type Household } from "./household";
 
@@ -284,6 +285,39 @@ describe("Family Display snapshot", () => {
     expect(snapshot.dateKey).toBe("2026-06-25");
     expect(snapshot.agenda.map((event) => event.title)).toEqual([
       "Chosen day Event",
+    ]);
+  });
+
+  it("keeps Display on the Denver date after UTC midnight", async () => {
+    const household = await createTestHousehold();
+    const connected = connectFamilyCalendar(household);
+    const synced = syncAppleCalendarEvents(
+      connected,
+      [
+        {
+          appleEventId: "denver-today",
+          title: "Piano lesson",
+          startsAt: "2026-08-25T17:00:00.000Z",
+          endsAt: "2026-08-25T18:00:00.000Z",
+        },
+        {
+          appleEventId: "utc-tomorrow",
+          title: "Tomorrow morning",
+          startsAt: "2026-08-26T15:00:00.000Z",
+          endsAt: "2026-08-26T16:00:00.000Z",
+        },
+      ],
+      "2026-08-25T12:00:00.000Z",
+    );
+
+    const snapshot = assembleFamilyDisplaySnapshot(
+      synced,
+      getTodayDateKey(new Date("2026-08-26T00:30:00.000Z")),
+    );
+
+    expect(snapshot.dateKey).toBe("2026-08-25");
+    expect(snapshot.agenda.map((event) => event.title)).toEqual([
+      "Piano lesson",
     ]);
   });
 });

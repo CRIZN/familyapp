@@ -1,6 +1,7 @@
 import "server-only";
 
 import { submitChore, type ChoreSubmission } from "@/domain/chores";
+import { getTodayDateKey } from "@/domain/dates";
 import type { Household } from "@/domain/household";
 
 import type { ChildSessionClaims } from "./session";
@@ -44,7 +45,7 @@ export async function submitChoreForChild(
       childId: context.session.childId,
       choreId: input.choreId,
       occurrenceDate: input.occurrenceDate,
-      today: dependencies.getTodayDateKey?.() ?? toDateKey(new Date()),
+      today: dependencies.getTodayDateKey?.() ?? getTodayDateKey(),
     });
     const createdSubmission = findCreatedPendingSubmission(
       context.household,
@@ -72,10 +73,6 @@ export async function submitChoreForChild(
       status: "error",
     };
   }
-}
-
-function toDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }
 
 function findCreatedPendingSubmission(

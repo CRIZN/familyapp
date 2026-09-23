@@ -1,6 +1,7 @@
 import type { AgendaDay, AgendaEvent } from "./calendar";
 import { getParentAgenda } from "./calendar";
 import { getChildChoreBoard } from "./chores";
+import { getTodayDateKey } from "./dates";
 import { getChildGoalBoard } from "./goals";
 import type { Household } from "./household";
 import type { RewardRequestSummary } from "./rewards";
@@ -49,7 +50,7 @@ export type WeeklyReviewReward = {
 
 export function getParentWeeklyReview(
   household: Household,
-  today: string = toDateKey(new Date()),
+  today: string = getTodayDateKey(),
 ): ParentWeeklyReview {
   assertDate(today);
   const endsOn = toDateKey(addDays(parseDateKey(today), 6));
